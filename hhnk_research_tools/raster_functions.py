@@ -225,7 +225,8 @@ def create_new_raster_file(
             check_create_new_file(output_file=file_name, overwrite=overwrite, check_is_file=check_is_file)
             or driver == "MEM"
         ):
-            target_ds = gdal.GetDriverByName(driver).Create(
+            gdal_driver = gdal.GetDriverByName(driver)
+            target_ds = gdal_driver.Create(
                 str(file_name),
                 meta.x_res,
                 meta.y_res,

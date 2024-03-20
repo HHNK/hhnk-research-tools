@@ -92,10 +92,11 @@ def sql_construct_select_query(table_name, columns=None) -> str:
 
 # TODO REMOVE
 def create_sqlite_connection(database_path):
-    """Create connection to database. On windows with conda envs this requires the mod_spatialaite extension
+    r"""Create connection to database. On windows with conda envs this requires the mod_spatialaite extension
     to be installed explicitly. The location of this extension is stored in
     hhnk_research_tools.variables.MOD_SPATIALITE_PATH (C:\ProgramData\Anaconda3\mod_spatialite-5.0.1-win-amd64)
-    and can be downloaded from http://www.gaia-gis.it/gaia-sins/windows-bin-amd64/"""
+    and can be downloaded from http://www.gaia-gis.it/gaia-sins/windows-bin-amd64/
+    """
     try:
         conn = sqlite3.connect(database_path)
         conn.enable_load_extension(True)
@@ -123,9 +124,7 @@ def create_sqlite_connection(database_path):
 
 # TODO REMOVE
 def sql_table_exists(database_path, table_name):
-    """
-    Checks if a table name exists in the specified database
-    """
+    """Check if a table name exists in the specified database"""
     try:
         query = f"""PRAGMA table_info({table_name})"""
         df = execute_sql_selection(query=query, database_path=database_path)
@@ -155,6 +154,7 @@ def execute_sql_selection(query, conn=None, database_path=None, **kwargs) -> pd.
             conn.close()
 
 
+# TODO REMOVE
 def execute_sql_changes(query, database=None, conn=None):
     """
     Takes a query that changes the database and tries

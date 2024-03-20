@@ -67,6 +67,10 @@ class Folder(BasePath):
                 return
         self.path.mkdir(parents=parents, exist_ok=True)
 
+    def mkdir(self, parents=False, verbose=False):
+        # TODO create should probably be renamed to mkdir for easier use.
+        self.create(parents=parents, verbose=verbose)
+
     def find_ext(self, ext: list):
         """Find files with a certain extension"""
         if type(ext) == str:
@@ -108,11 +112,12 @@ class Folder(BasePath):
         return new_file
 
     def add_file(self, objectname, filename):
-        """"""
+        """Add file as attribute. type is determined by filename extension."""
         new_file = self.full_path(filename)
 
         self.files[objectname] = new_file
         setattr(self, objectname, new_file)
+        return new_file
 
     def unlink_contents(self, names=[], rmfiles=True, rmdirs=False):
         """Unlink all content when names is an empty list.

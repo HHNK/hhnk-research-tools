@@ -14,6 +14,8 @@ import hhnk_research_tools as hrt
 from hhnk_research_tools.folder_file_classes.file_class import File
 from hhnk_research_tools.general_functions import get_functions, get_variables
 
+gdal.UseExceptions()
+
 
 class Raster(File):
     def __init__(self, base, min_block_size=1024):
@@ -93,9 +95,7 @@ class Raster(File):
         if super().exists():
             if not self.source_set:
                 self.source = True  # call source.setter
-                return self.open_gdal_source_read()
-            else:
-                return self.open_gdal_source_read()
+            return self.open_gdal_source_read()
         else:
             return False
 
@@ -103,7 +103,8 @@ class Raster(File):
     def source(self, value):
         """If source does not exist it will not be set.
         Bit clunky. But it should work that if it exists it will only be set once.
-        Otherwise it will not set."""
+        Otherwise it will not set.
+        """
         if super().exists():  # cannot use self.exists here.
             # Needs to be first otherwise we end in a loop when settings metadata/nodata/band_count
             self.source_set = True
@@ -122,9 +123,7 @@ class Raster(File):
         return gdal.Open(self.base, gdal.GA_ReadOnly)
 
     def open_gdal_source_write(self):
-        """
-        open source with write access
-        """
+        """Open source with write access"""
         return gdal.Open(self.base, gdal.GA_Update)
 
     def unlink(self, missing_ok=True):
@@ -173,10 +172,14 @@ class Raster(File):
     def pixelarea(self):
         return self.metadata.pixelarea
 
-    def statistics(self, approve_ok=True, force=True):
-        """approve_ok: reads stats from xml if available.
+    def statistics(self, approve_ok=True, force=True) -> dict:
+        """
+        Parameters
+        ----------
+        approve_ok: reads stats from xml if available.
         force: calculates stats, might be slow.
-        returns [min, max, mean, std]"""
+        returns [min, max, mean, std]
+        """
         raster_src = self.open_gdal_source_read()
         stats = raster_src.GetRasterBand(1).GetStatistics(approve_ok, force)  # [min, max, mean, std]
         d = 6  # decimals
@@ -364,17 +367,19 @@ class Raster(File):
     #     tifs_list = [str(i) for i in raster_folder.find_ext(["tif", "tiff"])]
 
     def write_array(self, array, window, band=None):
-        """
-        Note that providing the band may be faster.
+        """Note that providing the band may be faster.
 
         array (np.array([])): block or raster array
         window (list): [x0, y0, xsize, ysize]
-        x0, y0 is left top corner!!"""
+        x0, y0 is left top corner!!
+        """
         flushband = False
         if band is None:
             gdal_src = self.open_gdal_source_write()
             band = gdal_src.GetRasterBand(1)
             flushband = True
+        else:
+            print("At this point just use band.WriteArray, no need for this function.")
 
         band.WriteArray(array, xoff=window[0], yoff=window[1])
 
@@ -438,7 +443,7 @@ variables: {get_variables(self)}
         self.source = None  # Update raster now it exists
 
     def sum(self):
-        """calculate sum of raster"""
+        """Calculate sum of raster"""
         raster_sum = 0
         for window, block in self:
             block[block == self.nodata] = 0
@@ -456,9 +461,11 @@ class RasterMetadata:
     """
 
     def __init__(self, gdal_src=None, res: float = None, bounds_dict=None, proj="epsg:28992"):
-        """gdal_src = gdal.Open(raster_source)
+        """
+        gdal_src = gdal.Open(raster_source)
         bounds = {"minx":, "maxx":, "miny":, "maxy":}
-        Projection only implemented for epsg:28992"""
+        Projection only implemented for epsg:28992
+        """
 
         if gdal_src is not None:
             self.proj = gdal_src.GetProjection()
@@ -527,7 +534,7 @@ class RasterMetadata:
 
     @property
     def bbox_gdal(self):
-        """gdal takes bbox as list, for instance in vrt creation."""
+        """Gdal takes bbox as list, for instance in vrt creation."""
         return [self.x_min, self.y_min, self.x_max, self.y_max]
 
     @property
@@ -548,7 +555,7 @@ class RasterMetadata:
 
     def _update_georef(self, resolution):
         def res_str(georef_i):
-            """make sure negative values are kept."""
+            """Make sure negative values are kept."""
             if georef_i == self.pixel_width:
                 return resolution
             if georef_i == -self.pixel_width:
@@ -600,8 +607,9 @@ variables: {variables}"""
 {repr_str}"""
 
     def __getitem__(self, item):
-        """metadata was a dict previously. This makes it that items from
-        the class can be accessed like a dict."""
+        """Metadata was a dict previously. This makes it that items from
+        the class can be accessed like a dict.
+        """
         return getattr(self, item)
 
 

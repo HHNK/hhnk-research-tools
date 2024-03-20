@@ -19,10 +19,11 @@ class Sqlite(File):
             return None
 
     def create_sqlite_connection(self):
-        """Create connection to database. On windows with conda envs this requires the mod_spatialaite extension
+        r"""Create connection to database. On windows with conda envs this requires the mod_spatialaite extension
         to be installed explicitly. The location of this extension is stored in
         hhnk_research_tools.variables.MOD_SPATIALITE_PATH (C:\ProgramData\Anaconda3\mod_spatialite-5.0.1-win-amd64)
-        and can be downloaded from http://www.gaia-gis.it/gaia-sins/windows-bin-amd64/"""
+        and can be downloaded from http://www.gaia-gis.it/gaia-sins/windows-bin-amd64/
+        """
         try:
             conn = sqlite3.connect(self.path)
             conn.enable_load_extension(True)
@@ -48,7 +49,7 @@ class Sqlite(File):
             raise e from None
 
     def read_table(self, table_name: str, id_col: str = None, columns: list = []):
-        """read table as (geo)dataframe. If there is a geometry column
+        """Read table as (geo)dataframe. If there is a geometry column
         then it will load as a gdf in epsg 28992.
         Run .list_tables to get an overview over available (v2) tables
         table_name: table in sqlite
@@ -107,10 +108,10 @@ class Sqlite(File):
 
     def execute_sql_changes(self, query, conn=None):
         """
-        Takes a query that changes the database and tries
+        Take a query that changes the database and try
         to execute it. On success, changes are committed.
-        On a failure, rolls back to the state before
-        the query was executed that caused the error
+        On a failure, roll back to the state before
+        execution.
 
         The explicit begin and commit statements are necessary
         to make sure we can roll back the transaction
@@ -132,9 +133,7 @@ class Sqlite(File):
 
     # TODO was sql_table_exists
     def sql_table_info(self, table_name, conn=None):
-        """
-        Returns table info if it exists
-        """
+        """Return table info if it exists"""
         query = f"""PRAGMA table_info({table_name})"""
         df = self.execute_sql_selection(query=query, conn=conn)
         return df

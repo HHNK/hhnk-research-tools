@@ -1,10 +1,9 @@
 import time
 
-from threedi_api_client.openapi import ApiException
-
 
 def call_threedi_api(func, max_retries=60, **kwargs):
-    """add something to simulation, if apiexcetion is raised sleep on it and try again."""
+    """Add something to simulation, if apiexcetion is raised sleep on it and try again."""
+    from threedi_api_client.openapi import ApiException  # Import here so its not a forced dependency
 
     for i in range(max_retries):
         try:

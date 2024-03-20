@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from hhnk_research_tools.gis.raster import Raster, RasterMetadata  # noqa: F401
 
 if TYPE_CHECKING:
-    # TODO waarom dee ik ookalweer typechecking
+    # TODO zou moeten werken met typehints van imports. Maar vraag is maar of het werkt.
     import hhnk_research_tools as hrt
 
 import hhnk_research_tools.threedi as threedi
