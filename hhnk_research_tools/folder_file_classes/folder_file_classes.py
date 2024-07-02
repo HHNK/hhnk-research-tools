@@ -158,6 +158,8 @@ class Folder(BasePath):
                 print(pathname, e)
 
     def __repr__(self):
+        #FIXME dit gaat mis bij @properties. hrt.ThreediResult aggregate_grid toegevoegd en die crashed de kernel
+        # Het lijkt me dat de paths de property opent, zonder dat we dit willen.
         paths = [i for i in get_variables(self, stringify=False) if issubclass(type(getattr(self, i)), BasePath)]
         folders = [i for i in paths if isinstance(getattr(self, i), Folder)]
         files = [i for i in paths if i not in folders]

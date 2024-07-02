@@ -59,6 +59,7 @@ from hhnk_research_tools.raster_functions import (
 )
 from hhnk_research_tools.sql_functions import (
     create_sqlite_connection,
+    database_to_gdf,
     execute_sql_changes,
     execute_sql_selection,
     sql_construct_select_query,

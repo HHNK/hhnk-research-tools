@@ -1,11 +1,16 @@
 import os
+import re
 import sqlite3
 
 import geopandas as gpd
+import oracledb
 import pandas as pd
+from shapely import wkt
 
 from hhnk_research_tools.dataframe_functions import df_convert_to_gdf
 from hhnk_research_tools.variables import DEF_SRC_CRS, MOD_SPATIALITE_PATH
+
+# %%
 
 
 # TODO was: create_update_case_statement
@@ -280,8 +285,9 @@ def sqlite_table_to_gdf(query, id_col, to_gdf=True, conn=None, database_path=Non
     """
     if (conn is None and database_path is None) or (conn is not None and database_path is not None):
         raise Exception("Provide exactly one of conn or database_path")
+
+    kill_conn = conn is None
     try:
-        kill_conn = conn is None
         if conn is None:
             conn = create_sqlite_connection(database_path=database_path)
         df = execute_sql_selection(query=query, conn=conn)
@@ -294,3 +300,59 @@ def sqlite_table_to_gdf(query, id_col, to_gdf=True, conn=None, database_path=Non
     finally:
         if kill_conn and conn is not None:
             conn.close()
+
+
+def database_to_gdf(db_dict: dict, sql: str, columns: list[str] = None, crs="EPSG:28992"):
+    """
+    Connect to (oracle) database, create a cursor and execute sql
+
+    Return geodataframe with  Load geometry in crs and return as gdf.
+
+    db_dict: dict
+        connection dict. e.g.:
+        {'service_name': 'ODSPRD',
+        'user': '',
+        'password': '',
+        'host': 'srvxx.corp.hhnk.nl',
+        'port': '1521'}
+    sql: str
+        sql to execute
+    columns: list
+        When not provided, get the column names from the external table
+        geometry column 'SHAPE' is renamed to 'geometry'
+    """
+
+    with oracledb.connect(**db_dict) as con:
+        cur = oracledb.Cursor(con)
+
+        cur.execute(sql)
+
+        # Get column names from external table when names are not provided
+        if columns is None:
+            # When selecting all columns, retrieve the geometry as text.
+            # For this we need to recreate the sql
+            if "SELECT *" in sql:
+                col_names = [i[0] for i in cur.description]
+
+                col_select = ", ".join(col_names)
+                col_select = col_select.replace("SHAPE", "sdo_util.to_wktgeometry(SHAPE)")
+                sql = sql.replace("SELECT *", f"SELECT {col_select}")
+                cur.execute(sql)
+
+            # Take column names from cursor
+            columns = [i[0] for i in cur.description]
+
+        df = pd.DataFrame(cur.fetchall(), columns=columns)
+
+        pattern = r"SDO_UTIL.TO_WKTGEOMETRY\([^)]*\)"
+        cols = []
+        for col in df.columns:
+            if re.findall(pattern=pattern, string=col):
+                cols.append("geometry")
+            else:
+                cols.append(col)
+        df.columns = cols
+
+        if "geometry" in df.columns:
+            df = df.set_geometry(gpd.GeoSeries(df["geometry"].apply(lambda x: wkt.loads(str(x)))), crs=crs)
+        return df
