@@ -315,7 +315,9 @@ class Raster(File):
     def to_file(self):
         pass
 
-    def build_vrt(self, overwrite: bool, bounds, input_files: list, resolution="highest", bandlist=[1]):
+    def build_vrt(
+        self, overwrite: bool, bounds, input_files: list, resolution="highest", bandlist=[1], resample_alg="nearest"
+    ):
         """Build vrt from input files.
         overwrite (bool)
         bounds (np.array): format should be; (xmin, ymin, xmax, ymax)
@@ -355,7 +357,7 @@ class Raster(File):
             vrt_options = gdal.BuildVRTOptions(
                 resolution=resolution,
                 separate=False,
-                resampleAlg="nearest",
+                resampleAlg=resample_alg,
                 addAlpha=False,
                 outputBounds=bounds,
                 bandList=bandlist,

@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     # TODO zou moeten werken met typehints van imports. Maar vraag is maar of het werkt.
     import hhnk_research_tools as hrt
 
+import hhnk_research_tools.logger as logging
 import hhnk_research_tools.threedi as threedi
 import hhnk_research_tools.variables as variables
 import hhnk_research_tools.waterschadeschatter.resources
@@ -72,6 +73,11 @@ from hhnk_research_tools.sql_functions import (
 from hhnk_research_tools.threedi.call_api import call_threedi_api
 from hhnk_research_tools.threedi.read_api_file import read_api_file
 from hhnk_research_tools.waterschadeschatter.wss_main import Waterschadeschatter
+
+# Initiate logging to console
+LOG_LEVEL = "INFO"
+# _ = logging.get_logger(name="hhnk_research_tools", level=LOG_LEVEL)
+# _ = logging.get_logger(name="__main__", level=LOG_LEVEL)
 
 # TODO how does this versioning work?
 # Threedigrid version number is automatic updated with zest.releaser. Geopandas uses versioneer.py.
