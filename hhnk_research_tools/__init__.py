@@ -62,6 +62,7 @@ from hhnk_research_tools.sql_functions import (
     database_to_gdf,
     execute_sql_changes,
     execute_sql_selection,
+    sql_builder_select_by_location,
     sql_construct_select_query,
     sql_create_update_case_statement,
     sql_table_exists,

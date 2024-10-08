@@ -4,6 +4,7 @@ import sqlite3
 
 import geopandas as gpd
 import pandas as pd
+from osgeo import ogr
 from shapely import wkt
 
 from hhnk_research_tools.dataframe_functions import df_convert_to_gdf
@@ -301,12 +302,89 @@ def sqlite_table_to_gdf(query, id_col, to_gdf=True, conn=None, database_path=Non
             conn.close()
 
 
+def sql_builder_select_by_location(
+    schema: str,
+    table_name: str,
+    polygon_wkt: str,
+    columns: list[str] = None,
+    epsg_code="28992",
+    simplify=False,
+):
+    """Create Oracle 12 SQL with intersection polygon.
+
+    Parameters
+    ----------
+    schema : str
+        database schema options are now ['DAMO_W', 'BGT']
+    table_name : str
+        table name in schema
+    polygon_wkt : str
+        Selection polygon. All data that intersects with this polygon will be selected
+        Must be 1 geometry, so pass the geometry of a row, or gdf.dissolve() it first.
+    """
+
+    geomcolumn = None
+    if columns is None:
+        if schema == "DAMO_W":
+            geomcolumn = "SHAPE"
+        elif schema == "BGT":
+            geomcolumn = "GEOMETRIE"
+    else:
+        for name in ["SHAPE", "GEOMETRIE", "geometry", "GEOMETRY"]:
+            if name in columns:
+                geomcolumn = name
+                break
+    if geomcolumn is None:
+        raise RuntimeError("Unknown geometry column name, provide columns")
+
+    # Round coordinates to integers
+    if simplify:
+        polygon_wkt = re.sub(r"\d*\.\d+", lambda m: format(float(m.group(0)), ".0f"), str(polygon_wkt))
+
+    sql = f"""
+        SELECT *
+        FROM {schema}.{table_name}
+        WHERE SDO_RELATE(
+            {geomcolumn},
+            SDO_GEOMETRY('{polygon_wkt}',{epsg_code}),
+            'mask=ANYINTERACT'
+        ) = 'TRUE'
+        """
+
+    if columns is not None:
+        col_select = ", ".join(columns)
+        sql = sql.replace(
+            "SELECT *", f"SELECT {col_select}"
+        )  # TODO dit kan niet met de replace die ook in database_to_gdf staat
+
+    return sql
+
+
+def _oracle_curve_polygon_to_linear(blob_curvepolygon):
+    """
+    Turn curved polygon from oracle database into linear one
+    (so it can be used in geopandas)
+    Does no harm to linear geometries
+    """
+
+    # Import as an OGR curved geometry
+    g1 = ogr.CreateGeometryFromWkt(str(blob_curvepolygon))
+    if g1 is None:
+        return None
+
+    # Approximate as linear geometry, and export to GeoJSON
+    g1l = g1.GetLinearGeometry()
+    g2 = wkt.loads(g1l.ExportToWkt())
+
+    return g2
+
+
 def database_to_gdf(db_dict: dict, sql: str, columns: list[str] = None, crs="EPSG:28992"):
     """
     Connect to (oracle) database, create a cursor and execute sql
 
-    Return geodataframe with  Load geometry in crs and return as gdf.
-
+    Parameters
+    -----------
     db_dict: dict
         connection dict. e.g.:
         {'service_name': 'ODSPRD',
@@ -315,44 +393,65 @@ def database_to_gdf(db_dict: dict, sql: str, columns: list[str] = None, crs="EPS
         'host': 'srvxx.corp.hhnk.nl',
         'port': '1521'}
     sql: str
-        sql to execute
+        oracledb 12 sql to execute
+        Takes only one sql statement at a time, ';' is removed
     columns: list
         When not provided, get the column names from the external table
-        geometry column 'SHAPE' is renamed to 'geometry'
+        geometry columns 'SHAPE' or 'GEOMETRIE' are renamed to 'geometry'
+    crs: str
+        EPSG code, defaults to 28992.
+
+    Returns
+    -------
+    Geodataframe with data and (linear) geometry, colum names in lowercase.
+
     """
-    import oracledb
+    import oracledb  # Import here to prevent dependency
 
     with oracledb.connect(**db_dict) as con:
         cur = oracledb.Cursor(con)
 
-        cur.execute(sql)
+        # Modify sql to efficiently fetch description only
+        sql = sql.replace(";", "")
+        pattern = r"FETCH FIRST \d+ ROWS ONLY"
+        replacement = "FETCH FIRST 0 ROWS ONLY"
+        matched = re.search(pattern, sql)
+        if matched:
+            sql_desc = re.sub(pattern, replacement, sql)
+        else:
+            sql_desc = f"{sql} {replacement}"
 
-        # Get column names from external table when names are not provided
+        # Retrieve column names
+        cur.execute(sql_desc)  # TODO hier kan nog een WHERE staan met spatial select moet die er misschien ook uit?
         if columns is None:
-            # When selecting all columns, retrieve the geometry as text.
-            # For this we need to recreate the sql
-            if "SELECT *" in sql:
-                col_names = [i[0] for i in cur.description]
-
-                col_select = ", ".join(col_names)
-                col_select = col_select.replace("SHAPE", "sdo_util.to_wktgeometry(SHAPE)")
-                sql = sql.replace("SELECT *", f"SELECT {col_select}")
-                cur.execute(sql)
-
-            # Take column names from cursor
             columns = [i[0] for i in cur.description]
 
+        # Modify geometry column name to get WKT geometry
+        cols_sql = []
+        for col in columns:
+            if col.lower() in ("shape", "geometrie"):
+                col = col.replace("SHAPE", "sdo_util.to_wktgeometry(SHAPE) as geometry")
+                col = col.replace("GEOMETRIE", "sdo_util.to_wktgeometry(GEOMETRIE) as geometry")
+            cols_sql.append(col)
+
+        col_select = ", ".join(cols_sql)
+        sql = sql.replace("SELECT *", f"SELECT {col_select}")
+
+        # Execute modified sql request
+        cur.execute(sql)
+
+        # load cursor to dataframe
         df = pd.DataFrame(cur.fetchall(), columns=columns)
 
-        pattern = r"SDO_UTIL.TO_WKTGEOMETRY\([^)]*\)"
-        cols = []
-        for col in df.columns:
-            if re.findall(pattern=pattern, string=col):
-                cols.append("geometry")
-            else:
-                cols.append(col)
-        df.columns = cols
+        # Take column names from cursor and replace exotic geometry column names
+        for i in df.columns:
+            name = i.lower()
+            if name in ("shape", "geometrie"):
+                name = "geometry"
+            df.rename(columns={i: name}, inplace=True)
 
+        # make geodataframe and convert curve geometry to linear
         if "geometry" in df.columns:
-            df = df.set_geometry(gpd.GeoSeries(df["geometry"].apply(lambda x: wkt.loads(str(x)))), crs=crs)
-        return df
+            gdf = df.set_geometry(gpd.GeoSeries(df["geometry"].apply(_oracle_curve_polygon_to_linear)), crs=crs)
+
+        return gdf
