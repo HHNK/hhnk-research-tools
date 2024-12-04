@@ -314,6 +314,7 @@ def sql_builder_select_by_location(
     geomcolumn: str = None,
     epsg_code="28992",
     simplify=False,
+    include_todays_mutations=False,
 ):
     """Create Oracle 12 SQL with intersection polygon.
 
@@ -330,8 +331,12 @@ def sql_builder_select_by_location(
         Buffer by 2m
         Simplify the geometry with 1m tolerance
         Turn coordinates in ints to reduce sql size.
+    include_todays_mutations : bool
+        Choose whether to use todays mutations in data, normally mutations are available
+        overnight.
+        Not sure if this works for BGT or OGS
     """
-
+    # Set custom geometry columns
     if geomcolumn is None:
         if schema == "DAMO_W":
             geomcolumn = "SHAPE"
@@ -340,6 +345,11 @@ def sql_builder_select_by_location(
         else:
             raise ValueError("Provide geometry column")
 
+    # modify table_name to include today's mutations
+    if include_todays_mutations and '_EVW' not in table_name:
+        table_name = f'{table_name}_EVW'
+
+    # TODO use convex hull and clip to avoid too long sql
     # Round coordinates to integers
     if simplify:
         polygon_wkt = polygon_wkt.buffer(2).simplify(tolerance=1)
@@ -375,9 +385,43 @@ def _oracle_curve_polygon_to_linear(blob_curvepolygon):
 
     return g2
 
+def _remove_blob_columns(df):
+    """
+    Remove columns that stay in blob from oracle database.
+    Blob columns prohibit further processing of the data
+    since they require an open connection to the Oralce
+    database.
+
+    Known blob column in DAMO: se_anno_cad_data
+
+    """
+    import oracledb  # Import here to prevent dependency
+
+    # Loop columns and check all rows for blob data
+    blob_columns = set()
+    for c in df.keys():
+        # Check only when column has type object for efficiency
+        if df[c].dtypes == 'O':
+            # Loop through unique values since some are None
+            for row in df[c].unique():
+                if isinstance(row,oracledb.LOB):
+                    print(f'Column {c} contains BLOB data and is removed')
+                    blob_columns.add(c)
+                    break
+    
+    # Remove blob data from geodataframe
+    for d in blob_columns:
+        df = df.drop(columns=[d])
+    
+    return df
 
 def database_to_gdf(
-    db_dict: dict, sql: str, columns: list[str] = None, lower_cols=True, crs="EPSG:28992"
+    db_dict: dict, 
+    sql: str, 
+    columns: list[str] = None, 
+    lower_cols=True, 
+    remove_blob_cols=True,
+    crs="EPSG:28992",
 ) -> Union[gpd.GeoDataFrame, str]:
     """
     Connect to (oracle) database, create a cursor and execute sql
@@ -399,6 +443,8 @@ def database_to_gdf(
         geometry columns 'SHAPE' or 'GEOMETRIE' are renamed to 'geometry'
     lower_cols : bool
         return all output columns with no uppercase
+    remove_blob_cols: bool
+        remove columns that contain oracle blob data
     crs: str
         EPSG code, defaults to 28992.
 
@@ -408,7 +454,6 @@ def database_to_gdf(
     sql : str with the used sql in the request.
 
     """
-    # %%
     import oracledb  # Import here to prevent dependency
 
     if "sdo_util.to_wktgeometry" in sql.lower():
@@ -493,4 +538,9 @@ def database_to_gdf(
         # make geodataframe and convert curve geometry to linear
         if "geometry" in df.columns:
             df = df.set_geometry(gpd.GeoSeries(df["geometry"].apply(_oracle_curve_polygon_to_linear)), crs=crs)
+
+        # remove blob columns from oracle
+        if remove_blob_cols:
+            df = _remove_blob_columns(df)
+
         return df, sql2
