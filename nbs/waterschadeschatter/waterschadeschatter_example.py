@@ -59,7 +59,7 @@ from pathlib import Path
 # gdf['streefpeil_ws'] = gdf['streefpeil']+ws/100
 
 
-# meta=hrt.create_meta_from_gdf(gdf, res=0.5)
+# meta=hrt.RasterMetadataV2.from_gdf(gdf, res=0.5)
 
 
 # _ = hrt.gdf_to_raster(gdf=gdf, 

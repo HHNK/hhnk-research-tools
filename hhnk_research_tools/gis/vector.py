@@ -12,6 +12,7 @@ from osgeo import gdal, ogr
 DRIVER_GDAL_MEM = gdal.GetDriverByName("MEM")
 
 
+# TODO Deprecate?
 def rasterize(
     vector_path,
     rows,

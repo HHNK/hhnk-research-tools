@@ -74,7 +74,7 @@ for index, row in gdf.iterrows():
         pgb_folder = PgbFolder(base=os.path.join(output_dir, row["dirname"]))
         pgb_gdf = gpd.GeoDataFrame(row).T
 
-        meta = hrt.create_meta_from_gdf(gdf=pgb_gdf, res=dem_raster.metadata["pixel_width"])
+        meta = hrt.RasterMetadataV2.from_gdf(gdf=pgb_gdf, res=dem_raster.metadata["pixel_width"])
         for ws in ws_range:
             pgb_gdf["wlvl"] = pgb_gdf["streefpeil"] + ws / 100
 
