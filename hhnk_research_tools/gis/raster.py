@@ -9,6 +9,7 @@ import pandas as pd
 from osgeo import gdal
 from scipy import ndimage
 from shapely import geometry
+from tqdm.notebook import tqdm
 
 import hhnk_research_tools as hrt
 from hhnk_research_tools.folder_file_classes.file_class import File
@@ -20,7 +21,7 @@ gdal.UseExceptions()
 
 
 # %%
-class Raster(File):
+class RasterOld(File):
     def __init__(self, base, min_block_size=1024):
         super().__init__(base)
 
@@ -283,7 +284,12 @@ class Raster(File):
 
         accum = None
 
-        for window, block in self:
+        if not hasattr(self, "blocks"):
+            _ = self.generate_blocks()
+
+        for idx, block_row in tqdm(self.blocks.iterrows(), total=len(self.blocks)):
+            window = block_row["window_readarray"]
+            block = self._read_array(window=window)
             block[block == self.nodata] = 0
             block[pd.isna(block)] = 0
 

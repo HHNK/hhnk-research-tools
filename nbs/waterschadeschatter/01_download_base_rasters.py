@@ -151,7 +151,7 @@ for index, block_row in blocks.iterrows():
             output_file=out_block_r,
             raster_array=block,
             nodata=-9999,
-            metadata=hrt.create_meta_from_gdf(gpd.GeoDataFrame(block_row).T, res=0.5),
+            metadata=hrt.RasterMetadataV2.from_gdf(gpd.GeoDataFrame(block_row).T, res=0.5),
             create_options=None,
             num_bands=1,
             overwrite=False,
