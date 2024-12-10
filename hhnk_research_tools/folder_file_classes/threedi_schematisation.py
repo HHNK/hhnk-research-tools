@@ -7,7 +7,9 @@ import hhnk_research_tools as hrt
 from hhnk_research_tools.folder_file_classes.file_class import File
 from hhnk_research_tools.folder_file_classes.folder_file_classes import Folder
 from hhnk_research_tools.folder_file_classes.sqlite_class import Sqlite
-from hhnk_research_tools.gis.raster import Raster
+from hhnk_research_tools.rasters.raster_class import Raster  # FIXME new import
+
+# from hhnk_research_tools.gis.raster import RasterOld as Raster
 from hhnk_research_tools.threedi.threediresult_loader import ThreediResultLoader
 
 # Third-party imports
