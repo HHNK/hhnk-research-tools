@@ -6,6 +6,7 @@ in a project, the logging will be set according to these rules.
 """
 
 import logging
+import sys
 from logging import *  # noqa: F401,F403 # type: ignore
 
 
@@ -28,7 +29,7 @@ def get_logconfig_dict(level_root="WARNING", level_dict=None, log_filepath=None)
         "loggers": {
             "": {  # root logger
                 "level": level_root,
-                "handlers": ["debug_console_handler"],  # , 'info_rotating_file_handler'],
+                "handlers": ["debug_console_handler", "stderr"],  # , 'info_rotating_file_handler'],
             },
         },
         "handlers": {
@@ -39,7 +40,13 @@ def get_logconfig_dict(level_root="WARNING", level_dict=None, log_filepath=None)
                 "level": "NOTSET",
                 "formatter": "time_level_name",
                 "class": "logging.StreamHandler",
-                # "stream": "ext://sys.stdout",
+                "stream": "ext://sys.stdout",
+            },
+            "stderr": {
+                "level": "ERROR",
+                "formatter": "time_level_name",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stderr",
             },
         },
         "formatters": {

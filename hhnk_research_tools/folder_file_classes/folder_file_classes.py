@@ -24,7 +24,7 @@ class Folder(BasePath):
         self.olayers = {}
         self.space = "\t\t\t\t"
         if create:
-            self.create(parents=False)
+            self.mkdir(parents=False)
 
     # TODO is deze nog nodig??
     @property
@@ -158,7 +158,7 @@ class Folder(BasePath):
                 print(pathname, e)
 
     def __repr__(self):
-        #FIXME dit gaat mis bij @properties. hrt.ThreediResult aggregate_grid toegevoegd en die crashed de kernel
+        # FIXME dit gaat mis bij @properties. hrt.ThreediResult aggregate_grid toegevoegd en die crashed de kernel
         # Het lijkt me dat de paths de property opent, zonder dat we dit willen.
         paths = [i for i in get_variables(self, stringify=False) if issubclass(type(getattr(self, i)), BasePath)]
         folders = [i for i in paths if isinstance(getattr(self, i), Folder)]
