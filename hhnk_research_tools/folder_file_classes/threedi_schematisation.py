@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 import numpy as np
 
@@ -84,17 +83,24 @@ class ThreediSchematisation(Folder):
             super().__init__(os.path.join(base, "rasters"), create=True)
             self.caller = caller
 
-            self.dem = self.get_raster_path(table_name="v2_global_settings", col_name="dem_file")
+            self.dem = self.get_raster_path(
+                table_name="v2_global_settings", col_name="dem_file"
+            )
             self.storage = self.get_raster_path(
                 table_name="v2_simple_infiltration",
                 col_name="max_infiltration_capacity_file",
             )
-            self.friction = self.get_raster_path(table_name="v2_global_settings", col_name="frict_coef_file")
+            self.friction = self.get_raster_path(
+                table_name="v2_global_settings", col_name="frict_coef_file"
+            )
             self.infiltration = self.get_raster_path(
                 table_name="v2_simple_infiltration", col_name="infiltration_rate_file"
             )
             self.initial_wlvl_2d = self.get_raster_path(
                 table_name="v2_global_settings", col_name="initial_waterlevel_file"
+            )
+            self.interception = self.get_raster_path(
+                table_name="v2_global_settings", col_name="interception_file"
             )
 
             # Waterschadeschatter required 50cm resolution.
@@ -121,7 +127,9 @@ class ThreediSchematisation(Folder):
             """
 
             if self.caller.database.exists():
-                df = hrt.sqlite_table_to_df(database_path=self.caller.database.path, table_name=table_name)
+                df = hrt.sqlite_table_to_df(
+                    database_path=self.caller.database.path, table_name=table_name
+                )
                 # if len(df) > 1:
                 # print(f"{table_name} has more than 1 row. Choosing the first row for the rasters.")
                 if len(df) == 0:
@@ -145,6 +153,7 @@ class ThreediSchematisation(Folder):
     infiltration - {self.infiltration.name}
     landuse - {self.landuse.name}
     initial_wlvl_2d - {self.initial_wlvl_2d.name}
+    interception = {self.interception.name}
     dem_50cm - {self.dem_50cm.name}
 """
 
@@ -174,7 +183,9 @@ class ThreediResult(Folder):
         # moved imports here because gridbuilder has h5py issues
         from threedigrid.admin.gridresultadmin import GridH5AggregateResultAdmin
 
-        return GridH5AggregateResultAdmin(self.admin_path.base, self.aggregate_grid_path.base)
+        return GridH5AggregateResultAdmin(
+            self.admin_path.base, self.aggregate_grid_path.base
+        )
 
     @property
     def admin(self):
@@ -218,14 +229,16 @@ class RevisionsDir(Folder):
             revision_dir = self.revisions[revision]
         elif os.path.isabs(str(revision)):  # full path as input
             revision_dir = revision
-        elif not os.sep in str(revision):
+        elif os.sep not in str(revision):
             revision_dir = self.full_path(revision)
         else:
             raise ValueError(f"{str(revision)} is not valid input for `revision`")
 
         revision_dir = Folder(revision_dir)
-        if not revision_dir.name in self.sub_folders.keys():
-            self.sub_folders[revision_dir.name] = self.returnclass(revision_dir, create=create)
+        if revision_dir.name not in self.sub_folders.keys():
+            self.sub_folders[revision_dir.name] = self.returnclass(
+                revision_dir, create=create
+            )
 
         return self.sub_folders[revision_dir.name]
 
@@ -249,9 +262,10 @@ class RevisionsDir(Folder):
         """sorted list of revisions by:
         mtime -> latest edit date first
         """
-        revisions_sorted = np.take(self.revisions, np.argsort([item.lstat().st_mtime for item in self.revisions]))[
-            ::-1
-        ]
+        revisions_sorted = np.take(
+            self.revisions,
+            np.argsort([item.lstat().st_mtime for item in self.revisions]),
+        )[::-1]
         return revisions_sorted
 
     @property
