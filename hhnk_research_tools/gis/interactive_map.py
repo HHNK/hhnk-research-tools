@@ -12,14 +12,16 @@ from typing import Union
 
 import branca.colormap as cm
 import folium
+import geopandas as gpd
 
 import hhnk_research_tools.logger as logging
 
 logger = logging.get_logger(__name__, level="DEBUG")
 
 
+# TODO create class to allow adding layers?
 def create_interactive_map(
-    gdf,
+    gdf: gpd.GeoDataFrame,
     datacolumn: str,
     output_path: Union[Path, str, None] = None,
     title: str = "Title",
@@ -36,8 +38,8 @@ def create_interactive_map(
 
     Parameters
     ----------
-    gdf : pandas GeoDataFrame
-        pandas GeoDataFrame containing polygon geometry and data column <column_name>
+    gdf : geopandas GeoDataFrame
+        geopandas GeoDataFrame containing polygon geometry and data column <column_name>
     datacolumn : str
         Name of the column containing data for visualization
     output_path : str,
