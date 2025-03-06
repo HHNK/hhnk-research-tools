@@ -7,6 +7,7 @@ in a project, the logging will be set according to these rules.
 
 import logging
 import sys
+from logging import config
 
 # from logging import *  # noqa: F401,F403 # type: ignore
 from logging.handlers import RotatingFileHandler
@@ -116,7 +117,7 @@ def set_default_logconfig(level_root="WARNING", level_dict=None, log_filepath=No
     """
     log_config = get_logconfig_dict(level_root=level_root, level_dict=level_dict, log_filepath=log_filepath)
 
-    logging.config.dictConfig(log_config)
+    config.dictConfig(log_config)
 
 
 def add_file_handler(
