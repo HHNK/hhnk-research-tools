@@ -49,6 +49,7 @@ from hhnk_research_tools.general_functions import (
     time_delta,
 )
 from hhnk_research_tools.gis.raster_calculator import RasterBlocks, RasterCalculatorV2
+from hhnk_research_tools.gis.interactive_map import create_interactive_map
 from hhnk_research_tools.raster_functions import (
     RasterCalculator,
     build_vrt,
