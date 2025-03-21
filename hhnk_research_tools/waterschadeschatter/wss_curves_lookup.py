@@ -4,6 +4,7 @@ Created on Fri Aug 30 14:29:47 2024
 
 @author: kerklaac5395
 """
+import json
 from tqdm import tqdm
 import numpy as np
 from pathlib import Path
@@ -12,7 +13,7 @@ from collections import namedtuple
 from hhnk_research_tools.waterschadeschatter import wss_calculations
 from hhnk_research_tools.waterschadeschatter import wss_loading
 
-from hhnk_research_tools.waterschadeschatter.wss_curves_utils import WSSTimelog
+from hhnk_research_tools.waterschadeschatter.wss_curves_utils import WSSTimelog, write_dict
 
 DMG_NODATA = 0  # let op staat dubbel, ook in wss_main.
 WORK_DIR = Path(
@@ -112,7 +113,10 @@ class WaterSchadeSchatterLookUp:
             self.output[depth][255] = 0  # not in cfg
 
         self.time._message("Ended generating table")
-
+        
+    def write(self, path):
+        write_dict(self.output, path)
+        
 
 if __name__ == "__main__":
     lu_array = np.array([[2], [2]])

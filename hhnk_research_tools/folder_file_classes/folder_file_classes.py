@@ -26,6 +26,7 @@ class Folder(BasePath):
         if create:
             self.mkdir(parents=False)
 
+
     # TODO is deze nog nodig??
     @property
     def structure(self):
@@ -86,6 +87,7 @@ class Folder(BasePath):
                     print(f"'{self.path}' not created, parent does not exist.")
                 return
         self.path.mkdir(parents=parents, exist_ok=True)
+        return self.full_path(parents)
 
     def find_ext(self, ext: list):
         """Find files with a certain extension"""

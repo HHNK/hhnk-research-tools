@@ -8,6 +8,102 @@ import json
 import datetime
 import numpy as np
 
+# First-party imports
+import os
+from pathlib import Path
+
+import hhnk_research_tools as hrt
+import pandas as pd
+from hhnk_research_tools import Folder
+from hhnk_research_tools.variables import (
+    GDB,
+    SHAPE,
+    file_types_dict,
+)
+
+
+FOLDER_STRUCTURE = """
+    Main Folders object
+        ├── Input
+        │ ├── dem.vrt
+        │ ├── lu.vrt
+        │ ├── lookup.json
+        │ ├── area.gpkg
+        ├── Work
+        │ ├── run_1d_mp
+        │ ├── run_2d_mp
+        ├── Output
+        │ ├── run_1d_mp.csv
+        │ └── run_1d_mp.json
+
+    """
+
+
+class AreaDamageCurveFolders(Folder):
+    def __init__(self, base, create=False):
+        super().__init__(base, create=create)
+
+        # source
+        self.input = Input(self.base, create=create)
+
+        # model files
+        self.work = Work(self.base, create=create)
+
+        # Threedi results
+        self.output = Output(self.base, create=create)
+
+    @property
+    def structure(self):
+        return f"""  
+               {self.space}Folders
+               {self.space}├── Input (.input)
+               {self.space}├── Work (.work)
+               {self.space}├── Output (.output)
+               {self.space}└── Post (.post)
+               """
+
+    @property
+    def full_structure(self):
+        return print(FOLDER_STRUCTURE)
+
+class Input(Folder):
+    def __init__(self, base, create):
+        super().__init__(os.path.join(base, "input"), create)
+        self.add_file("dem", "dem.vrt")
+        self.add_file("lu", "lu.vrt")
+        self.add_file("area", "area.gpkg")
+        self.add_file("wss_settings", "wss_settings.json")
+        self.add_file("wss_cfg_settings", "wss_config_settings.json")
+        self.add_file("wss_curves_filter_settings", "wss_curves_filter_settings.json")
+        self.add_file("wss_lookup", "wss_lookup.json")
+        
+class Work(Folder):
+    def __init__(self, base, create):
+        super().__init__(os.path.join(base, "work"), create)
+
+        self.run_1d = Run1D(self.base, create)
+        self.run_2d = Run2D(self.base, create)
+
+class Run1D(Folder):
+    def __init__(self, base, create):
+        super().__init__(os.path.join(base, "run_1d"), create)
+    
+class Run2D(Folder):
+    def __init__(self, base, create):
+        super().__init__(os.path.join(base, "run_2d"), create)
+    
+
+class Output(Folder):
+    def __init__(self, base, create):
+        super().__init__(os.path.join(base, "output"), create)
+        
+        self.add_file("result", "result.csv")
+        self.add_file("result_vol", "result_vol.csv")
+        self.add_file("result_lu_areas", "result_lu_areas.csv")
+        self.add_file("result_lu_damage", "result_lu_damage.csv")
+
+        
+
 
 class WSSTimelog:
     def __init__(self, subject, quiet, output_dir=None, log_file=None):
@@ -58,11 +154,18 @@ def create_logger(filename):
     return logger
 
 
-def write_dict(dictionary, path):
-    with open(str(path), "w") as fp:
-        json.dump(dictionary, fp)
+def write_dict(dictionary, path, overwrite=True):
+    exists = os.path.exists(path)
+    if not exists or overwrite:
+        with open(str(path), "w") as fp:
+            json.dump(dictionary, fp)
 
 def pad_zeros(a, shape):
     z = np.zeros(shape)
     z[: a.shape[0], : a.shape[1]] = a
     return z
+
+
+if __name__ == "__main__":
+    test = AreaDamageCurveFolders(r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\output\damage_curves_2024_test", create=True)
+

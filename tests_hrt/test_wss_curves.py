@@ -71,25 +71,25 @@ class TestWSSCurves:
 
     def test_integrated_1d_mp(self, schadecurves, output):
         schadecurves.run(run_1d=True, multiprocessing=True, processes=4)
-        test_output = pd.read_csv(OUTPUT_PATH / "run_1d_mp.csv")
+        test_output = pd.read_csv(OUTPUT_PATH / "output"/"result.csv")
         assert (output == test_output).all()[0]
 
     def test_integrated_1d(self, schadecurves, output):
         schadecurves.run(run_1d=True, multiprocessing=False)
 
-        test_output = pd.read_csv(OUTPUT_PATH / "run_1d.csv")
+        test_output = pd.read_csv(OUTPUT_PATH / "output"/"result.csv")
         assert (output == test_output).all()[0]
 
     def test_integrated_2d_mp(self, schadecurves, output):
         schadecurves.run(run_2d=True, multiprocessing=True, processes=4, nodamage_filter=True)
 
-        test_output = pd.read_csv(OUTPUT_PATH / "run_2d_mp.csv")
+        test_output = pd.read_csv(OUTPUT_PATH / "output"/"result.csv")
         assert (output == test_output).all()[0]
 
     def test_integrated_2d(self, schadecurves, output):
         schadecurves.run(run_2d=True, multiprocessing=False, processes=4, nodamage_filter=True)
 
-        test_output = pd.read_csv(OUTPUT_PATH / "run_2d.csv")
+        test_output = pd.read_csv(OUTPUT_PATH / "output"/"result.csv")
         assert (output == test_output).all()[0]
 
 # OUDDORP_PATH = DATA_PATH / "agg_ouderdorperpolder"
