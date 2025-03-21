@@ -277,9 +277,8 @@ class AreaDamageCurves:
         
         
         self._wss_settings = {}
+        self._wss_curves_filter_settings = None
         self._wss_config = None
-        self._wss_filter_settings = None
-
         
         self.quiet = quiet
         self.area_path = area_path
@@ -320,6 +319,9 @@ class AreaDamageCurves:
     def __len__(self):
         return len(self.area_vector)
 
+    def __repr__(self):
+        return f"""AreaDamageCures\n\n\tWSS settings: {self.wss_settings}\n\n\tFilter settings: {self.wss_curves_filter_settings}"""        
+
     @classmethod
     def from_settings_json(cls, file):
         with open(str(file)) as json_file:
@@ -329,9 +331,7 @@ class AreaDamageCurves:
 
     @property
     def wss_settings(self):
-        data = self._wss_settings
-        data['cfg_file'] = self.wss_config
-        return self._wss_settings
+        return {**self._wss_settings, **{'cfg_file':self.wss_config}}
 
     @wss_settings.setter
     def wss_settings(self, value):
@@ -340,8 +340,7 @@ class AreaDamageCurves:
         else:
             with open(str(value)) as json_file:
                 self._wss_settings = json.load(json_file)
-                self.wss_config = value
-    
+
         if hasattr(self, "_lookup"):
             del self._lookup  # reset the lookup table
 
@@ -351,17 +350,19 @@ class AreaDamageCurves:
 
     @wss_config.setter
     def wss_config(self, value):
-        if value is None:
-            self._wss_config = value
-
+        self._wss_config = value
+        
     @property
-    def wss_filter_settings(self):
-        return self._wss_filter_settings
+    def wss_curves_filter_settings(self):
+        return self._wss_curves_filter_settings
 
-    @wss_filter_settings.setter
-    def wss_filter_settings(self, value):
-        with open(str(value)) as json_file:
-            self._wss_filter_settings = json.load(json_file)
+    @wss_curves_filter_settings.setter
+    def wss_curves_filter_settings(self, value):
+        if value is None:
+            self._wss_curves_filter_settings = None
+        else:
+            with open(str(value)) as json_file:
+                self._wss_curves_filter_settings = json.load(json_file)
 
     @property
     def lookup(self):  # lookup is always based on 2 decimals
@@ -386,7 +387,7 @@ class AreaDamageCurves:
         data["depth_steps"] = self.depth_steps
         data["output_dir"] = str(self.output_dir_area)
         data["nodata"] = self.nodata
-        data["filter_settings"] = self.wss_filter_settings
+        data["filter_settings"] = self.wss_curves_filter_settings
         data["log_file"] = self.time.log_file
         return data
     

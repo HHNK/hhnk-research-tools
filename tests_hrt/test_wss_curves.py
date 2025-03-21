@@ -25,10 +25,10 @@ import pandas as pd
 
 WSS_DATA = TEST_DIRECTORY / "wss_curves"
 
-CFG_FILE = WSS_DATA / "cfg_hhnk_2020.cfg"
-SETTINGS_FILE = WSS_DATA /  "settings_hhnk_2020.json"
-FILTER_SETTINGS_FILE = WSS_DATA /  "filter_settings_hhnk_2020.json"
-
+WSS_CFG_FILE = WSS_DATA / "wss_cfg_hhnk_2020.cfg"
+WSS_SETTINGS_FILE = WSS_DATA /  "wss_settings_hhnk_2020.json"
+WSS_CURVE_FILTER_SETTINGS_FILE = WSS_DATA /  "wss_curve_filter_settings_hhnk_2020.json"
+RUN_CURVES_FILE = WSS_DATA / "run_wss_curves_2024.json"
 
 AREA_PATH = WSS_DATA / "wss_curve_area.shp"
 DEM_PATH = WSS_DATA / "wss_curve_area_dem.tif"
@@ -58,9 +58,9 @@ class TestWSSCurves:
             area_start_level=AREA_START_LEVEL,
         )
 
-        schadecurves.wss_config = CFG_FILE
-        schadecurves.wss_settings = SETTINGS_FILE
-        schadecurves.wss_filter_settings = FILTER_SETTINGS_FILE
+        schadecurves.wss_config = WSS_CFG_FILE
+        schadecurves.wss_settings = WSS_SETTINGS_FILE
+        schadecurves.wss_curves_filter_settings = WSS_CURVE_FILTER_SETTINGS_FILE
 
         return schadecurves
 
