@@ -1,0 +1,12 @@
+{"area_path":"C:/Users/kerklaac5395/ARCADIS/30225745 - Schadeberekening HHNK - Documents/External/data/vectors/peilgebieden_2024_wieringermeer3.shp",
+"landuse_path_dir":"C:/Users/kerklaac5395/ARCADIS/30225745 - Schadeberekening HHNK - Documents/External/data/rasters/landgebruik/landuse2023_tiles",
+"dem_path_dir":"C:/Users/kerklaac5395/ARCADIS/30225745 - Schadeberekening HHNK - Documents/External/data/rasters/DEM/DEM_AHN5/DTM_Tiles_HHNK_filled",
+"output_dir":"C:/Users/kerklaac5395/ARCADIS/30225745 - Schadeberekening HHNK - Documents/External/output/damage_curves_2024_test",
+"area_id":"peil_id",
+"curve_max":2.5,
+"curve_step":0.1,
+"area_start_level":"streefpeil",
+"wss_filter_settings":"C:/Users/kerklaac5395/ARCADIS/30225745 - Schadeberekening HHNK - Documents/External/data/cfg/filter_settings_hhnk_2020.json",
+"wss_config":"C:/Users/kerklaac5395/ARCADIS/30225745 - Schadeberekening HHNK - Documents/External/data/cfg/cfg_hhnk_2020.cfg",
+"wss_settings":"C:/Users/kerklaac5395/ARCADIS/30225745 - Schadeberekening HHNK - Documents/External/data/cfg/settings_hhnk_2020.json"
+}
