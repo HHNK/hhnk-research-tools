@@ -348,6 +348,7 @@ class Raster(File):
             # Check resolution of input files
             input_resolutions = []
             for r in input_files:
+                # break
                 r = cls(r)
                 input_resolutions.append(r.metadata.pixel_width)
             if len(np.unique(input_resolutions)) > 1:
