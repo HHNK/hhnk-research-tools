@@ -18,7 +18,7 @@ sys.path.append(
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
 
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas import AreaDamageCurves
-# from hrt.wss_areas_curves_post import AreaDamageCurvesAggregation
+from hhnk_research_tools.waterschadeschatter.wss_curves_areas_post import AreaDamageCurvesAggregation
 
 import pandas as pd
 
@@ -31,14 +31,18 @@ WSS_CURVE_FILTER_SETTINGS_FILE = WSS_DATA /  "wss_curve_filter_settings_hhnk_202
 RUN_CURVES_FILE = WSS_DATA / "run_wss_curves_2024.json"
 
 AREA_PATH = WSS_DATA / "wss_curve_area.shp"
+AREA_AGGREGATE_PATH = WSS_DATA / "wss_curve_area_aggregate.shp"
+
 DEM_PATH = WSS_DATA / "wss_curve_area_dem.tif"
 LU_PATH = WSS_DATA / "wss_curve_area_lu.tif"
 AREA_ID = "peil_id"
+VECTOR_FIELD = "name"
 OUTPUT_PATH = TEMP_DIR
 CURVE_STEP = 0.5
 CURVE_MAX = 2.5
 AREA_START_LEVEL = "streefpeil"
 RESULT = WSS_DATA / "result.csv"
+RESULT_AGGREGATE = WSS_DATA / "result_aggregate.csv"
 
 
 class TestWSSCurves:
@@ -92,20 +96,29 @@ class TestWSSCurves:
         test_output = pd.read_csv(OUTPUT_PATH / "output"/"result.csv")
         assert (output == test_output).all()[0]
 
-# OUDDORP_PATH = DATA_PATH / "agg_ouderdorperpolder"
-# RESULT_AGG = DATA_PATH / "agg_ouderdorperpolder" / "aggregaties.xlsx"
-# POLDER_PATH = DATA_PATH / "polder_ouddorp.shp"
 
-# class TestWSSAggregation:
+class TestWSSAggregation:
     
-#     def test_agg_methods(self):
-        
+    @pytest.fixture(scope="class")
+    def aggregatie(self):
 
-#         agg = AreaDamageCurvesAggregation(OUDDORP_PATH, POLDER_PATH, "polder_id")
-#         output = agg.agg_run()[18]
-        
-#         data = pd.read_excel(RESULT_AGG,index_col=0)
-        
-#         assert (data == output).all()[0]
+        adca= AreaDamageCurvesAggregation(
+            result_path=OUTPUT_PATH,
+            aggregate_vector_path=AREA_AGGREGATE_PATH, 
+            vector_field=VECTOR_FIELD, 
+            quiet=False
+        )
+
+        return adca
+    
+    @pytest.fixture(scope="class")
+    def output(self):
+        output = pd.read_csv(RESULT)
+        return output
+    
+    def test_agg_methods(self,aggregatie,output):
+        aggregatie.run()
+        test_output = pd.read_csv(OUTPUT_PATH / "post" / "Wieringermeer" / "aggregate.csv")   
+        assert (test_output == output).all()[0]
         
         

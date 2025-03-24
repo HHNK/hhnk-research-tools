@@ -38,7 +38,7 @@ NODATA = -9999
 RES = 0.01
 ROUND = 2
 AGG_METHODS = ["lowest_area","equal_depth", "equal_rain"]
-EURO_SIGN = u"\N{euro sign}"
+PREDICATE = "_within"
 
 class AreaDamageCurvesAggregation:
 
@@ -63,7 +63,7 @@ class AreaDamageCurvesAggregation:
             self.vector = gp.read_file(aggregate_vector_path)
             self.field = vector_field
         
-        self.predicate = "_within"
+        self.predicate = PREDICATE
         self.time = WSSTimelog(NAME, quiet, self.dir.post.path)
     
     def __iter__(self):
@@ -408,7 +408,7 @@ class AreaDamageCurvesAggregation:
                 # aggregations
                 aggregate = aggregations[name]
                 aggregate.index.name = "Volume [m3]"
-                aggregate = aggregate.add_suffix(f"[{EURO_SIGN}]")
+                aggregate = aggregate.add_suffix(" [eur]")
                 aggregate.to_csv(path  / "aggregate.csv") 
                 
                 # selected geometries
@@ -416,18 +416,18 @@ class AreaDamageCurvesAggregation:
                 
                 agg_d = agg_damage[name]
                 agg_d.index.name = "Waterdepth [m]"
-                agg_d.name = agg_d.name + f" [{EURO_SIGN}]"                 
-                agg_d[name].to_csv(path / "agg_damage.csv")
+                agg_d.name = agg_d.name + " [euro]"                 
+                agg_d.to_csv(path / "agg_damage.csv")
                                 
                 agg_v = agg_volume[name]
                 agg_v.index.name = "Waterdepth [m]"
                 agg_v.name = agg_v.name + " [m3]"                 
-                agg_v[name].to_csv(path / "agg_volume.csv")
+                agg_v.to_csv(path / "agg_volume.csv")
                 
                 agg_l = agg_landuse[name]
                 agg_l.index.name = "Waterdepth [m]"
-                agg_l.name = agg_l.name + " [m2]"                 
-                agg_l[name].to_csv(path / "agg_landuse.csv")
+                agg_l = agg_l.add_suffix(" [m2]")                 
+                agg_l.to_csv(path / "agg_landuse.csv")
             
             
             
@@ -471,4 +471,8 @@ if __name__ == "__main__":
     import sys
     adca = AreaDamageCurvesAggregation.from_settings_json(str(sys.argv[1]))
     adca.run(aggregation=True)
+    
+    
+    
+    # adca = AreaDamageCurvesAggregation.from_settings_json(r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\run_settings\run_wss_test_westzaan_aggregate.json")
     
