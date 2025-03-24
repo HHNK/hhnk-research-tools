@@ -9,10 +9,8 @@ Post-processing:
     - Doet ook een korte analyse van het landgebruik.
     
 TODO:
-    1. Paden toeveogen
-    2. Testen maken
-    3. Eenheid toevoegen.
     4. Log bestand netjes maken
+    5. Readme
     
 """
 #TODO remove!
