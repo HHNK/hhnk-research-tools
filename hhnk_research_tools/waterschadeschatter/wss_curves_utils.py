@@ -38,6 +38,10 @@ FOLDER_STRUCTURE = """
 
     """
 
+# GLOBALS
+ID_FIELD = "pid"
+DRAINAGE_LEVEL_FIELD = "drainage_level"
+
 
 class AreaDamageCurveFolders(Folder):
     def __init__(self, base, create=False):

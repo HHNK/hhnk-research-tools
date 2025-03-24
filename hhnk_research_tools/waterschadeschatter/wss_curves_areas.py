@@ -32,7 +32,7 @@ import geopandas as gp
 from tqdm import tqdm
 
 import hhnk_research_tools as hrt
-from hhnk_research_tools.waterschadeschatter.wss_curves_utils import WSSTimelog, pad_zeros, write_dict, AreaDamageCurveFolders
+from hhnk_research_tools.waterschadeschatter.wss_curves_utils import WSSTimelog, pad_zeros, write_dict, AreaDamageCurveFolders, ID_FIELD, DRAINAGE_LEVEL_FIELD
 from hhnk_research_tools.waterschadeschatter.wss_curves_lookup import WaterSchadeSchatterLookUp
 
 # Globals
@@ -43,8 +43,6 @@ MAX_PROCESSES = (
 )  # still wanna do something on the computa use minus 2
 SHOW_LOG = 30  # seconds
 NAME = "WSS AreaDamageCurve"
-ID_FIELD = "pid"
-DRAINAGE_LEVEL_FIELD = "drainage_level"
 
 
 class AreaDamageCurveMethods:
