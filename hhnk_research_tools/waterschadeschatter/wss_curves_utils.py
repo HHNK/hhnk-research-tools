@@ -110,7 +110,11 @@ class Post(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "post"), create)
         
-        
+        self.add_file("damage_interpolated_curve", "damage_interpolated_curve.csv")
+        self.add_file("volume_interpolated_curve", "volume_interpolated_curve.csv")
+        self.add_file("damage_level_curve", "damage_level_curve.csv")
+        self.add_file("vol_level_curve", "vol_level_curve.csv")
+        self.add_file("damage_per_m3", "damage_per_m3.csv")
 
 
 class WSSTimelog:

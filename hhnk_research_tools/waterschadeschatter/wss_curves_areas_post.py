@@ -8,8 +8,20 @@ Post-processing:
     - Vertaald de data naar geografische subgebieden.
     - Doet ook een korte analyse van het landgebruik.
     
+TODO:
+    1. Paden toeveogen
+    2. Testen maken
+    3. Eenheid toevoegen.
+    4. Log bestand netjes maken
     
 """
+#TODO remove!
+import sys
+sys.path.append(
+r"C:/Users/kerklaac5395/OneDrive - ARCADIS/Documents/GitHub/hhnk-research-tools"
+)
+
+
 from tqdm import tqdm
 import numpy as np
 import json
@@ -17,17 +29,16 @@ import geopandas as gp
 import pandas as pd
 import pathlib
 import matplotlib.pyplot as plt
-
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import WSSTimelog, AreaDamageCurveFolders,  ID_FIELD, DRAINAGE_LEVEL_FIELD
 
-OUTPUT_DIR = pathlib.Path(
-    r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\output"
-)
+
 BUFFER = 100
 NAME = "AreaDamageCurves Aggregation"
 NODATA = -9999
 RES = 0.01
 ROUND = 2
+AGG_METHODS = ["lowest_area","equal_depth", "equal_rain"]
+EURO_SIGN = u"\N{euro sign}"
 
 class AreaDamageCurvesAggregation:
 
@@ -59,7 +70,8 @@ class AreaDamageCurvesAggregation:
         for idx, feature in tqdm(self.vector.iterrows(), "WSS Aggregation", total=len(self.vector)):
             predicate_func = getattr(self, self.predicate)
             areas = predicate_func(feature.geometry)
-            yield idx, feature, areas
+            if len(areas) > 0:
+                yield idx, feature, areas
                
     @property
     def damage_curve(self):
@@ -162,6 +174,7 @@ class AreaDamageCurvesAggregation:
             interpolated_curve = self._curve_linear_interpolate(curve, resolution)
             level = self._curve_depth_to_level(interpolated_curve, d_area)
             level_curve[level.name] = level
+            level_curve = level_curve.copy() #to supress defragment warning.
             
         return level_curve
         
@@ -351,10 +364,10 @@ class AreaDamageCurvesAggregation:
         return agg_series
     
     def agg_run(self):
-        methods=  ["lowest_area","equal_depth", "equal_rain"]
-        lowest = self.aggregate_rain_curve(methods[0])
-        equal_depth = self.aggregate_rain_curve(methods[1])
-        equal_rain = self.aggregate_rain_curve(methods[2])
+        """ Creates a dataframe in which methods can be compared"""
+        lowest = self.aggregate_rain_curve(AGG_METHODS[0])
+        equal_depth = self.aggregate_rain_curve(AGG_METHODS[1])
+        equal_rain = self.aggregate_rain_curve(AGG_METHODS[2])
         output = {}
         for k, v_lowest in lowest.items():
             v_equal_depth = equal_depth[k]
@@ -368,17 +381,17 @@ class AreaDamageCurvesAggregation:
             combined = combined.interpolate("linear").astype(int)
             combined.index = combined.index.astype(int)
             output[k] = combined
-            
+        
         return output       
     
     def run(self, aggregation=True):
         
         # general data
-        self.damage_interpolated_curve.to_csv(self.dir.post.path / "damage_interpolated_curve.csv")
-        self.vol_interpolated_curve.to_csv(self.dir.post.path / "volume_interpolated_curve.csv")
-        self.damage_level_curve.to_csv(self.dir.post.path /  "damage_level_curve.csv")
-        self.vol_level_curve.to_csv(self.dir.post.path /  "vol_level_curve.csv")
-        self.damage_per_m3.to_csv(self.dir.post.path / "damage_per_m3.csv")
+        self.damage_interpolated_curve.to_csv(self.dir.post.damage_interpolated_curve.path)
+        self.vol_interpolated_curve.to_csv(self.dir.post.volume_interpolated_curve.path)
+        self.damage_level_curve.to_csv(self.dir.post.damage_level_curve.path)
+        self.vol_level_curve.to_csv(self.dir.post.vol_level_curve.path)
+        self.damage_per_m3.to_csv(self.dir.post.damage_per_m3.path)
         
         if aggregation:
             aggregations = self.agg_run()
@@ -386,21 +399,35 @@ class AreaDamageCurvesAggregation:
             agg_volume = self.agg_volume()
             agg_landuse = self.agg_landuse()
             
-            for name in self.vector[self.field]:
+            for _, feature, _ in self:
+                name = feature[self.field]
                 
                 path = self.dir.post.path / name
                 path.mkdir(exist_ok=True)
                 
                 # aggregations
-                aggregations[name].to_csv(path  / "aggregate.csv") 
+                aggregate = aggregations[name]
+                aggregate.index.name = "Volume [m3]"
+                aggregate = aggregate.add_suffix(f"[{EURO_SIGN}]")
+                aggregate.to_csv(path  / "aggregate.csv") 
                 
                 # selected geometries
                 self.selection[name].to_file(path / "selection.gpkg")
                 
-                agg_damage[name].to_csv(path / "agg_damage.csv")
-                agg_volume[name].to_csv(path / "agg_volume.csv")
-                agg_landuse[name].to_csv(path / "agg_landuse.csv")
+                agg_d = agg_damage[name]
+                agg_d.index.name = "Waterdepth [m]"
+                agg_d.name = agg_d.name + f" [{EURO_SIGN}]"                 
+                agg_d[name].to_csv(path / "agg_damage.csv")
+                                
+                agg_v = agg_volume[name]
+                agg_v.index.name = "Waterdepth [m]"
+                agg_v.name = agg_v.name + " [m3]"                 
+                agg_v[name].to_csv(path / "agg_volume.csv")
                 
+                agg_l = agg_landuse[name]
+                agg_l.index.name = "Waterdepth [m]"
+                agg_l.name = agg_l.name + " [m2]"                 
+                agg_l[name].to_csv(path / "agg_landuse.csv")
             
             
             
