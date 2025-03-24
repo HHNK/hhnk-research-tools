@@ -43,15 +43,14 @@ class AreaDamageCurveFolders(Folder):
     def __init__(self, base, create=False):
         super().__init__(base, create=create)
 
-        # source
         self.input = Input(self.base, create=create)
 
-        # model files
         self.work = Work(self.base, create=create)
 
-        # Threedi results
         self.output = Output(self.base, create=create)
 
+        self.post = Post(self.base, create=create)
+        
     @property
     def structure(self):
         return f"""  
@@ -102,6 +101,11 @@ class Output(Folder):
         self.add_file("result_lu_areas", "result_lu_areas.csv")
         self.add_file("result_lu_damage", "result_lu_damage.csv")
 
+
+class Post(Folder):
+    def __init__(self, base, create):
+        super().__init__(os.path.join(base, "post"), create)
+        
         
 
 

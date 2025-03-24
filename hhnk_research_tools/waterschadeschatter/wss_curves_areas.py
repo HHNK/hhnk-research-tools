@@ -6,7 +6,20 @@ Created on Fri Aug 23 15:50:56 2024
 
 #TODO:
     - Geef input settings terug bij wegschrijven.
+
+Methodiek schade, volume en landgebruik
+1. Per waterlaag (bv 10 cm) wordt de waterdiepte uitgerekend obv hoogtemodel.
+2. Alle unieke waterdiepte en landgebruik pixels worden geteld.
+3. Schade = Combinatie opgezocht in de schadetabel en vermenigdvuldigd het aantal pixels.
+4. Volume = Oppervlak pixel vermenigvuldigd met de diepte en aantal pixels.
 """
+#TODO remove!
+import sys
+sys.path.append(
+r"C:/Users/kerklaac5395/OneDrive - ARCADIS/Documents/GitHub/hhnk-research-tools"
+)
+
+
 import json
 import shutil
 import pathlib
@@ -546,3 +559,9 @@ def area_method_mp(args):
         
         return (peilgebied_id, {}, str(traceback.format_exc()))
 
+if __name__ == "__main__":
+    import sys
+    adc = hrt.AreaDamageCurves.from_settings_json(str(sys.argv[1]))
+    adc.run(
+        run_1d=True, multiprocessing=True, processes="max", nodamage_filter=True
+    )

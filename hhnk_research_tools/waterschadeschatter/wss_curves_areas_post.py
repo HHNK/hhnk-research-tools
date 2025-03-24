@@ -10,16 +10,6 @@ Post-processing:
     
     
 """
-import sys
-
-sys.path.append(
-    r"C:\Users\kerklaac5395\OneDrive - ARCADIS\Documents\GitHub\hydrologen-projecten\schadeberekeningen"
-)
-sys.path.append(
-    r"C:/Users/kerklaac5395/OneDrive - ARCADIS/Documents/GitHub/hhnk-research-tools"
-)
-
-
 from tqdm import tqdm
 import numpy as np
 import json
@@ -91,8 +81,6 @@ class AreaDamageCurvesAggregation:
     def vol_level_curve(self):
         return self._curves_to_level("vol")
 
-        
-    
     def within(self, geometry, buffer=BUFFER):
         buffered = geometry.buffer(buffer)
         area_within = self.drainage_areas[self.drainage_areas.geometry.within(buffered)]
@@ -433,16 +421,21 @@ if __name__ == "__main__":
     polders_path = r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\data\vectors/polder_heiloo.shp"
 
     t = AreaDamageCurvesAggregation(OUTPUT_DIR / "test5", polders_path, "name")
-
-    self = t
-    mm=150
+    agg = t.agg_run()
     
-    for idx, feature, areas_within in self:
-        break
+    agg.to_csv()
     
-        total_volume_area = feature.geometry.area*(mm/1000) # m3 rain in area.
-        level_damage_curve= self.damage_level_curve
-        level_vol_curve= self.vol_level_curve
+    # self = t
+    # mm=150
+    
+    # for idx, feature, areas_within in self:
+    #     break
+    
+    #     total_volume_area = feature.geometry.area*(mm/1000) # m3 rain in area.
+    #     level_damage_curve= self.damage_level_curve
+    #     level_vol_curve= self.vol_level_curve
         
-    # test.aggregate(polders_path)
+    # # test.aggregate(polders_path)
+
+    
     
