@@ -4,13 +4,8 @@ Created on Thu Oct 10 15:27:18 2024
 
 @author: kerklaac5395
 
-Post-processing:
-    - Vertaald de data naar geografische subgebieden.
-    - Doet ook een korte analyse van het landgebruik.
-    
 TODO:
     4. Log bestand netjes maken
-    5. Readme
     
 """
 #TODO remove!
