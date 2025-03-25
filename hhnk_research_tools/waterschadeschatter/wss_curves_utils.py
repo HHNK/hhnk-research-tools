@@ -38,12 +38,11 @@ class AreaDamageCurveFolders(Folder):
         self.output = Output(self.base, create=create)
 
         self.post = Post(self.base, create=create)
-        
+
         self.create_readme()
-        
+
     def create_readme(self):
-        readme_txt = (
-            """ 
+        readme_txt = """ 
 Deze tool wordt gebruikt om de schadecurve per peilgebied te berekenen.
 De resultaten worden ondergebracht in een aantal mappen en bestanden:
 
@@ -91,8 +90,6 @@ De resultaten worden ondergebracht in een aantal mappen en bestanden:
         aggregate.csv: Bovenstaande methodiek zijn omgezet van schadecurves naar volumes en in een bestand gezet. 
             
             """
-
-        )
         with open(os.path.join(self.base, "read_me.txt"), mode="w") as f:
             f.write(readme_txt)
 
@@ -106,6 +103,7 @@ De resultaten worden ondergebracht in een aantal mappen en bestanden:
                {self.space}└── Post (.post)
                """
 
+
 class Input(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "input"), create)
@@ -116,7 +114,8 @@ class Input(Folder):
         self.add_file("wss_cfg_settings", "wss_config_settings.json")
         self.add_file("wss_curves_filter_settings", "wss_curves_filter_settings.json")
         self.add_file("wss_lookup", "wss_lookup.json")
-        
+
+
 class Work(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "work"), create)
@@ -124,19 +123,21 @@ class Work(Folder):
         self.run_1d = Run1D(self.base, create)
         self.run_2d = Run2D(self.base, create)
 
+
 class Run1D(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "run_1d"), create)
-    
+
+
 class Run2D(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "run_2d"), create)
-    
+
 
 class Output(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "output"), create)
-        
+
         self.add_file("result", "result.csv")
         self.add_file("result_vol", "result_vol.csv")
         self.add_file("result_lu_areas", "result_lu_areas.csv")
@@ -146,7 +147,7 @@ class Output(Folder):
 class Post(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "post"), create)
-        
+
         self.add_file("damage_interpolated_curve", "damage_interpolated_curve.csv")
         self.add_file("volume_interpolated_curve", "volume_interpolated_curve.csv")
         self.add_file("damage_level_curve", "damage_level_curve.csv")
@@ -209,6 +210,7 @@ def write_dict(dictionary, path, overwrite=True):
         with open(str(path), "w") as fp:
             json.dump(dictionary, fp)
 
+
 def pad_zeros(a, shape):
     z = np.zeros(shape)
     z[: a.shape[0], : a.shape[1]] = a
@@ -216,5 +218,7 @@ def pad_zeros(a, shape):
 
 
 if __name__ == "__main__":
-    test = AreaDamageCurveFolders(r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\output\damage_curves_2024_test", create=True)
-
+    test = AreaDamageCurveFolders(
+        r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\output\damage_curves_2024_test",
+        create=True,
+    )
