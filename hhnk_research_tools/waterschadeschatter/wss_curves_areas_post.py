@@ -12,7 +12,7 @@ TODO:
 import sys
 
 sys.path.append(
-    r"C:/Users/kerklaac5395/OneDrive - ARCADIS/Documents/GitHub/hhnk-research-tools"
+    r"C:\Users\ckerklaan\Documents\GitHub\hhnk-research-tools"
 )
 
 

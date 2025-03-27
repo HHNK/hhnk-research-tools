@@ -16,10 +16,6 @@ from hhnk_research_tools.waterschadeschatter import wss_loading
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import WSSTimelog, write_dict
 
 DMG_NODATA = 0  # let op staat dubbel, ook in wss_main.
-WORK_DIR = Path(
-    r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External"
-)
-DATA_PATH = WORK_DIR / "data"
 NODATA_UINT16 = 65535
 NAME = "WSS LookupTable"
 
