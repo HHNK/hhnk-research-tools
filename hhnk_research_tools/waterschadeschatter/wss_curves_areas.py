@@ -13,14 +13,6 @@ Methodiek schade, volume en landgebruik
 3. Schade = Combinatie opgezocht in de schadetabel en vermenigdvuldigd het aantal pixels.
 4. Volume = Oppervlak pixel vermenigvuldigd met de diepte en aantal pixels.
 """
-# TODO remove!
-import sys
-
-sys.path.append(
-    r"E:\github\ckerklaan"
-)
-
-
 import json
 import shutil
 import pathlib
@@ -113,7 +105,7 @@ class AreaDamageCurveMethods:
         # boolean, padded zeros towards shape.
         padded = pad_zeros(nodamage_array * 1, damage.shape)
 
-        # polygonize
+        # polygonize (gdf)
         no_damage = damage.polygonize(array=padded.astype(int))
         no_damage = no_damage[no_damage.field != 0.0]
         no_damage.crs = self.dem.metadata.projection
@@ -123,15 +115,20 @@ class AreaDamageCurveMethods:
         no_damage.geometry = no_damage.buffer(settings["buffer"])
 
         # extract from input
-        gdf = gp.overlay(self.area_gdf, no_damage, how="difference")
-        gdf = gdf.drop(columns=[i for i in gdf.columns if i not in ["geometry"]])
-        gdf.to_file(self.area_dir / "nodamage_filtered.gpkg")
+        dif = gp.overlay(self.area_gdf, no_damage, how="difference")
+        dif = dif.drop(columns=[i for i in dif.columns if i not in ["geometry"]])
+        dif.to_file(self.area_dir / "nodamage_filtered.gpkg")
 
-        self.area_gdf = gdf
+        self.area_gdf = dif
         damage = None  # close raster
 
     def run(self, run_1d=True, depth_steps=None):
         """
+        run_1d: True: Runs the curves in 1d. All spatial sense is lost, but it is 
+        quicker then 2D.
+        run_1d: False: Runs the curves in 2d, which retains all spatial info.
+        depth_steps: List of floats on which the damage is calculated.
+        
         Actually two functions in one, which is quite ugly.
         However, We try to keep 2d calculation as close
         as the 1d calculation to ensure the possibility of validating 1D
@@ -475,7 +472,7 @@ class AreaDamageCurves:
 
     def write(self):
 
-        self.time._message("Start writing")
+        self.time._message("Start writing output")
         self.time._message("Writing damage and volume curves")
         self.curve_df = pd.DataFrame.from_dict(self.curve)
         self.curve_df.to_csv(self.dir.output.result.path)
@@ -558,11 +555,11 @@ class AreaDamageCurves:
                 run = list(run)
                 if len(run[1]) == 0:
                     self.time._message(f"{run[0]} failure! Traceback {run[2]}")
+                    self.failures.append(run[0])
                     run[2] = {}
 
                 self.curve[run[0]] = run[1]
                 self.curve_vol[run[0]] = run[2]
-                self.failures.append(run[0])
                 
 
         if not multiprocessing:

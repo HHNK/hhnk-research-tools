@@ -8,14 +8,6 @@ TODO:
     4. Log bestand netjes maken
 
 """
-# TODO remove!
-import sys
-
-sys.path.append(
-    r"E:\github\ckerklaan"
-)
-
-
 from tqdm import tqdm
 import numpy as np
 import json
@@ -494,9 +486,9 @@ class JsonToFigure:
 
 
 if __name__ == "__main__":
-    # import sys
+    import sys
 
-    # adca = AreaDamageCurvesAggregation.from_settings_json(str(sys.argv[1]))
-    # adca.run(aggregation=True)
+    adca = AreaDamageCurvesAggregation.from_settings_json(str(sys.argv[1]))
+    adca.run(aggregation=True)
 
-    adca = AreaDamageCurvesAggregation.from_settings_json(r"E:\05.schadecurven\settings\run_wss_filter_2024_aggregate.json")
+    # adca = AreaDamageCurvesAggregation.from_settings_json(r"E:\05.schadecurven\settings\run_wss_filter_2024_aggregate.json")
