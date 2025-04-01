@@ -4,22 +4,11 @@ Created on Wed Oct 16 11:07:02 2024
 
 @author: kerklaac5395
 """
+import os
 import json
 import datetime
 import numpy as np
-
-# First-party imports
-import os
-from pathlib import Path
-
-import hhnk_research_tools as hrt
-import pandas as pd
 from hhnk_research_tools import Folder
-from hhnk_research_tools.variables import (
-    GDB,
-    SHAPE,
-    file_types_dict,
-)
 
 
 # GLOBALS

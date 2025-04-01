@@ -328,8 +328,9 @@ class AreaDamageCurves:
         self._inputs_to_vrt()
         
         if settings_json_file:
+            date = self.time.start_time.isoformat()
             shutil.copy(settings_json_file, 
-                        self.dir.input.settings_json_file.path)
+                        self.dir.input.path / f"settings_{date}.json")
             
 
     def __iter__(self):
