@@ -47,7 +47,8 @@ class AreaDamageCurvesAggregation:
     ):
 
         self.dir = AreaDamageCurveFolders(result_path, create=True)
-
+        self.time = WSSTimelog(NAME, quiet, self.dir.post_processing.path)
+        
         if self.dir.output.result.exists():
             self.damage = pd.read_csv(self.dir.output.result.path, index_col=0)
             self.damage.columns = self.damage.columns.astype(int)
@@ -68,7 +69,6 @@ class AreaDamageCurvesAggregation:
             self.field = vector_field
 
         self.predicate = PREDICATE
-        self.time = WSSTimelog(NAME, quiet, self.dir.post_processing.path)
         self.mm_rain = mm_rain
 
     def __iter__(self):
@@ -494,9 +494,9 @@ class JsonToFigure:
 
 
 if __name__ == "__main__":
-    import sys
+    # import sys
 
-    adca = AreaDamageCurvesAggregation.from_settings_json(str(sys.argv[1]))
-    adca.run(aggregation=True)
+    # adca = AreaDamageCurvesAggregation.from_settings_json(str(sys.argv[1]))
+    # adca.run(aggregation=True)
 
-    # adca = AreaDamageCurvesAggregation.from_settings_json(r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\run_settings\run_wss_test_westzaan_aggregate.json")
+    adca = AreaDamageCurvesAggregation.from_settings_json(r"E:\05.schadecurven\settings\run_wss_filter_2024_aggregate.json")

@@ -297,6 +297,7 @@ class AreaDamageCurves:
     ):
 
         self.dir = AreaDamageCurveFolders(output_dir, create=True)
+        self.time = WSSTimelog(NAME, quiet, self.dir.work.path)
 
         self._wss_settings = {}
         self._wss_curves_filter_settings = None
@@ -324,11 +325,10 @@ class AreaDamageCurves:
         self.depth_steps = np.arange(curve_step, curve_max + curve_step, curve_step)
         self.depth_steps = [round(i, 2) for i in self.depth_steps]
 
-        self.time = WSSTimelog(NAME, self.quiet, self.dir.work.path)
         self._inputs_to_vrt()
         
         if settings_json_file:
-            date = self.time.start_time.isoformat()
+            date = self.time.start_time.strftime("%Y%m%d%H%M")
             shutil.copy(settings_json_file, 
                         self.dir.input.path / f"settings_{date}.json")
             
@@ -369,6 +369,7 @@ class AreaDamageCurves:
                 },
                 inplace=True,
             )
+            vector = self._check_nan(vector)
             vector.to_file(self.dir.input.area.path)
 
             self._area_vector = vector
@@ -443,6 +444,14 @@ class AreaDamageCurves:
         data["filter_settings"] = self.wss_curves_filter_settings
         data["log_file"] = self.time.log_file
         return data
+    
+    def _check_nan(self, gdf):
+        """ Checks for NAN's"""
+        if gdf[DRAINAGE_LEVEL_FIELD].isna().sum() >0:
+            self.time._message("Found drainage level NAN's, deleting from input.")
+            gdf = gdf[~gdf[DRAINAGE_LEVEL_FIELD].isna()]    
+            # gdf = gp.GeoDataFrame(gdf)
+        return gdf
 
     def _inputs_to_vrt(self):
         """creates vrt rasters out of all input"""
