@@ -37,7 +37,7 @@ class AreaDamageCurveFolders(Folder):
 
         self.output = Output(self.base, create=create)
 
-        self.post = Post(self.base, create=create)
+        self.post_processing = PostProcessing(self.base, create=create)
 
         self.create_readme()
 
@@ -113,6 +113,7 @@ class Input(Folder):
         self.add_file("wss_settings", "wss_settings.json")
         self.add_file("wss_cfg_settings", "wss_config_settings.json")
         self.add_file("wss_curves_filter_settings", "wss_curves_filter_settings.json")
+        self.add_file("settings_json_file", "settings_json_file.json")
         self.add_file("wss_lookup", "wss_lookup.json")
 
 
@@ -144,9 +145,9 @@ class Output(Folder):
         self.add_file("result_lu_damage", "result_lu_damage.csv")
 
 
-class Post(Folder):
+class PostProcessing(Folder):
     def __init__(self, base, create):
-        super().__init__(os.path.join(base, "post"), create)
+        super().__init__(os.path.join(base, "post_processing"), create)
 
         self.add_file("damage_interpolated_curve", "damage_interpolated_curve.csv")
         self.add_file("volume_interpolated_curve", "volume_interpolated_curve.csv")

@@ -12,7 +12,7 @@ TODO:
 import sys
 
 sys.path.append(
-    r"C:\Users\ckerklaan\Documents\GitHub\hhnk-research-tools"
+    r"E:\github\ckerklaan"
 )
 
 
@@ -68,7 +68,7 @@ class AreaDamageCurvesAggregation:
             self.field = vector_field
 
         self.predicate = PREDICATE
-        self.time = WSSTimelog(NAME, quiet, self.dir.post.path)
+        self.time = WSSTimelog(NAME, quiet, self.dir.post_processing.path)
 
     def __iter__(self):
         for idx, feature in tqdm(
@@ -415,12 +415,12 @@ class AreaDamageCurvesAggregation:
 
         # general data
         self.damage_interpolated_curve.to_csv(
-            self.dir.post.damage_interpolated_curve.path
+            self.dir.post_processing.damage_interpolated_curve.path
         )
-        self.vol_interpolated_curve.to_csv(self.dir.post.volume_interpolated_curve.path)
-        self.damage_level_curve.to_csv(self.dir.post.damage_level_curve.path)
-        self.vol_level_curve.to_csv(self.dir.post.vol_level_curve.path)
-        self.damage_per_m3.to_csv(self.dir.post.damage_per_m3.path)
+        self.vol_interpolated_curve.to_csv(self.dir.post_processing.volume_interpolated_curve.path)
+        self.damage_level_curve.to_csv(self.dir.post_processing.damage_level_curve.path)
+        self.vol_level_curve.to_csv(self.dir.post_processing.vol_level_curve.path)
+        self.damage_per_m3.to_csv(self.dir.post_processing.damage_per_m3.path)
 
         if aggregation:
             aggregations = self.agg_run()
@@ -431,7 +431,7 @@ class AreaDamageCurvesAggregation:
             for _, feature, _ in self:
                 name = feature[self.field]
 
-                path = self.dir.post.path / name
+                path = self.dir.post_processing.path / name
                 path.mkdir(exist_ok=True)
 
                 # aggregations

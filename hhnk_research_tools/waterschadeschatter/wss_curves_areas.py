@@ -17,7 +17,7 @@ Methodiek schade, volume en landgebruik
 import sys
 
 sys.path.append(
-    r"C:\Users\ckerklaan\Documents\GitHub\hhnk-research-tools"
+    r"E:\github\ckerklaan"
 )
 
 
@@ -293,6 +293,7 @@ class AreaDamageCurves:
         wss_filter_settings=None,
         wss_config=None,
         wss_settings=None,
+        settings_json_file=None
     ):
 
         self.dir = AreaDamageCurveFolders(output_dir, create=True)
@@ -325,6 +326,11 @@ class AreaDamageCurves:
 
         self.time = WSSTimelog(NAME, self.quiet, self.dir.work.path)
         self._inputs_to_vrt()
+        
+        if settings_json_file:
+            shutil.copy(settings_json_file, 
+                        self.dir.input.settings_json_file.path)
+            
 
     def __iter__(self):
         for id in self.area_vector[ID_FIELD]:
@@ -341,7 +347,7 @@ class AreaDamageCurves:
         with open(str(file)) as json_file:
             settings = json.load(json_file)
 
-        return cls(**settings)
+        return cls(**settings, settings_json_file=file)
 
     @property
     def area_vector(self):
