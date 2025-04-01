@@ -132,6 +132,7 @@ class Output(Folder):
         self.add_file("result_vol", "result_vol.csv")
         self.add_file("result_lu_areas", "result_lu_areas.csv")
         self.add_file("result_lu_damage", "result_lu_damage.csv")
+        self.add_file("failures", "failures.gpkg")
 
 
 class PostProcessing(Folder):

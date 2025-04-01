@@ -49,7 +49,7 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_lookup import (
 NODATA_UINT8 = 255
 DAMAGE_DECIMALS = 2
 MAX_PROCESSES = (
-    mp.cpu_count() - 2
+    mp.cpu_count() - 1
 )  # still wanna do something on the computa use minus 2
 SHOW_LOG = 30  # seconds
 NAME = "WSS AreaDamageCurve"
@@ -507,6 +507,11 @@ class AreaDamageCurves:
             lu_damage.append(damage_lu)
         lu_damage = pd.concat(lu_damage)
         lu_damage.to_csv(self.dir.output.result_lu_damage.path)
+        
+        mask=self.area_vector[ID_FIELD].isin(self.failures)
+        failures = self.area_vector[mask]
+        failures.to_file(self.dir.output.failures.path)
+        
         self.time._message("End writing")
 
     def run(
@@ -534,6 +539,7 @@ class AreaDamageCurves:
 
         self.curve = {}
         self.curve_vol = {}
+        self.failures = []
 
         if multiprocessing:
             data = self.area_stats_data
@@ -556,6 +562,8 @@ class AreaDamageCurves:
 
                 self.curve[run[0]] = run[1]
                 self.curve_vol[run[0]] = run[2]
+                self.failures.append(run[0])
+                
 
         if not multiprocessing:
             for peil_id in tqdm(self, f"{NAME}: Damage {run_name}"):
