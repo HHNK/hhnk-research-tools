@@ -43,7 +43,7 @@ PREDICATE = "_within"
 class AreaDamageCurvesAggregation:
 
     def __init__(
-        self, result_path, aggregate_vector_path=None, vector_field=None, quiet=False
+        self, result_path, aggregate_vector_path=None, vector_field=None, mm_rain=400, quiet=False
     ):
 
         self.dir = AreaDamageCurveFolders(result_path, create=True)
@@ -69,6 +69,7 @@ class AreaDamageCurvesAggregation:
 
         self.predicate = PREDICATE
         self.time = WSSTimelog(NAME, quiet, self.dir.post_processing.path)
+        self.mm_rain = mm_rain
 
     def __iter__(self):
         for idx, feature in tqdm(
@@ -254,7 +255,7 @@ class AreaDamageCurvesAggregation:
 
     #     return curves
 
-    def aggregate_rain_curve(self, method="lowest_area"):
+    def aggregate_rain_curve(self, method="lowest_area", mm_rain=400):
         """Methods for distribution of rain in the drainage area"""
 
         output = {}
@@ -263,15 +264,15 @@ class AreaDamageCurvesAggregation:
 
             if method == "lowest_area":
                 output[feature[self.field]] = self.agg_rain_lowest_area(
-                    feature, areas_within
+                    feature, areas_within, mm_rain=mm_rain
                 )
             elif method == "equal_depth":
                 output[feature[self.field]] = self.agg_rain_equal_depth(
-                    feature, areas_within
+                    feature, areas_within, mm_rain=mm_rain
                 )
             elif method == "equal_rain":
                 output[feature[self.field]] = self.agg_rain_own_area_retention(
-                    feature, areas_within
+                    feature, areas_within, mm_rain
                 )
         return output
 
@@ -388,11 +389,11 @@ class AreaDamageCurvesAggregation:
         agg_series = pd.Series(aggregate_curve, name="damage_own_area_retention")
         return agg_series
 
-    def agg_run(self):
+    def agg_run(self, mm_rain=400):
         """Creates a dataframe in which methods can be compared"""
-        lowest = self.aggregate_rain_curve(AGG_METHODS[0])
-        equal_depth = self.aggregate_rain_curve(AGG_METHODS[1])
-        equal_rain = self.aggregate_rain_curve(AGG_METHODS[2])
+        lowest = self.aggregate_rain_curve(AGG_METHODS[0], mm_rain)
+        equal_depth = self.aggregate_rain_curve(AGG_METHODS[1], mm_rain)
+        equal_rain = self.aggregate_rain_curve(AGG_METHODS[2], mm_rain)
         output = {}
         for k, v_lowest in lowest.items():
             v_equal_depth = equal_depth[k]
@@ -423,7 +424,7 @@ class AreaDamageCurvesAggregation:
         self.damage_per_m3.to_csv(self.dir.post_processing.damage_per_m3.path)
 
         if aggregation:
-            aggregations = self.agg_run()
+            aggregations = self.agg_run(self.mm_rain)
             agg_damage = self.agg_damage()
             agg_volume = self.agg_volume()
             agg_landuse = self.agg_landuse()
