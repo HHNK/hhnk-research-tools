@@ -35,12 +35,11 @@ PREDICATE = "_within"
 class AreaDamageCurvesAggregation:
 
     def __init__(
-        self, result_path, aggregate_vector_path=None, vector_field=None, mm_rain=400, quiet=False
+        self, result_path, aggregate_vector_path=None, vector_field=None, quiet=False
     ):
 
         self.dir = AreaDamageCurveFolders(result_path, create=True)
-        self.time = WSSTimelog(NAME, quiet, self.dir.post_processing.path)
-        
+
         if self.dir.output.result.exists():
             self.damage = pd.read_csv(self.dir.output.result.path, index_col=0)
             self.damage.columns = self.damage.columns.astype(int)
@@ -61,7 +60,7 @@ class AreaDamageCurvesAggregation:
             self.field = vector_field
 
         self.predicate = PREDICATE
-        self.mm_rain = mm_rain
+        self.time = WSSTimelog(NAME, quiet, self.dir.post.path)
 
     def __iter__(self):
         for idx, feature in tqdm(
@@ -247,7 +246,7 @@ class AreaDamageCurvesAggregation:
 
     #     return curves
 
-    def aggregate_rain_curve(self, method="lowest_area", mm_rain=400):
+    def aggregate_rain_curve(self, method="lowest_area"):
         """Methods for distribution of rain in the drainage area"""
 
         output = {}
@@ -256,15 +255,15 @@ class AreaDamageCurvesAggregation:
 
             if method == "lowest_area":
                 output[feature[self.field]] = self.agg_rain_lowest_area(
-                    feature, areas_within, mm_rain=mm_rain
+                    feature, areas_within
                 )
             elif method == "equal_depth":
                 output[feature[self.field]] = self.agg_rain_equal_depth(
-                    feature, areas_within, mm_rain=mm_rain
+                    feature, areas_within
                 )
             elif method == "equal_rain":
                 output[feature[self.field]] = self.agg_rain_own_area_retention(
-                    feature, areas_within, mm_rain
+                    feature, areas_within
                 )
         return output
 
@@ -381,11 +380,11 @@ class AreaDamageCurvesAggregation:
         agg_series = pd.Series(aggregate_curve, name="damage_own_area_retention")
         return agg_series
 
-    def agg_run(self, mm_rain=400):
+    def agg_run(self):
         """Creates a dataframe in which methods can be compared"""
-        lowest = self.aggregate_rain_curve(AGG_METHODS[0], mm_rain)
-        equal_depth = self.aggregate_rain_curve(AGG_METHODS[1], mm_rain)
-        equal_rain = self.aggregate_rain_curve(AGG_METHODS[2], mm_rain)
+        lowest = self.aggregate_rain_curve(AGG_METHODS[0])
+        equal_depth = self.aggregate_rain_curve(AGG_METHODS[1])
+        equal_rain = self.aggregate_rain_curve(AGG_METHODS[2])
         output = {}
         for k, v_lowest in lowest.items():
             v_equal_depth = equal_depth[k]
@@ -408,15 +407,15 @@ class AreaDamageCurvesAggregation:
 
         # general data
         self.damage_interpolated_curve.to_csv(
-            self.dir.post_processing.damage_interpolated_curve.path
+            self.dir.post.damage_interpolated_curve.path
         )
-        self.vol_interpolated_curve.to_csv(self.dir.post_processing.volume_interpolated_curve.path)
-        self.damage_level_curve.to_csv(self.dir.post_processing.damage_level_curve.path)
-        self.vol_level_curve.to_csv(self.dir.post_processing.vol_level_curve.path)
-        self.damage_per_m3.to_csv(self.dir.post_processing.damage_per_m3.path)
+        self.vol_interpolated_curve.to_csv(self.dir.post.volume_interpolated_curve.path)
+        self.damage_level_curve.to_csv(self.dir.post.damage_level_curve.path)
+        self.vol_level_curve.to_csv(self.dir.post.vol_level_curve.path)
+        self.damage_per_m3.to_csv(self.dir.post.damage_per_m3.path)
 
         if aggregation:
-            aggregations = self.agg_run(self.mm_rain)
+            aggregations = self.agg_run()
             agg_damage = self.agg_damage()
             agg_volume = self.agg_volume()
             agg_landuse = self.agg_landuse()
@@ -424,7 +423,7 @@ class AreaDamageCurvesAggregation:
             for _, feature, _ in self:
                 name = feature[self.field]
 
-                path = self.dir.post_processing.path / name
+                path = self.dir.post.path / name
                 path.mkdir(exist_ok=True)
 
                 # aggregations
@@ -491,4 +490,4 @@ if __name__ == "__main__":
     adca = AreaDamageCurvesAggregation.from_settings_json(str(sys.argv[1]))
     adca.run(aggregation=True)
 
-    # adca = AreaDamageCurvesAggregation.from_settings_json(r"E:\05.schadecurven\settings\run_wss_filter_2024_aggregate.json")
+    # adca = AreaDamageCurvesAggregation.from_settings_json(r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\run_settings\run_wss_test_westzaan_aggregate.json")
