@@ -12,14 +12,8 @@ import numpy as np
 import os
 from pathlib import Path
 
-import hhnk_research_tools as hrt
 import pandas as pd
 from hhnk_research_tools import Folder
-from hhnk_research_tools.variables import (
-    GDB,
-    SHAPE,
-    file_types_dict,
-)
 
 
 # GLOBALS
