@@ -26,7 +26,6 @@ class Folder(BasePath):
         if create:
             self.mkdir(parents=False)
 
-
     # TODO is deze nog nodig??
     @property
     def structure(self):
@@ -59,6 +58,12 @@ class Folder(BasePath):
         to prevent circular imports.
         """
         return Folder(self.path.parent)
+    
+    def __getitem__(self, attribute):
+        return getattr(self, attribute)
+
+    # def __setattr__(self, name, value):
+    #     return setattr(self, name, value)
 
     def create(self, parents=False, verbose=False):
         """Create folder, if parents==False path wont be

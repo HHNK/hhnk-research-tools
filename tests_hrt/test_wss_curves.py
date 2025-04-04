@@ -6,19 +6,12 @@ Created on Thu Sep 26 15:44:05 2024
 """
 
 import pytest
-import sys
-
-sys.path.append(
-    r"C:\Users\kerklaac5395\OneDrive - ARCADIS\Documents\GitHub\hydrologen-projecten\schadeberekeningen"
-)
-sys.path.append(
-    r"C:/Users/kerklaac5395/OneDrive - ARCADIS/Documents/GitHub/hhnk-research-tools"
-)
 
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
 
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas import AreaDamageCurves
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas_post import AreaDamageCurvesAggregation
+from hhnk_research_tools.waterschadeschatter.wss_curves_utils import AreaDamageCurveFolders
 
 import pandas as pd
 
@@ -30,8 +23,8 @@ WSS_SETTINGS_FILE = WSS_DATA /  "wss_settings_hhnk_2020.json"
 WSS_CURVE_FILTER_SETTINGS_FILE = WSS_DATA /  "wss_curve_filter_settings_hhnk_2020.json"
 RUN_CURVES_FILE = WSS_DATA / "run_wss_curves_2024.json"
 
-AREA_PATH = WSS_DATA / "wss_curve_area.shp"
-AREA_AGGREGATE_PATH = WSS_DATA / "wss_curve_area_aggregate.shp"
+AREA_PATH = WSS_DATA / "wss_curve_area.gpkg"
+AREA_AGGREGATE_PATH = WSS_DATA / "wss_curve_area_aggregate.gpkg"
 
 DEM_PATH = WSS_DATA / "wss_curve_area_dem.tif"
 LU_PATH = WSS_DATA / "wss_curve_area_lu.tif"
@@ -118,7 +111,15 @@ class TestWSSAggregation:
     
     def test_agg_methods(self,aggregatie,output):
         aggregatie.run()
+        # folders = AreaDamageCurveFolders(OUTPUT_PATH)
+        
         test_output = pd.read_csv(OUTPUT_PATH / "post" / "Wieringermeer" / "aggregate.csv")   
         assert (test_output == output).all()[0]
         
+class TestWSSAggregationFolders:
+    def test_generating_folders(self):
+        
+        folders = AreaDamageCurveFolders(TEMP_DIR)
+        
+        assert (TEMP_DIR / "work").exists()
         

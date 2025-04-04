@@ -4,10 +4,8 @@ Created on Fri Aug 30 14:29:47 2024
 
 @author: kerklaac5395
 """
-import json
 from tqdm import tqdm
 import numpy as np
-from pathlib import Path
 from collections import namedtuple
 
 from hhnk_research_tools.waterschadeschatter import wss_calculations

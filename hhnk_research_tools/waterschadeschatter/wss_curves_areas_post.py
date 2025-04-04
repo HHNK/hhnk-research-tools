@@ -8,14 +8,6 @@ TODO:
     4. Log bestand netjes maken
 
 """
-# TODO remove!
-import sys
-
-sys.path.append(
-    r"C:\Users\ckerklaan\Documents\GitHub\hhnk-research-tools"
-)
-
-
 from tqdm import tqdm
 import numpy as np
 import json

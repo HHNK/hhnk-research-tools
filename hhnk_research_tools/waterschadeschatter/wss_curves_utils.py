@@ -4,6 +4,7 @@ Created on Wed Oct 16 11:07:02 2024
 
 @author: kerklaac5395
 """
+import os
 import json
 import datetime
 import numpy as np
@@ -31,58 +32,58 @@ class AreaDamageCurveFolders(Folder):
 
         self.output = Output(self.base, create=create)
 
-        self.post = Post(self.base, create=create)
+        self.post_processing = PostProcessing(self.base, create=create)
 
         self.create_readme()
 
     def create_readme(self):
         readme_txt = """ 
-Deze tool wordt gebruikt om de schadecurve per peilgebied te berekenen.
-De resultaten worden ondergebracht in een aantal mappen en bestanden:
-
-    Input
-    area.gpkg: Peilgebieden
-    dem.vrt: Hoogtemodel
-    lu.vrt: Landgebruik
-    wss_config_settings.json: Schadetabel waterschadeschatter
-    wss_curves_filter_settings.json: Filter settings voor schadecurves
-    wss_lookup: Tabel voor schade per combinatie landgebruik en diepte
-    wss_settings: Instellingen voor de waterschadeschatter (duur, hersteltijd etc.)
-    
-    Work
-    log: Logging van processen
-    run_1d: Resultaten per peilgebied
-    run_2d: Resultaten per peilgebied
-    
-    Output
-    result.csv: Schadecurve per peilgebied
-    result_lu_areas.csv: Oppervlak landgebruiks(curve) per peilgebied
-    result_lu_damage.csv: Schade landgebruiks(curve) per peilgebied
-    result_vol.csv: Volume(curve) per peilgebied
-    
-    Post
-    damage_interpolated_curve.csv: Schadecurve per cm
-    damage_level_curve.csv: Schadecurve op basis van waterstand
-    damage_per_m3.csv: Schade per m3 per waterstand
-    
-        Folder per aggregatiegebied
-        agg_damage.csv: Sommering van schade
-        agg_landuse.csv: Sommering van landgebruiksoppervlak
-        agg_volume.csv: Sommering van volume
+        Deze tool wordt gebruikt om de schadecurve per peilgebied te berekenen.
+        De resultaten worden ondergebracht in een aantal mappen en bestanden:
         
-        Aggregatiemethodieken (150 mm neerslag)
-        1. agg_rain_lowest_area 
-        Een schadecurve die start vanaf het laatste peilgebied en wordt gesommeerd wanneer het volgende peilgebied wordt bereikt.
+            Input
+            area.gpkg: Peilgebieden
+            dem.vrt: Hoogtemodel
+            lu.vrt: Landgebruik
+            wss_config_settings.json: Schadetabel waterschadeschatter
+            wss_curves_filter_settings.json: Filter settings voor schadecurves
+            wss_lookup: Tabel voor schade per combinatie landgebruik en diepte
+            wss_settings: Instellingen voor de waterschadeschatter (duur, hersteltijd etc.)
             
-        2. agg_rain_equal_depth
-        In elke peilgebied wordt waterdiepte behouden.
-        De schadecurves worden gesommeerd.
-        
-        3. agg_rain_own_area_retention
-        De neerslag die valt wordt hier ook vastgehouden in hetzelfde peilgebied.
-        
-        aggregate.csv: Bovenstaande methodiek zijn omgezet van schadecurves naar volumes en in een bestand gezet. 
+            Work
+            log: Logging van processen
+            run_1d: Resultaten per peilgebied
+            run_2d: Resultaten per peilgebied
             
+            Output
+            result.csv: Schadecurve per peilgebied
+            result_lu_areas.csv: Oppervlak landgebruiks(curve) per peilgebied
+            result_lu_damage.csv: Schade landgebruiks(curve) per peilgebied
+            result_vol.csv: Volume(curve) per peilgebied
+            
+            Post
+            damage_interpolated_curve.csv: Schadecurve per cm
+            damage_level_curve.csv: Schadecurve op basis van waterstand
+            damage_per_m3.csv: Schade per m3 per waterstand
+            
+                Folder per aggregatiegebied
+                agg_damage.csv: Sommering van schade
+                agg_landuse.csv: Sommering van landgebruiksoppervlak
+                agg_volume.csv: Sommering van volume
+                
+                Aggregatiemethodieken (150 mm neerslag)
+                1. agg_rain_lowest_area 
+                Een schadecurve die start vanaf het laatste peilgebied en wordt gesommeerd wanneer het volgende peilgebied wordt bereikt.
+                    
+                2. agg_rain_equal_depth
+                In elke peilgebied wordt waterdiepte behouden.
+                De schadecurves worden gesommeerd.
+                
+                3. agg_rain_own_area_retention
+                De neerslag die valt wordt hier ook vastgehouden in hetzelfde peilgebied.
+                
+                aggregate.csv: Bovenstaande methodiek zijn omgezet van schadecurves naar volumes en in een bestand gezet. 
+                    
             """
         with open(os.path.join(self.base, "read_me.txt"), mode="w") as f:
             f.write(readme_txt)
@@ -107,6 +108,7 @@ class Input(Folder):
         self.add_file("wss_settings", "wss_settings.json")
         self.add_file("wss_cfg_settings", "wss_config_settings.json")
         self.add_file("wss_curves_filter_settings", "wss_curves_filter_settings.json")
+        self.add_file("settings_json_file", "settings_json_file.json")
         self.add_file("wss_lookup", "wss_lookup.json")
 
 
@@ -116,17 +118,24 @@ class Work(Folder):
 
         self.run_1d = Run1D(self.base, create)
         self.run_2d = Run2D(self.base, create)
-
-
+        self.log = Log(self.base, create)
+        
+        
 class Run1D(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "run_1d"), create)
-
-
+    
+    def create_fdla_dir(self, name, depth_steps):
+        setattr(self, f"flda_{name}", FDLADir(self.base, True, name, depth_steps))
+        
+    
 class Run2D(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "run_2d"), create)
-
+        
+class Log(Folder):
+    def __init__(self, base, create):
+        super().__init__(os.path.join(base, "log"), create)
 
 class Output(Folder):
     def __init__(self, base, create):
@@ -136,20 +145,48 @@ class Output(Folder):
         self.add_file("result_vol", "result_vol.csv")
         self.add_file("result_lu_areas", "result_lu_areas.csv")
         self.add_file("result_lu_damage", "result_lu_damage.csv")
+        self.add_file("failures", "failures.gpkg")
 
 
-class Post(Folder):
+class PostProcessing(Folder):
     def __init__(self, base, create):
-        super().__init__(os.path.join(base, "post"), create)
+        super().__init__(os.path.join(base, "post_processing"), create)
 
         self.add_file("damage_interpolated_curve", "damage_interpolated_curve.csv")
         self.add_file("volume_interpolated_curve", "volume_interpolated_curve.csv")
         self.add_file("damage_level_curve", "damage_level_curve.csv")
         self.add_file("vol_level_curve", "vol_level_curve.csv")
         self.add_file("damage_per_m3", "damage_per_m3.csv")
+        
+    def create_aggregate_dir(self, name):
+        return AggregateDir(self.base, True, name)
+    
+class FDLADir(Folder):
+    def __init__(self, base, create, name, depth_steps):
+        super().__init__(os.path.join(base, name), create)
 
+        self.add_file("curve", "curve.csv")
+        self.add_file("curve_vol", "curve_vol.csv")
+        self.add_file("counts_lu", "counts_lu.csv")
+        self.add_file("damage_lu", "damage_lu.csv")
+        self.add_file("nodamage_filtered", "nodamage_filtered.gpkg")
+        
+        for ds in depth_steps:
+            self.add_file(f"depth_{ds}", f"depth_{ds}.tif")
+            self.add_file(f"level_{ds}", f"level_{ds}.tif")
+            self.add_file(f"lu_{ds}", f"lu_{ds}.gpkg")
 
+class AggregateDir:
+    def __init__(self, base, create, name):
+        super().__init__(os.path.join(base, name), create)
+        
+        
 class WSSTimelog:
+    """
+    WSSTimeLog logs all message and writes them to a logfile.
+    It also print messages to your consolse and keeps track of time.
+    
+    """
     def __init__(self, subject, quiet, output_dir=None, log_file=None):
         self.s = subject
         self.quiet = quiet

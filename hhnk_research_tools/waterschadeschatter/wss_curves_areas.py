@@ -13,13 +13,6 @@ Methodiek schade, volume en landgebruik
 3. Schade = Combinatie opgezocht in de schadetabel en vermenigdvuldigd het aantal pixels.
 4. Volume = Oppervlak pixel vermenigvuldigd met de diepte en aantal pixels.
 """
-# TODO remove!
-import sys
-
-sys.path.append(
-    r"C:\Users\ckerklaan\Documents\GitHub\hhnk-research-tools"
-)
-
 
 import json
 import shutil
@@ -49,7 +42,7 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_lookup import (
 NODATA_UINT8 = 255
 DAMAGE_DECIMALS = 2
 MAX_PROCESSES = (
-    mp.cpu_count() - 2
+    mp.cpu_count() - 1
 )  # still wanna do something on the computa use minus 2
 SHOW_LOG = 30  # seconds
 NAME = "WSS AreaDamageCurve"
@@ -57,18 +50,27 @@ NAME = "WSS AreaDamageCurve"
 
 class AreaDamageCurveMethods:
     def __init__(self, peilgebied_id, data, nodamage_filter=True):
+        
+        
         self.peilgebied_id = peilgebied_id
-        self.lu = hrt.Raster(data["lu_vrt_path"])
-        self.dem = hrt.Raster(data["dem_vrt_path"])
-        self.area_vector = gp.read_file(data["area_path"])
+        self.dir = AreaDamageCurveFolders(data['output_dir'])
+        
+        self.area_vector = gp.read_file(self.dir.input.area.path)
+        self.lu = hrt.Raster(self.dir.input.lu.path)
+        self.dem = hrt.Raster(self.dir.input.dem.path)
+        
+        
         self.lookup_table = data["lookup_table"]
-        self.metadata = data["metadata"]
-        self.depth_steps = data["depth_steps"]
-        self.output_dir = pathlib.Path(data["output_dir"])
-        self.nodata = data["nodata"]
         self.filter_settings = data["filter_settings"]
         self.log_file = data["log_file"]
-
+        self.metadata = data["metadata"]
+        self.depth_steps = data["depth_steps"]
+        self.nodata = data["nodata"]
+        self.run_type = data['run_type']
+        
+        
+        self.flda_dir = self.create_dir()
+        
         self.area_dir = self.output_dir / str(peilgebied_id)
         self.area_dir.mkdir(exist_ok=True)
         self.area_gdf, self.area_meta, self.area_start_level = self.get_area_meta(
@@ -78,11 +80,14 @@ class AreaDamageCurveMethods:
         self.time = WSSTimelog(None, True, None, log_file=self.log_file)
         if nodamage_filter:
             self.damage_filter(self.filter_settings)
-
+    
     @property
     def geometry(self):
         return list(self.area_gdf.geometry)[0]
 
+    def create_dir(self):
+        return self.dir.work[self.run_type].create_fdla_dir(self.peilkgebied_id, self.depth_steps)
+    
     def get_area_meta(self, peilgebied_id):
         area = self.area_vector.loc[self.area_vector[ID_FIELD] == peilgebied_id]
         area_meta = hrt.RasterMetadataV2.from_gdf(
@@ -93,7 +98,7 @@ class AreaDamageCurveMethods:
         return area, area_meta, start_level
 
     def damage_filter(self, settings):
-
+        
         lu_array = self.lu.read(self.geometry)
 
         # filter specifc landuse
@@ -101,7 +106,8 @@ class AreaDamageCurveMethods:
 
         # calculate damage at specific depth and filter above zero
         self.run(run_1d=False, depth_steps=[settings["depth"]])
-        damage = hrt.Raster(self.area_dir / f"damage_{settings['depth']}.tif")
+        filter_path = self.fdla_dir.path / f"damage_{settings['depth']}.tif"
+        damage = hrt.Raster(filter_path)
         damage_array = damage.read(self.geometry)
 
         # select only places with damage
@@ -113,7 +119,7 @@ class AreaDamageCurveMethods:
         # boolean, padded zeros towards shape.
         padded = pad_zeros(nodamage_array * 1, damage.shape)
 
-        # polygonize
+        # polygonize (gdf)
         no_damage = damage.polygonize(array=padded.astype(int))
         no_damage = no_damage[no_damage.field != 0.0]
         no_damage.crs = self.dem.metadata.projection
@@ -123,15 +129,20 @@ class AreaDamageCurveMethods:
         no_damage.geometry = no_damage.buffer(settings["buffer"])
 
         # extract from input
-        gdf = gp.overlay(self.area_gdf, no_damage, how="difference")
-        gdf = gdf.drop(columns=[i for i in gdf.columns if i not in ["geometry"]])
-        gdf.to_file(self.area_dir / "nodamage_filtered.gpkg")
+        dif = gp.overlay(self.area_gdf, no_damage, how="difference")
+        dif = dif.drop(columns=[i for i in dif.columns if i not in ["geometry"]])
+        dif.to_file(self.fdla_dir.nodamage_filtere.path)
 
-        self.area_gdf = gdf
+        self.area_gdf = dif
         damage = None  # close raster
 
     def run(self, run_1d=True, depth_steps=None):
         """
+        run_1d: True: Runs the curves in 1d. All spatial sense is lost, but it is 
+        quicker then 2D.
+        run_1d: False: Runs the curves in 2d, which retains all spatial info.
+        depth_steps: List of floats on which the damage is calculated.
+        
         Actually two functions in one, which is quite ugly.
         However, We try to keep 2d calculation as close
         as the 1d calculation to ensure the possibility of validating 1D
@@ -219,11 +230,11 @@ class AreaDamageCurveMethods:
                 volume = volume_2d.sum()
 
                 damage_per_lu = {}
-                self.write_tif(self.area_dir / f"depth_{ds}.tif", depth)
-                self.write_tif(self.area_dir / f"lu_{ds}.tif", lu)
-                self.write_tif(self.area_dir / f"damage_{ds}.tif", damage_2d)
-                self.write_tif(self.area_dir / f"level_{ds}.tif", depth + dem_array)
-
+                self.write_tif(self.fdla_dir["depth_"+str(ds)].path, depth)
+                self.write_tif(self.fdla_dir["lu_"+str(ds)].path, lu)
+                self.write_tif(self.fdla_dir["damage_"+str(ds)].path, damage_2d)
+                self.write_tif(self.fdla_dir["level_"+str(ds)].path, depth + dem_array)
+                
             curve[ds] = damage
             curve_vol[ds] = volume
             un, c = np.unique(lu, return_counts=True)
@@ -293,9 +304,11 @@ class AreaDamageCurves:
         wss_filter_settings=None,
         wss_config=None,
         wss_settings=None,
+        settings_json_file=None
     ):
 
         self.dir = AreaDamageCurveFolders(output_dir, create=True)
+        self.time = WSSTimelog(NAME, quiet, self.dir.work.path)
 
         self._wss_settings = {}
         self._wss_curves_filter_settings = None
@@ -323,8 +336,13 @@ class AreaDamageCurves:
         self.depth_steps = np.arange(curve_step, curve_max + curve_step, curve_step)
         self.depth_steps = [round(i, 2) for i in self.depth_steps]
 
-        self.time = WSSTimelog(NAME, self.quiet, self.dir.work.path)
         self._inputs_to_vrt()
+        
+        if settings_json_file:
+            date = self.time.start_time.strftime("%Y%m%d%H%M")
+            shutil.copy(settings_json_file, 
+                        self.dir.input.path / f"settings_{date}.json")
+            
 
     def __iter__(self):
         for id in self.area_vector[ID_FIELD]:
@@ -341,7 +359,7 @@ class AreaDamageCurves:
         with open(str(file)) as json_file:
             settings = json.load(json_file)
 
-        return cls(**settings)
+        return cls(**settings, settings_json_file=file)
 
     @property
     def area_vector(self):
@@ -362,6 +380,7 @@ class AreaDamageCurves:
                 },
                 inplace=True,
             )
+            vector = self._check_nan(vector)
             vector.to_file(self.dir.input.area.path)
 
             self._area_vector = vector
@@ -423,19 +442,28 @@ class AreaDamageCurves:
         return self._lookup
 
     @property
-    def area_stats_data(self):
+    def area_data(self):
+        """ This is needed """
         data = {}
         data["lu_vrt_path"] = self.dir.input.lu.path
         data["dem_vrt_path"] = self.dir.input.dem.path
-        data["area_path"] = self.dir.input.area.path
+        data["run_type"] = self.run_type
         data["lookup_table"] = self.lookup.output
         data["metadata"] = self.metadata
         data["depth_steps"] = self.depth_steps
-        data["output_dir"] = str(self.work_dir)
+        data["output_dir"] = str(self.dir.path)
         data["nodata"] = self.nodata
         data["filter_settings"] = self.wss_curves_filter_settings
         data["log_file"] = self.time.log_file
         return data
+    
+    def _check_nan(self, gdf):
+        """ Checks for NAN's"""
+        if gdf[DRAINAGE_LEVEL_FIELD].isna().sum() >0:
+            self.time._message("Found drainage level NAN's, deleting from input.")
+            gdf = gdf[~gdf[DRAINAGE_LEVEL_FIELD].isna()]    
+            # gdf = gp.GeoDataFrame(gdf)
+        return gdf
 
     def _inputs_to_vrt(self):
         """creates vrt rasters out of all input"""
@@ -459,7 +487,7 @@ class AreaDamageCurves:
 
     def write(self):
 
-        self.time._message("Start writing")
+        self.time._message("Start writing output")
         self.time._message("Writing damage and volume curves")
         self.curve_df = pd.DataFrame.from_dict(self.curve)
         self.curve_df.to_csv(self.dir.output.result.path)
@@ -470,7 +498,9 @@ class AreaDamageCurves:
         self.time._message("Writing combined land-use files")
         lu_counts = []
         for fid in tqdm(self, "Land-use counts"):
-            counts_lu_file = self.work_dir / str(fid) / "counts_lu.csv"
+            counts_lu_file  = self.dir.work[self.run_type][f"fdla_{fid}"].counts_lu.path
+            
+            # counts_lu_file = self.work_dir / str(fid) / "counts_lu.csv"
             if not counts_lu_file.exists():
                 continue
             curve_lu = pd.read_csv(counts_lu_file, index_col=0)
@@ -491,6 +521,11 @@ class AreaDamageCurves:
             lu_damage.append(damage_lu)
         lu_damage = pd.concat(lu_damage)
         lu_damage.to_csv(self.dir.output.result_lu_damage.path)
+        
+        mask=self.area_vector[ID_FIELD].isin(self.failures)
+        failures = self.area_vector[mask]
+        failures.to_file(self.dir.output.failures.path)
+        
         self.time._message("End writing")
 
     def run(
@@ -502,25 +537,23 @@ class AreaDamageCurves:
         nodamage_filter=True,
     ):
         self.quiet = True
-
-        if run_1d:
-            run_name = "run_1d"
-            self.work_dir = self.dir.work.run_1d.path
-
+        
+        self.run_type = "run_1d"
         if run_2d:
-            run_name = "run_2d"
-            self.work_dir = self.dir.work.run_2d.path
-
+            self.run_type = "run_2d"
+            
+        
         if processes == "max":
             processes = MAX_PROCESSES
 
-        self.time._message(f"Starting {run_name}!")
+        self.time._message(f"Starting {self.run_type}!")
 
         self.curve = {}
         self.curve_vol = {}
+        self.failures = []
 
         if multiprocessing:
-            data = self.area_stats_data
+            data = self.area_data
             args = [[pid, data, run_1d, nodamage_filter] for pid in self]
 
             with mp.Pool(processes=processes) as pool:
@@ -528,7 +561,7 @@ class AreaDamageCurves:
                     tqdm(
                         pool.imap(area_method_mp, args),
                         total=len(args),
-                        desc=f"{NAME}: (MP{processes}) {run_name}",
+                        desc=f"{NAME}: (MP{processes}) {self.run_type}",
                     )
                 )
 
@@ -536,13 +569,15 @@ class AreaDamageCurves:
                 run = list(run)
                 if len(run[1]) == 0:
                     self.time._message(f"{run[0]} failure! Traceback {run[2]}")
+                    self.failures.append(run[0])
                     run[2] = {}
 
                 self.curve[run[0]] = run[1]
                 self.curve_vol[run[0]] = run[2]
+                
 
         if not multiprocessing:
-            for peil_id in tqdm(self, f"{NAME}: Damage {run_name}"):
+            for peil_id in tqdm(self, f"{NAME}: Damage {self.run_type}"):
                 area_stats = AreaDamageCurveMethods(
                     peil_id, self.area_stats_data, nodamage_filter
                 )
@@ -552,7 +587,7 @@ class AreaDamageCurves:
 
         self.write()
         self.quiet = False
-        self.time._message(f"Ended {run_name}")
+        self.time._message(f"Ended {self.run_type}")
 
 
 def area_method_mp(args):
