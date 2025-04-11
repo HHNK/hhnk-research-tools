@@ -20,6 +20,7 @@ import pathlib
 import traceback
 import pandas as pd
 import numpy as np
+from typing import Union
 import multiprocessing as mp
 
 import geopandas as gp
@@ -285,12 +286,12 @@ class AreaDamageCurves:
 
     def __init__(
         self,
-        area_path: str,
-        landuse_path_dir: str,
-        dem_path_dir: str,
-        output_dir: str,
-        area_id="id",
-        area_start_level: str = None,
+        area_path: Union[str,pathlib.Path],
+        landuse_path_dir: Union[str,pathlib.Path],
+        dem_path_dir: Union[str,pathlib.Path],
+        output_dir: Union[str,pathlib.Path],
+        area_id: str ="id",
+        area_start_level_field: str = None,
         curve_step: float = 0.1,
         curve_max: float = 3,
         res: float = 0.5,
@@ -316,7 +317,7 @@ class AreaDamageCurves:
         self.dem_path_dir = dem_path_dir
         self.area_layer_name = area_layer_name
         self.area_id = area_id
-        self.area_start_level = area_start_level
+        self.area_start_level_field = area_start_level_field
         self.res = res
         self.nodata = nodata
         self.curve_step = curve_step
@@ -325,7 +326,7 @@ class AreaDamageCurves:
         self.wss_config = wss_config
         self.wss_settings = wss_settings
 
-        self.area_vector = gp.read_file(self.area_path, layer=area_layer_name)
+        self.area_vector = gp.read_file(self.area_path, layer=area_layer_name, engine="pyogrio")
         self.metadata = hrt.RasterMetadataV2.from_gdf(gdf=self.area_vector, res=res)
         self.bbox_gdal = self.metadata.bbox_gdal
 
@@ -350,9 +351,13 @@ class AreaDamageCurves:
         return f"""AreaDamageCures\n\nWSS settings: {self.wss_settings}\n\nFilter settings: {self.wss_curves_filter_settings}"""
 
     @classmethod
-    def from_settings_json(cls, file):
+    def from_settings_json(cls, file: Union[str, pathlib.Path]):
+        """
+        Initializes class from a settings.json, returns an AreaDamageCurves class.
+        """
+        
         with open(str(file)) as json_file:
-            settings = json.load(json_file)
+            settings = json.load(str(json_file))
 
         return cls(**settings, settings_json_file=file)
 
@@ -365,13 +370,13 @@ class AreaDamageCurves:
         if value is None:
             self._area_vector = None
         else:
-            keep_col = [self.area_id, "geometry", self.area_start_level]
+            keep_col = [self.area_id, "geometry", self.area_start_level_field]
             drop_col = [i for i in value.columns if i not in keep_col]
             vector = value.drop(columns=drop_col)
             vector.rename(
                 columns={
                     self.area_id: ID_FIELD,
-                    self.area_start_level: DRAINAGE_LEVEL_FIELD,
+                    self.area_start_level_field: DRAINAGE_LEVEL_FIELD,
                 },
                 inplace=True,
             )

@@ -11,7 +11,7 @@ TODO:
 from tqdm import tqdm
 import numpy as np
 import json
-import geopandas as gp
+import geopandas as gpd
 import pandas as pd
 import pathlib
 import matplotlib.pyplot as plt
@@ -56,7 +56,7 @@ class AreaDamageCurvesAggregation:
         self.drainage_areas = self.dir.input.area.load()
 
         if aggregate_vector_path:
-            self.vector = gp.read_file(aggregate_vector_path)
+            self.vector = gpd.read_file(aggregate_vector_path)
             self.field = vector_field
 
         self.predicate = PREDICATE
