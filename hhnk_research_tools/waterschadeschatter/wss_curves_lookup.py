@@ -4,13 +4,14 @@ Created on Fri Aug 30 14:29:47 2024
 
 @author: kerklaac5395
 """
-from tqdm import tqdm
-import numpy as np
-from collections import namedtuple
 
+import functools
+import numpy as np
+from tqdm import tqdm
+from collections import namedtuple
+from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter import wss_calculations
 from hhnk_research_tools.waterschadeschatter import wss_loading
-
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import WSSTimelog, write_dict
 
 DMG_NODATA = 0  # let op staat dubbel, ook in wss_main.
@@ -20,7 +21,7 @@ NAME = "WSS LookupTable"
 
 class DummyCaller:
     def __init__(self, nodata=-9999):
-        self.depth_raster = namedtuple("Raster", "nodata")(-9999)
+        self.depth_raster = namedtuple("Raster", "nodata")(nodata)
         self.gamma_inundatiediepte = 0
 
 
@@ -34,15 +35,25 @@ class WaterSchadeSchatterLookUp:
 
         wsslookup = WaterSchadeSchatterLookUp(wss_settings)
         damage = wsslookup[depth, lu]
+        
+        of 
+        table = wsslookup.output
+        
 
+    Params:
+        wss_settings:str, Pad naar een config file van de waterschadeschatter.
+        depth_steps:list, Lijst met peilstijgingen
+        pixel_factor:float, m2 per pixel
+        nodata: int, nodata waarde
+        quiet: bool, Wel of geen console output.
     """
 
     def __init__(
         self,
-        wss_settings,
+        wss_settings:str,
         depth_steps=[0.1, 0.2, 0.3],
         pixel_factor=0.5 * 0.5,
-        nodata=-9999,
+        nodata=DEFAULT_NODATA_VALUES['float32'],
         quiet=False,
     ):
         self.settings = wss_settings
@@ -62,29 +73,29 @@ class WaterSchadeSchatterLookUp:
         self.depth_steps = depth_steps
         self.time = WSSTimelog(NAME, quiet)
         self.quiet = quiet
-        self.generate_table()
+        self.output = {}
+        self.run()
 
-    @property
-    def mapping_arrays(self):
-        if not hasattr(self, "_mapping_arrays"):
-            self._mapping_arrays = {}
-            for ds, luses in self.output.items():
+    # @functools.cached_property
+    # def mapping_arrays(self):
 
-                k = np.array(list(luses.keys()))
-                v = np.array(list(luses.values()))
+    #     data = {}
+    #     for ds, luses in self.output.items():
 
-                mapping_ar = np.zeros(k.max() + 1, dtype=v.dtype)
-                mapping_ar[k] = v
-                self._mapping_arrays[ds] = mapping_ar
+    #         k = np.array(list(luses.keys()))
+    #         v = np.array(list(luses.values()))
 
-        return self._mapping_arrays
+    #         mapping_ar = np.zeros(k.max() + 1, dtype=v.dtype)
+    #         mapping_ar[k] = v
+    #         data[ds] = mapping_ar
+    #     return data
 
     def __getitem__(self, lu_depth):
         return self.output[lu_depth[0]][lu_depth[1]]
 
-    def generate_table(self):
+    def run(self):
         self.time._message("Start generating table")
-        self.output = {}
+        
         for depth in tqdm(self.depth_steps, NAME):
 
             depth = round(depth, 2)
@@ -103,30 +114,10 @@ class WaterSchadeSchatterLookUp:
                 )
                 self.output[depth][lu_num] = damage[0][0]
 
-            self.output[depth][NODATA_UINT16] = 0
+            self.output[depth][DEFAULT_NODATA_VALUES['uint16']] = 0
             self.output[depth][255] = 0  # not in cfg
 
         self.time._message("Ended generating table")
         
-    def write(self, path):
+    def write_dict(self, path):
         write_dict(self.output, path)
-        
-
-if __name__ == "__main__":
-    lu_array = np.array([[2], [2]])
-    depth_array = np.array([[0.1], [0.1]])
-
-    cfg_file = DATA_PATH / "cfg" / "cfg_hhnk_2020.cfg"
-
-    wss_settings = {
-        "inundation_period": 48,  # uren
-        "herstelperiode": "10 dagen",
-        "maand": "sep",
-        "cfg_file": cfg_file,
-        "dmg_type": "min",
-    }
-
-    lookup = WaterSchadeSchatterLookUp(wss_settings, depth_steps=[0.1, 2.5])
-    lookup.generate_table()
-
-    # gem = 10

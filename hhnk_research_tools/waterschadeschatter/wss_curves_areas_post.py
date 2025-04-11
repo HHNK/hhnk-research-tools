@@ -33,7 +33,15 @@ PREDICATE = "_within"
 
 
 class AreaDamageCurvesAggregation:
-
+    """
+    Aggregates the output of wss_curves_areas.py.
+    
+    Params:
+        result_path:str, Result path for the output directory.
+        aggregate_vector_path: str, Aggregation vector
+        vector_field: str, field which is used to acces the aggregation vector.
+        quiet: bool, Verbosity.
+    """
     def __init__(
         self, result_path, aggregate_vector_path=None, vector_field=None, quiet=False
     ):
@@ -113,9 +121,9 @@ class AreaDamageCurvesAggregation:
             data = {}
             for idx, area in self.drainage_areas.iterrows():
                 vol_curve = self.vol[area[ID_FIELD]]
-                dam_curve = self.damage[area[ID_FIELD]]
+                dmg_curve = self.damage[area[ID_FIELD]]
 
-                damage_shift = dam_curve - dam_curve.shift(+1)
+                damage_shift = dmg_curve - dmg_curve.shift(+1)
                 volume_shift = vol_curve - vol_curve.shift(+1)
                 damage_per_m3 = damage_shift / volume_shift
                 damage_per_m3.loc[0.1] = 0
@@ -233,7 +241,7 @@ class AreaDamageCurvesAggregation:
                 )
             elif method == "equal_rain":
                 output[feature[self.field]] = self.agg_rain_own_area_retention(
-                    feature, areas_within, mm_rain
+                    areas_within, mm_rain
                 )
         return output
 
@@ -246,7 +254,7 @@ class AreaDamageCurvesAggregation:
         field_name="streefpeil",
     ):
         """
-        Creates a new damage curve starting at the area with the lowest drainage level.
+        Create a new damage curve starting at the area with the lowest drainage level.
         1. Rain falls in the lowest areas, so damage curve is taken from that area.
         2. If the drainage level of the second area is reached, the damagecurves of the first and second area summed.
         3. This happens until total volume of the rain is stored.
@@ -272,7 +280,7 @@ class AreaDamageCurvesAggregation:
 
     def agg_rain_equal_depth(self, feature, areas_within, mm_rain=RAIN):
         """
-        Creates a new damage curve based on equal depth at every area.
+        Create a new damage curve based on equal depth at every area.
         1. Essentially a sum of all damagecurves.
         2. The curve stops when a total volume is reached.
 
@@ -295,8 +303,8 @@ class AreaDamageCurvesAggregation:
 
         return agg_series
 
-    def agg_rain_own_area_retention(self, feature, areas_within, mm_rain=RAIN):
-        """Computes the rain per drainage level area, retains it in its own
+    def agg_rain_own_area_retention(self, areas_within, mm_rain=RAIN):
+        """Compute the rain per drainage level area, retains it in its own
         place.
         1. Get volume damage curves per area
         2. Compute rain volume per area.
@@ -351,7 +359,7 @@ class AreaDamageCurvesAggregation:
         return agg_series
 
     def agg_run(self, mm_rain=RAIN):
-        """Creates a dataframe in which methods can be compared"""
+        """Create a dataframe in which methods can be compared"""
         lowest = self.aggregate_rain_curve(AGG_METHODS[0], mm_rain)
         equal_depth = self.aggregate_rain_curve(AGG_METHODS[1], mm_rain)
         equal_rain = self.aggregate_rain_curve(AGG_METHODS[2], mm_rain)

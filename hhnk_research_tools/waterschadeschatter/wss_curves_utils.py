@@ -9,6 +9,7 @@ import json
 import datetime
 import numpy as np
 from hhnk_research_tools import Folder
+from hhnk_research_tools.logger import get_logger, add_file_handler
 
 
 # GLOBALS
@@ -119,9 +120,12 @@ class Run1D(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "run_1d"), create)
     
+    def add_fdla_dirs(self, depth_steps):
+        for i in self.path.glob("*"):
+            setattr(self, f"fdla_{i.stem}", FDLADir(self.base, False, i.stem, depth_steps))
+    
     def create_fdla_dir(self, name, depth_steps):
-        setattr(self, f"flda_{name}", FDLADir(self.base, True, name, depth_steps))
-        
+        setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
     
 class Run2D(Folder):
     def __init__(self, base, create):
@@ -168,7 +172,8 @@ class FDLADir(Folder):
         for ds in depth_steps:
             self.add_file(f"depth_{ds}", f"depth_{ds}.tif")
             self.add_file(f"level_{ds}", f"level_{ds}.tif")
-            self.add_file(f"lu_{ds}", f"lu_{ds}.gpkg")
+            self.add_file(f"lu_{ds}", f"lu_{ds}.tif")
+            self.add_file(f"damage_{ds}", f"damage_{ds}.tif")
 
 class AggregateDir:
     def __init__(self, base, create, name):
@@ -197,12 +202,12 @@ class WSSTimelog:
                 log_dir.mkdir(exist_ok=True, parents=True)
                 self.log_file = log_dir / f"{now} - {subject}.log"
 
-            self.logger = create_logger(self.log_file)
+            self.logger = get_logger(self.s)
+            add_file_handler(self.logger, self.log_file)
 
     @property
     def time_since_start(self):
-        delta = datetime.datetime.now() - self.start_time
-        return delta
+        return datetime.datetime.now() - self.start_time
 
     def _message(self, msg):
         now = str(datetime.datetime.now())[:19]
