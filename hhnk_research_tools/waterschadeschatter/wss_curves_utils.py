@@ -211,7 +211,12 @@ class WSSTimelog:
 
         if self.use_logging:
             self.logger.info(msg)
-
+            
+    def close(self):
+        handlers = self.logger.handlers[:]
+        for handler in handlers:
+            self.logger.removeHandler(handler)
+            handler.close()
 
 def create_logger(filename):
     import multiprocessing, logging
@@ -240,10 +245,3 @@ def pad_zeros(a, shape):
     z = np.zeros(shape)
     z[: a.shape[0], : a.shape[1]] = a
     return z
-
-
-if __name__ == "__main__":
-    test = AreaDamageCurveFolders(
-        r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\output\damage_curves_2024_test",
-        create=True,
-    )

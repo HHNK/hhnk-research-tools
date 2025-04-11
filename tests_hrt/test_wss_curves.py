@@ -6,7 +6,7 @@ Created on Thu Sep 26 15:44:05 2024
 """
 
 import pytest
-
+import shutil
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
 
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas import AreaDamageCurves
@@ -67,6 +67,7 @@ class TestWSSCurves:
         return output
 
     def test_integrated_1d_mp(self, schadecurves, output):
+        # shutil.rmtree(OUTPUT_PATH)
         schadecurves.run(run_1d=True, multiprocessing=True, processes=4)
         test_output = pd.read_csv(OUTPUT_PATH / "output"/"result.csv")
         assert (output == test_output).all()[0]

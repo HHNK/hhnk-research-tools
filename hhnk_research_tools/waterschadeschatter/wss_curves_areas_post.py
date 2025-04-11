@@ -22,7 +22,7 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     DRAINAGE_LEVEL_FIELD,
 )
 
-
+RAIN = 200
 BUFFER = 100
 NAME = "AreaDamageCurves Aggregation"
 NODATA = -9999
@@ -215,38 +215,8 @@ class AreaDamageCurvesAggregation:
 
         return self.agg_lu
 
-    # def agg_vol_damage_level_curve(self):
-    #     level_damage_curve = self.damage_level_curve.ffill()
-    #     level_vol_curve = self.vol_level_curve.ffill()
 
-    #     curve = pd.DataFrame(data={"volume":level_vol_curve.sum(axis=1)})
-    #     curve['damage']  = level_damage_curve.sum(axis=1)
-    #     return curve
-
-    # def agg_vol_damage_curve_per_area(self):
-
-    #     # interpolated volume damage curves
-    #     data = []
-    #     for idx, area in self.drainage_areas.iterrows():
-    #         vol_curve = self.vol[area[ID_FIELD]]
-    #         dam_curve = self.damage[area[ID_FIELD]]
-
-    #         vol_curve = self._curve_linear_interpolate(vol_curve, 0.01)
-    #         dam_curve = self._curve_linear_interpolate(dam_curve, 0.01)
-
-    #         curve = pd.DataFrame(index=vol_curve.values, data={area[ID_FIELD]: dam_curve.values})
-    #         curve = curve[~curve.index.duplicated(keep='first')]
-    #         curve_interpolated = self._curve_linear_interpolate(curve, 1000)
-    #         data.append(curve_interpolated.astype(int))
-    #     curves = pd.concat(data,axis=1,sort=True)
-    #     curves = curves.ffill() # all last values need to be nan
-
-    #     curves.index = curves.index.astype(int)
-    #     curves = curves[~curves.index.duplicated(keep='first')]
-
-    #     return curves
-
-    def aggregate_rain_curve(self, method="lowest_area"):
+    def aggregate_rain_curve(self, method="lowest_area", mm_rain=RAIN):
         """Methods for distribution of rain in the drainage area"""
 
         output = {}
@@ -255,15 +225,15 @@ class AreaDamageCurvesAggregation:
 
             if method == "lowest_area":
                 output[feature[self.field]] = self.agg_rain_lowest_area(
-                    feature, areas_within
+                    feature, areas_within, mm_rain
                 )
             elif method == "equal_depth":
                 output[feature[self.field]] = self.agg_rain_equal_depth(
-                    feature, areas_within
+                    feature, areas_within, mm_rain
                 )
             elif method == "equal_rain":
                 output[feature[self.field]] = self.agg_rain_own_area_retention(
-                    feature, areas_within
+                    feature, areas_within, mm_rain
                 )
         return output
 
@@ -271,7 +241,7 @@ class AreaDamageCurvesAggregation:
         self,
         feature,
         areas_within,
-        mm_rain=150,
+        mm_rain=RAIN,
         step_size=0.01,
         field_name="streefpeil",
     ):
@@ -300,7 +270,7 @@ class AreaDamageCurvesAggregation:
 
         return agg_series
 
-    def agg_rain_equal_depth(self, feature, areas_within, mm_rain=150):
+    def agg_rain_equal_depth(self, feature, areas_within, mm_rain=RAIN):
         """
         Creates a new damage curve based on equal depth at every area.
         1. Essentially a sum of all damagecurves.
@@ -325,7 +295,7 @@ class AreaDamageCurvesAggregation:
 
         return agg_series
 
-    def agg_rain_own_area_retention(self, feature, areas_within, mm_rain=150):
+    def agg_rain_own_area_retention(self, feature, areas_within, mm_rain=RAIN):
         """Computes the rain per drainage level area, retains it in its own
         place.
         1. Get volume damage curves per area
@@ -380,11 +350,11 @@ class AreaDamageCurvesAggregation:
         agg_series = pd.Series(aggregate_curve, name="damage_own_area_retention")
         return agg_series
 
-    def agg_run(self):
+    def agg_run(self, mm_rain=RAIN):
         """Creates a dataframe in which methods can be compared"""
-        lowest = self.aggregate_rain_curve(AGG_METHODS[0])
-        equal_depth = self.aggregate_rain_curve(AGG_METHODS[1])
-        equal_rain = self.aggregate_rain_curve(AGG_METHODS[2])
+        lowest = self.aggregate_rain_curve(AGG_METHODS[0], mm_rain)
+        equal_depth = self.aggregate_rain_curve(AGG_METHODS[1], mm_rain)
+        equal_rain = self.aggregate_rain_curve(AGG_METHODS[2], mm_rain)
         output = {}
         for k, v_lowest in lowest.items():
             v_equal_depth = equal_depth[k]
@@ -403,7 +373,7 @@ class AreaDamageCurvesAggregation:
 
         return output
 
-    def run(self, aggregation=True):
+    def run(self, aggregation=True, mm_rain=RAIN):
 
         # general data
         self.damage_interpolated_curve.to_csv(
@@ -415,7 +385,7 @@ class AreaDamageCurvesAggregation:
         self.damage_per_m3.to_csv(self.dir.post.damage_per_m3.path)
 
         if aggregation:
-            aggregations = self.agg_run()
+            aggregations = self.agg_run(mm_rain)
             agg_damage = self.agg_damage()
             agg_volume = self.agg_volume()
             agg_landuse = self.agg_landuse()
@@ -436,17 +406,17 @@ class AreaDamageCurvesAggregation:
                 self.selection[name].to_file(path / "selection.gpkg")
 
                 agg_d = agg_damage[name]
-                agg_d.index.name = "Waterdepth [m]"
+                agg_d.index.name = "Peilstijging [m]"
                 agg_d.name = agg_d.name + " [euro]"
                 agg_d.to_csv(path / "agg_damage.csv")
 
                 agg_v = agg_volume[name]
-                agg_v.index.name = "Waterdepth [m]"
+                agg_v.index.name = "Peilstijging [m]"
                 agg_v.name = agg_v.name + " [m3]"
                 agg_v.to_csv(path / "agg_volume.csv")
 
                 agg_l = agg_landuse[name]
-                agg_l.index.name = "Waterdepth [m]"
+                agg_l.index.name = "Peilstijging [m]"
                 agg_l = agg_l.add_suffix(" [m2]")
                 agg_l.to_csv(path / "agg_landuse.csv")
 

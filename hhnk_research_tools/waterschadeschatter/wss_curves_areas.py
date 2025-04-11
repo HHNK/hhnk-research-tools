@@ -69,8 +69,7 @@ class AreaDamageCurveMethods:
         self.run_type = data['run_type']
         
         
-        self.flda_dir = self.create_dir()
-        
+        self.area
         self.area_dir = self.output_dir / str(peilgebied_id)
         self.area_dir.mkdir(exist_ok=True)
         self.area_gdf, self.area_meta, self.area_start_level = self.get_area_meta(
@@ -84,9 +83,6 @@ class AreaDamageCurveMethods:
     @property
     def geometry(self):
         return list(self.area_gdf.geometry)[0]
-
-    def create_dir(self):
-        return self.dir.work[self.run_type].create_fdla_dir(self.peilkgebied_id, self.depth_steps)
     
     def get_area_meta(self, peilgebied_id):
         area = self.area_vector.loc[self.area_vector[ID_FIELD] == peilgebied_id]
@@ -343,7 +339,6 @@ class AreaDamageCurves:
             shutil.copy(settings_json_file, 
                         self.dir.input.path / f"settings_{date}.json")
             
-
     def __iter__(self):
         for id in self.area_vector[ID_FIELD]:
             yield id
@@ -462,7 +457,6 @@ class AreaDamageCurves:
         if gdf[DRAINAGE_LEVEL_FIELD].isna().sum() >0:
             self.time._message("Found drainage level NAN's, deleting from input.")
             gdf = gdf[~gdf[DRAINAGE_LEVEL_FIELD].isna()]    
-            # gdf = gp.GeoDataFrame(gdf)
         return gdf
 
     def _inputs_to_vrt(self):
@@ -542,7 +536,9 @@ class AreaDamageCurves:
         if run_2d:
             self.run_type = "run_2d"
             
-        
+        for pid in self:
+            self.dir.work[self.run_type].create_fdla_dir(str(pid), self.depth_steps)
+    
         if processes == "max":
             processes = MAX_PROCESSES
 
@@ -588,7 +584,7 @@ class AreaDamageCurves:
         self.write()
         self.quiet = False
         self.time._message(f"Ended {self.run_type}")
-
+        self.time.close()
 
 def area_method_mp(args):
     peilgebied_id = args[0]
