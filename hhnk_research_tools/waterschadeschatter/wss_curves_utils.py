@@ -232,23 +232,6 @@ class WSSTimelog:
             handler.close()
 
 
-def create_logger(filename):
-    import logging
-    import multiprocessing
-
-    logger = multiprocessing.get_logger()
-    logger.setLevel(logging.INFO)
-    formatter = logging.Formatter("[%(asctime)s] %(message)s", "%Y-%m-%d %H:%M:%S")
-    handler = logging.FileHandler(filename)
-    handler.setFormatter(formatter)
-
-    # this bit will make sure you won't have
-    # duplicated messages in the output
-    if not len(logger.handlers):
-        logger.addHandler(handler)
-    return logger
-
-
 def write_dict(dictionary, path, overwrite=True):
     exists = os.path.exists(path)
     if not exists or overwrite:

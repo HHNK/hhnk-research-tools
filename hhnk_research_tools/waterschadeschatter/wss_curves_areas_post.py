@@ -9,15 +9,19 @@ TODO:
 
 """
 
+# First-party imports
 import json
 import pathlib
+from typing import Union
 
-import geopandas as gpd
-import matplotlib.pyplot as plt
+# Third-party imports
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 from tqdm import tqdm
 
+# Local imports
+import hhnk_research_tools.logger as logging
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     DRAINAGE_LEVEL_FIELD,
     ID_FIELD,
@@ -25,6 +29,10 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     WSSTimelog,
 )
 
+# Logger
+logger = logging.get_logger(__name__)
+
+# Globals
 RAIN = 200
 BUFFER = 100
 NAME = "AreaDamageCurves Aggregation"
@@ -46,7 +54,9 @@ class AreaDamageCurvesAggregation:
         quiet: bool, Verbosity.
     """
 
-    def __init__(self, result_path, aggregate_vector_path=None, vector_field=None, quiet=False):
+    def __init__(self, result_path: Union[str, pathlib.Path], 
+                 aggregate_vector_path: Union[str, pathlib.Path]=None, 
+                 vector_field:str=None, quiet:bool=False):
         self.dir = AreaDamageCurveFolders(result_path, create=True)
 
         if self.dir.output.result.exists():
@@ -401,44 +411,8 @@ class AreaDamageCurvesAggregation:
                 agg_l = agg_l.add_suffix(" [m2]")
                 agg_l.to_csv(path / "agg_landuse.csv")
 
-    # def write_figures(
-    #     self,
-    # ):
-
-    #     self.export = JsonToFigure(self.output_json, self.path)
-    #     for peil_id in self:
-    #         self.export.run(peil_id)
-
-
-class JsonToFigure:
-    def __init__(self, json_path, output_dir):
-        with open(json_path) as json_file:
-            self.data = json.load(json_file)
-
-        self.fig_dir = pathlib.Path(output_dir) / "figures"
-        self.fig_dir.mkdir(exist_ok=True)
-
-    def run(self, peilgebied_id):
-        curve = self.data[str(peilgebied_id)]
-
-        dieptes = [float(i) for i in curve.keys()]
-        schades = [float(i) for i in curve.values()]
-
-        plt.figure(figsize=(16, 9))
-        plt.plot(np.array(schades) / 1000000, np.array(dieptes) * 100, label="Schade")
-        plt.xlabel("Schade [Euro's] (miljoen)")
-        plt.ylabel("Waterdiepte boven streefpeil [cm]")
-        plt.title(f"Schadecurve voor peilgebied {peilgebied_id}")
-        plt.legend()
-        plt.grid(True)
-        plt.xticks(rotation=90)
-        plt.savefig(self.fig_dir / f"{peilgebied_id}.png")
-
-
 if __name__ == "__main__":
     import sys
 
     adca = AreaDamageCurvesAggregation.from_settings_json(str(sys.argv[1]))
     adca.run(aggregation=True)
-
-    # adca = AreaDamageCurvesAggregation.from_settings_json(r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\run_settings\run_wss_test_westzaan_aggregate.json")

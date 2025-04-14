@@ -45,6 +45,7 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     write_dict,
 )
 
+# Logger
 logger = logging.get_logger(__name__)
 
 # Globals
@@ -88,22 +89,28 @@ class AreaDamageCurveMethods:
         if nodamage_filter:
             self.damage_filter(self.filter_settings)
 
-    @property
+    @functools.cached_property
     def geometry(self):
         return list(self.area_gdf.geometry)[0]
 
-    def get_area_meta(self, peilgebied_id):
+    @functools.cached_property
+    def lu_array(self):
+        return self.lu.read_geometry(self.geometry)
+    
+    @functools.cached_property
+    def dem_array(self):
+        return self.dem.read_geometry(self.geometry)
+    
+    def get_area_meta(self, peilgebied_id:int):
         area = self.area_vector.loc[self.area_vector[ID_FIELD] == peilgebied_id]
         area_meta = hrt.RasterMetadataV2.from_gdf(gdf=area, res=self.metadata.pixel_width)
         start_level = area[DRAINAGE_LEVEL_FIELD].iloc[0]
 
         return area, area_meta, start_level
 
-    def damage_filter(self, settings):
-        lu_array = self.lu.read_geometry(self.geometry)
-
+    def damage_filter(self, settings:dict):
         # filter specifc landuse
-        lu_select = np.isin(lu_array, settings["landuse"])
+        lu_select = np.isin(self.lu_array, settings["landuse"])
 
         # calculate damage at specific depth and filter above zero
         self.run(run_1d=False, depth_steps=[settings["depth"]])
@@ -137,7 +144,7 @@ class AreaDamageCurveMethods:
         self.area_gdf = dif
         damage = None  # close raster
 
-    def run(self, run_1d=True, depth_steps=None):
+    def run(self, run_1d:bool=True, depth_steps:list=None):
         """
         run_1d: True: Runs the curves in 1d. All spatial sense is lost, but it is
         quicker then 2D.
@@ -155,8 +162,8 @@ class AreaDamageCurveMethods:
 
         run_2d = not run_1d
 
-        lu_array = self.lu.read_geometry(self.geometry)
-        dem_array = self.dem.read_geometry(self.geometry).astype(float)
+        lu_array = self.lu_array
+        dem_array = self.dem_array.astype(float)
 
         if run_1d:
             lu_array = lu_array.flatten()
@@ -254,7 +261,9 @@ class AreaDamageCurveMethods:
         return curve, curve_vol
 
     def write_tif(self, path, array):
-        hrt.Raster.write(path, result=array, nodata=self.nodata)
+        hrt.save_raster_array_to_tiff(
+             path, array, self.nodata, self.area_meta, overwrite=True
+         )
 
 
 @dataclass
@@ -360,9 +369,10 @@ class AreaDamageCurves:
         step = 1 / 10**DAMAGE_DECIMALS
         depth_steps = np.arange(step, self.curve_max + step, step)
         depth_steps = [round(i, 2) for i in depth_steps]
-        self._lookup = WaterSchadeSchatterLookUp(self.wss_settings, depth_steps)
-        self._lookup.run(self.dir.input.wss_lookup.path)
-        return self._lookup
+        _lookup = WaterSchadeSchatterLookUp(self.wss_settings, depth_steps)
+        _lookup.run()
+        _lookup.write_dict(self.dir.input.wss_lookup.path)
+        return _lookup
 
     @functools.cached_property
     def lu(self):

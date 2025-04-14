@@ -5,16 +5,26 @@ Created on Fri Aug 30 14:29:47 2024
 @author: kerklaac5395
 """
 
-import functools
+# First-party imports
+# import functools
+import pathlib
 from collections import namedtuple
+from typing import Union
 
+# Third-party imports
 import numpy as np
 from tqdm import tqdm
 
+# Local imports
+import hhnk_research_tools.logger as logging
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter import wss_calculations, wss_loading
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import WSSTimelog, write_dict
 
+# Logger
+logger = logging.get_logger(__name__)
+
+# Globals
 DMG_NODATA = 0  # let op staat dubbel, ook in wss_main.
 NODATA_UINT16 = 65535
 NAME = "WSS LookupTable"
@@ -60,16 +70,17 @@ class WaterSchadeSchatterLookUp:
         self.settings = wss_settings
 
         self.dmg_table_landuse, self.dmg_table_general = wss_loading.read_dmg_table_config(wss_settings)
-        self.indices = {}
-        self.indices["herstelperiode"] = self.dmg_table_general["herstelperiode"].index(wss_settings["herstelperiode"])
-        self.indices["maand"] = self.dmg_table_general["maand"].index(wss_settings["maand"])
+        self.indices = {
+            "herstelperiode": self.dmg_table_general["herstelperiode"].index(wss_settings["herstelperiode"]),
+            "maand": self.dmg_table_general["maand"].index(wss_settings["maand"])
+            }
+        
         self.pixel_factor = pixel_factor
         self.caller = DummyCaller(nodata)
         self.depth_steps = depth_steps
         self.time = WSSTimelog(NAME, quiet)
         self.quiet = quiet
         self.output = {}
-        self.run()
 
     # @functools.cached_property
     # def mapping_arrays(self):
@@ -89,7 +100,7 @@ class WaterSchadeSchatterLookUp:
         return self.output[lu_depth[0]][lu_depth[1]]
 
     def run(self):
-        self.time._message("Start generating table")
+        logger.info("Start generating table")
 
         for depth in tqdm(self.depth_steps, NAME):
             depth = round(depth, 2)
@@ -111,7 +122,7 @@ class WaterSchadeSchatterLookUp:
             self.output[depth][DEFAULT_NODATA_VALUES["uint16"]] = 0
             self.output[depth][255] = 0  # not in cfg
 
-        self.time._message("Ended generating table")
+        logger.info("Ended generating table")
 
-    def write_dict(self, path):
+    def write_dict(self, path:Union[str, pathlib.Path]):
         write_dict(self.output, path)
