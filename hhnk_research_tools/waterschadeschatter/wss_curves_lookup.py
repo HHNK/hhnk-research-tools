@@ -6,12 +6,13 @@ Created on Fri Aug 30 14:29:47 2024
 """
 
 import functools
+from collections import namedtuple
+
 import numpy as np
 from tqdm import tqdm
-from collections import namedtuple
+
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
-from hhnk_research_tools.waterschadeschatter import wss_calculations
-from hhnk_research_tools.waterschadeschatter import wss_loading
+from hhnk_research_tools.waterschadeschatter import wss_calculations, wss_loading
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import WSSTimelog, write_dict
 
 DMG_NODATA = 0  # let op staat dubbel, ook in wss_main.
@@ -35,10 +36,10 @@ class WaterSchadeSchatterLookUp:
 
         wsslookup = WaterSchadeSchatterLookUp(wss_settings)
         damage = wsslookup[depth, lu]
-        
-        of 
+
+        of
         table = wsslookup.output
-        
+
 
     Params:
         wss_settings:str, Pad naar een config file van de waterschadeschatter.
@@ -50,24 +51,18 @@ class WaterSchadeSchatterLookUp:
 
     def __init__(
         self,
-        wss_settings:str,
+        wss_settings: str,
         depth_steps=[0.1, 0.2, 0.3],
         pixel_factor=0.5 * 0.5,
-        nodata=DEFAULT_NODATA_VALUES['float32'],
+        nodata=DEFAULT_NODATA_VALUES["float32"],
         quiet=False,
     ):
         self.settings = wss_settings
 
-        self.dmg_table_landuse, self.dmg_table_general = (
-            wss_loading.read_dmg_table_config(wss_settings)
-        )
+        self.dmg_table_landuse, self.dmg_table_general = wss_loading.read_dmg_table_config(wss_settings)
         self.indices = {}
-        self.indices["herstelperiode"] = self.dmg_table_general["herstelperiode"].index(
-            wss_settings["herstelperiode"]
-        )
-        self.indices["maand"] = self.dmg_table_general["maand"].index(
-            wss_settings["maand"]
-        )
+        self.indices["herstelperiode"] = self.dmg_table_general["herstelperiode"].index(wss_settings["herstelperiode"])
+        self.indices["maand"] = self.dmg_table_general["maand"].index(wss_settings["maand"])
         self.pixel_factor = pixel_factor
         self.caller = DummyCaller(nodata)
         self.depth_steps = depth_steps
@@ -95,9 +90,8 @@ class WaterSchadeSchatterLookUp:
 
     def run(self):
         self.time._message("Start generating table")
-        
-        for depth in tqdm(self.depth_steps, NAME):
 
+        for depth in tqdm(self.depth_steps, NAME):
             depth = round(depth, 2)
             self.output[depth] = {}
 
@@ -114,10 +108,10 @@ class WaterSchadeSchatterLookUp:
                 )
                 self.output[depth][lu_num] = damage[0][0]
 
-            self.output[depth][DEFAULT_NODATA_VALUES['uint16']] = 0
+            self.output[depth][DEFAULT_NODATA_VALUES["uint16"]] = 0
             self.output[depth][255] = 0  # not in cfg
 
         self.time._message("Ended generating table")
-        
+
     def write_dict(self, path):
         write_dict(self.output, path)

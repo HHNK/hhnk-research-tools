@@ -4,13 +4,15 @@ Created on Wed Oct 16 11:07:02 2024
 
 @author: kerklaac5395
 """
-import os
-import json
-import datetime
-import numpy as np
-from hhnk_research_tools import Folder
-from hhnk_research_tools.logger import get_logger, add_file_handler
 
+import datetime
+import json
+import os
+
+import numpy as np
+
+from hhnk_research_tools import Folder
+from hhnk_research_tools.logger import add_file_handler, get_logger
 
 # GLOBALS
 ID_FIELD = "pid"
@@ -114,26 +116,29 @@ class Work(Folder):
         self.run_1d = Run1D(self.base, create)
         self.run_2d = Run2D(self.base, create)
         self.log = Log(self.base, create)
-        
-        
+
+
 class Run1D(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "run_1d"), create)
-    
+
     def add_fdla_dirs(self, depth_steps):
         for i in self.path.glob("*"):
             setattr(self, f"fdla_{i.stem}", FDLADir(self.base, False, i.stem, depth_steps))
-    
+
     def create_fdla_dir(self, name, depth_steps):
         setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
-    
+
+
 class Run2D(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "run_2d"), create)
-        
+
+
 class Log(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "log"), create)
+
 
 class Output(Folder):
     def __init__(self, base, create):
@@ -155,10 +160,11 @@ class PostProcessing(Folder):
         self.add_file("damage_level_curve", "damage_level_curve.csv")
         self.add_file("vol_level_curve", "vol_level_curve.csv")
         self.add_file("damage_per_m3", "damage_per_m3.csv")
-        
+
     def create_aggregate_dir(self, name):
         return AggregateDir(self.base, True, name)
-    
+
+
 class FDLADir(Folder):
     def __init__(self, base, create, name, depth_steps):
         super().__init__(os.path.join(base, name), create)
@@ -168,24 +174,26 @@ class FDLADir(Folder):
         self.add_file("counts_lu", "counts_lu.csv")
         self.add_file("damage_lu", "damage_lu.csv")
         self.add_file("nodamage_filtered", "nodamage_filtered.gpkg")
-        
+
         for ds in depth_steps:
             self.add_file(f"depth_{ds}", f"depth_{ds}.tif")
             self.add_file(f"level_{ds}", f"level_{ds}.tif")
             self.add_file(f"lu_{ds}", f"lu_{ds}.tif")
             self.add_file(f"damage_{ds}", f"damage_{ds}.tif")
 
+
 class AggregateDir:
     def __init__(self, base, create, name):
         super().__init__(os.path.join(base, name), create)
-        
-        
+
+
 class WSSTimelog:
     """
     WSSTimeLog logs all message and writes them to a logfile.
     It also print messages to your consolse and keeps track of time.
-    
+
     """
+
     def __init__(self, subject, quiet, output_dir=None, log_file=None):
         self.s = subject
         self.quiet = quiet
@@ -216,15 +224,17 @@ class WSSTimelog:
 
         if self.use_logging:
             self.logger.info(msg)
-            
+
     def close(self):
         handlers = self.logger.handlers[:]
         for handler in handlers:
             self.logger.removeHandler(handler)
             handler.close()
 
+
 def create_logger(filename):
-    import multiprocessing, logging
+    import logging
+    import multiprocessing
 
     logger = multiprocessing.get_logger()
     logger.setLevel(logging.INFO)

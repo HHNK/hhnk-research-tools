@@ -8,18 +8,21 @@ TODO:
     4. Log bestand netjes maken
 
 """
-from tqdm import tqdm
-import numpy as np
+
 import json
-import geopandas as gpd
-import pandas as pd
 import pathlib
+
+import geopandas as gpd
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
+
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
-    WSSTimelog,
-    AreaDamageCurveFolders,
-    ID_FIELD,
     DRAINAGE_LEVEL_FIELD,
+    ID_FIELD,
+    AreaDamageCurveFolders,
+    WSSTimelog,
 )
 
 RAIN = 200
@@ -35,17 +38,15 @@ PREDICATE = "_within"
 class AreaDamageCurvesAggregation:
     """
     Aggregates the output of wss_curves_areas.py.
-    
+
     Params:
         result_path:str, Result path for the output directory.
         aggregate_vector_path: str, Aggregation vector
         vector_field: str, field which is used to acces the aggregation vector.
         quiet: bool, Verbosity.
     """
-    def __init__(
-        self, result_path, aggregate_vector_path=None, vector_field=None, quiet=False
-    ):
 
+    def __init__(self, result_path, aggregate_vector_path=None, vector_field=None, quiet=False):
         self.dir = AreaDamageCurveFolders(result_path, create=True)
 
         if self.dir.output.result.exists():
@@ -53,9 +54,7 @@ class AreaDamageCurvesAggregation:
             self.damage.columns = self.damage.columns.astype(int)
 
         if self.dir.output.result_lu_areas.exists():
-            self.lu_area_data = pd.read_csv(
-                self.dir.output.result_lu_areas.path, index_col=0
-            )
+            self.lu_area_data = pd.read_csv(self.dir.output.result_lu_areas.path, index_col=0)
 
         if self.dir.output.result_vol.exists():
             self.vol = pd.read_csv(self.dir.output.result_vol.path, index_col=0)
@@ -71,9 +70,7 @@ class AreaDamageCurvesAggregation:
         self.time = WSSTimelog(NAME, quiet, self.dir.post.path)
 
     def __iter__(self):
-        for idx, feature in tqdm(
-            self.vector.iterrows(), "WSS Aggregation", total=len(self.vector)
-        ):
+        for idx, feature in tqdm(self.vector.iterrows(), "WSS Aggregation", total=len(self.vector)):
             predicate_func = getattr(self, self.predicate)
             areas = predicate_func(feature.geometry)
             if len(areas) > 0:
@@ -90,9 +87,7 @@ class AreaDamageCurvesAggregation:
     @property
     def damage_interpolated_curve(self):
         if not hasattr(self, "_damage_interpolated_curve"):
-            self._damage_interpolated_curve = self._curve_linear_interpolate(
-                self.damage, RES
-            )
+            self._damage_interpolated_curve = self._curve_linear_interpolate(self.damage, RES)
         return self._damage_interpolated_curve
 
     @property
@@ -117,7 +112,6 @@ class AreaDamageCurvesAggregation:
     def damage_per_m3(self):
         """Damage per m3 at a certain waterlevel"""
         if not hasattr(self, "_damage_per_m3"):
-
             data = {}
             for idx, area in self.drainage_areas.iterrows():
                 vol_curve = self.vol[area[ID_FIELD]]
@@ -152,9 +146,7 @@ class AreaDamageCurvesAggregation:
         return area_within
 
     def _curve_linear_interpolate(self, curve, resolution):
-        index = np.arange(0, curve.index.values[-1] + resolution, resolution).round(
-            ROUND
-        )
+        index = np.arange(0, curve.index.values[-1] + resolution, resolution).round(ROUND)
         new_index = list(set(list(index) + list(curve.index)))
         new_index.sort()
         interpolated = curve.reindex(new_index)
@@ -167,9 +159,7 @@ class AreaDamageCurvesAggregation:
 
     def _curves_to_level(self, curves, resolution=RES):
         """Curves of drainage areas from depth to level, also interpolated."""
-        d_sorted = self.drainage_areas.sort_values(
-            by=DRAINAGE_LEVEL_FIELD, ascending=True
-        )
+        d_sorted = self.drainage_areas.sort_values(by=DRAINAGE_LEVEL_FIELD, ascending=True)
 
         min_level = d_sorted.iloc[0][DRAINAGE_LEVEL_FIELD]
         max_level = d_sorted.iloc[-1][DRAINAGE_LEVEL_FIELD] + curves.index[-1]
@@ -215,14 +205,11 @@ class AreaDamageCurvesAggregation:
         """Sums land use areas data within the given areas."""
         self.agg_lu = {}
         for idx, feature, areas_within in self:
-            lu_data = self.lu_area_data[
-                self.lu_area_data.fid.isin(areas_within[ID_FIELD])
-            ]
+            lu_data = self.lu_area_data[self.lu_area_data.fid.isin(areas_within[ID_FIELD])]
             lu_areas_summed = lu_data.groupby(lu_data.index).sum()
             self.agg_lu[feature[self.field]] = lu_areas_summed
 
         return self.agg_lu
-
 
     def aggregate_rain_curve(self, method="lowest_area", mm_rain=RAIN):
         """Methods for distribution of rain in the drainage area"""
@@ -230,19 +217,12 @@ class AreaDamageCurvesAggregation:
         output = {}
 
         for idx, feature, areas_within in self:
-
             if method == "lowest_area":
-                output[feature[self.field]] = self.agg_rain_lowest_area(
-                    feature, areas_within, mm_rain
-                )
+                output[feature[self.field]] = self.agg_rain_lowest_area(feature, areas_within, mm_rain)
             elif method == "equal_depth":
-                output[feature[self.field]] = self.agg_rain_equal_depth(
-                    feature, areas_within, mm_rain
-                )
+                output[feature[self.field]] = self.agg_rain_equal_depth(feature, areas_within, mm_rain)
             elif method == "equal_rain":
-                output[feature[self.field]] = self.agg_rain_own_area_retention(
-                    areas_within, mm_rain
-                )
+                output[feature[self.field]] = self.agg_rain_own_area_retention(areas_within, mm_rain)
         return output
 
     def agg_rain_lowest_area(
@@ -321,9 +301,7 @@ class AreaDamageCurvesAggregation:
             vol_curve = self._curve_linear_interpolate(vol_curve, 0.01)
             dam_curve = self._curve_linear_interpolate(dam_curve, 0.01)
 
-            curve = pd.DataFrame(
-                index=vol_curve.values, data={area[ID_FIELD]: dam_curve.values}
-            )
+            curve = pd.DataFrame(index=vol_curve.values, data={area[ID_FIELD]: dam_curve.values})
             curve = curve[~curve.index.duplicated(keep="first")]
             curve_interpolated = self._curve_linear_interpolate(curve, 10)
             data.append(curve_interpolated.astype(int))
@@ -372,9 +350,7 @@ class AreaDamageCurvesAggregation:
             v_lowest = v_lowest[~v_lowest.index.duplicated()]
             v_equal_rain = v_equal_rain[~v_equal_rain.index.duplicated()]
 
-            combined = pd.concat(
-                [v_lowest, v_equal_depth, v_equal_rain], axis=1, sort=True
-            )
+            combined = pd.concat([v_lowest, v_equal_depth, v_equal_rain], axis=1, sort=True)
             combined = combined.interpolate("linear").astype(int)
             combined.index = combined.index.astype(int)
             output[k] = combined
@@ -382,11 +358,8 @@ class AreaDamageCurvesAggregation:
         return output
 
     def run(self, aggregation=True, mm_rain=RAIN):
-
         # general data
-        self.damage_interpolated_curve.to_csv(
-            self.dir.post.damage_interpolated_curve.path
-        )
+        self.damage_interpolated_curve.to_csv(self.dir.post.damage_interpolated_curve.path)
         self.vol_interpolated_curve.to_csv(self.dir.post.volume_interpolated_curve.path)
         self.damage_level_curve.to_csv(self.dir.post.damage_level_curve.path)
         self.vol_level_curve.to_csv(self.dir.post.vol_level_curve.path)

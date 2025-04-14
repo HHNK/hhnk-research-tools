@@ -58,7 +58,7 @@ class Folder(BasePath):
         to prevent circular imports.
         """
         return Folder(self.path.parent)
-    
+
     def __getitem__(self, attribute):
         return getattr(self, attribute)
 

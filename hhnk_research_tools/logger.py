@@ -244,8 +244,9 @@ def get_logger(name: str, level=None, fmt=LOGFORMAT, datefmt: str = DATEFMT_STRE
 
     for old, new in replacements.items():
         name = name.replace(old, new)
-    
+
     import multiprocessing
+
     logger = multiprocessing.get_logger()
     # logger = logging.getLogger(name)
 

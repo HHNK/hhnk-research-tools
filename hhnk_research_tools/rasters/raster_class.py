@@ -449,15 +449,15 @@ class Raster(File):
     def round_nearest(self, x, a):
         return round(round(x / a) * a, -int(math.floor(math.log10(a))))
 
-    def read_geometry(self, geometry: shapely.geometry.Polygon)-> np.array : 
+    def read_geometry(self, geometry: shapely.geometry.Polygon) -> np.array:
         """
         Reads data within geometry.
-        
+
         Parameters
         ----------
         geometry : shapely.geometry
             Geometry in which the data is read.
-        
+
         """
         resolution = self.metadata.pixel_width
         bounds = [self.round_nearest(i, resolution) for i in geometry.bounds]
