@@ -59,7 +59,7 @@ class RasterMetadataV2:
         return cls(georef=georef, x_res=x_res, y_res=y_res, projection=projection)
 
     @classmethod
-    def from_rio_bbox(cls, bbox:BoundingBox, res: float, projection="EPSG:28992"):
+    def from_rio_bbox(cls, bbox: BoundingBox, res: float, projection="EPSG:28992"):
         """_summary_
 
         Parameters
@@ -71,10 +71,10 @@ class RasterMetadataV2:
         projection : str, default is "EPSG:28992"
             doesnt work on other projs.
         """
-        data = {"minx": bbox.left, "maxx": bbox.right, "miny":bbox.bottom,"maxy": bbox.top}
-        
+        data = {"minx": bbox.left, "maxx": bbox.right, "miny": bbox.bottom, "maxy": bbox.top}
+
         return RasterMetadataV2.from_bounds(data, res, projection)
-    
+
     @classmethod
     def from_gdf(cls, gdf: gpd.GeoDataFrame, res: float):
         """Create metadata that can be used in raster creation based on gdf bounds.

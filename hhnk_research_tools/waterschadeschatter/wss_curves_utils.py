@@ -160,7 +160,7 @@ class PostProcessing(Folder):
         self.add_file("damage_level_curve", "damage_level_curve.csv")
         self.add_file("vol_level_curve", "vol_level_curve.csv")
         self.add_file("damage_per_m3", "damage_per_m3.csv")
-    
+
     def add_aggregate_dirs(self):
         for i in self.path.glob("*"):
             setattr(self, i.stem, AggregateDir(self.base, create=True, name=i.stem))
@@ -192,12 +192,12 @@ class AggregateDir(Folder):
     def __init__(self, base, create, name):
         super().__init__(os.path.join(base, name), create)
 
-        
         self.add_file("agg_damage", "agg_damage.csv")
         self.add_file("agg_landuse", "agg_landuse.csv")
         self.add_file("agg_volume", "agg_volume.csv")
         self.add_file("aggregate", "aggregate.csv")
         self.add_file("selection", "selection.gpkg")
+
 
 class WSSTimelog:
     """

@@ -81,19 +81,18 @@ class AreaDamageCurveMethods:
         self.nodata = data["nodata"]
         self.run_type = data["run_type"]
 
-        self.dir.work[self.run_type].add_fdla_dirs(self.depth_steps + [self.filter_settings['depth']])
+        self.dir.work[self.run_type].add_fdla_dirs(self.depth_steps + [self.filter_settings["depth"]])
         self.fdla_dir = self.dir.work[self.run_type][f"fdla_{peilgebied_id}"]
-        
+
         self.area_gdf = self.area_vector.loc[self.area_vector[ID_FIELD] == peilgebied_id]
         self.area_start_level = self.area_gdf[DRAINAGE_LEVEL_FIELD].iloc[0]
         self.area_meta = hrt.RasterMetadataV2.from_gdf(gdf=self.area_gdf, res=self.metadata.pixel_width)
-        
+
         self.pixel_width = self.metadata.pixel_width
         self.time = WSSTimelog("Multi", True, None, log_file=self.log_file)
         if nodamage_filter:
             self.damage_filter(self.filter_settings)
 
-    
     @property
     def geometry(self):
         return list(self.area_gdf.geometry)[0]
@@ -101,12 +100,12 @@ class AreaDamageCurveMethods:
     @property
     def lu_array(self):
         return self.lu.read_geometry(self.geometry)
-    
+
     @property
     def dem_array(self):
         return self.dem.read_geometry(self.geometry)
 
-    def damage_filter(self, settings:dict):
+    def damage_filter(self, settings: dict):
         # filter specifc landuse
         lu_select = np.isin(self.lu_array, settings["landuse"])
 
@@ -142,7 +141,7 @@ class AreaDamageCurveMethods:
         self.area_gdf = dif
         damage = None  # close raster
 
-    def run(self, run_1d:bool=True, depth_steps:list=None):
+    def run(self, run_1d: bool = True, depth_steps: list = None):
         """
         run_1d: True: Runs the curves in 1d. All spatial sense is lost, but it is
         quicker then 2D.
@@ -259,9 +258,7 @@ class AreaDamageCurveMethods:
         return curve, curve_vol
 
     def write_tif(self, path, array):
-        hrt.save_raster_array_to_tiff(
-             path, array, self.nodata, self.area_meta, overwrite=True
-         )
+        hrt.save_raster_array_to_tiff(path, array, self.nodata, self.area_meta, overwrite=True)
 
 
 @dataclass
@@ -302,14 +299,14 @@ class AreaDamageCurves:
     wss_config_file: str = None
     wss_settings_file: str = None
     settings_json_file: str = None
-    
-    def  __post_init__(self):
+
+    def __post_init__(self):
         """initializes needed things"""
         self.dir = AreaDamageCurveFolders(self.output_path, create=True)
         self.time = WSSTimelog(NAME, self.quiet, self.dir.work.path)
         self._write_settings_json()
         self._create_input_vrt()
-        
+
     def __iter__(self):
         for id in self.area_vector[ID_FIELD]:
             yield id
@@ -441,8 +438,6 @@ class AreaDamageCurves:
             date = self.time.start_time.strftime("%Y%m%d%H%M")
             shutil.copy(self.settings_json_file, self.dir.input.path / f"settings_{date}.json")
 
-
-
     def write(self):
         logger.info("Start writing output")
         logger.info("Writing damage and volume curves")
@@ -532,9 +527,9 @@ class AreaDamageCurves:
 
         if not multiprocessing:
             for peil_id in tqdm(self, f"{NAME}: Damage {self.run_type}"):
-                area_stats = AreaDamageCurveMethods(peilgebied_id=peil_id, 
-                                                    data=self.area_data, 
-                                                    nodamage_filter=nodamage_filter)
+                area_stats = AreaDamageCurveMethods(
+                    peilgebied_id=peil_id, data=self.area_data, nodamage_filter=nodamage_filter
+                )
                 curve, curve_vol = area_stats.run(run_1d)
                 self.curve[peil_id] = curve
                 self.curve_vol[peil_id] = curve_vol

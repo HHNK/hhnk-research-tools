@@ -478,7 +478,7 @@ class Raster(File):
             out_shape=(int(height), int(width)),
             transform=transform,
         )
-        
+
         raster = self.open_rio()
         window = raster.window(*bounds)
         data = raster.read(window=window)[0]

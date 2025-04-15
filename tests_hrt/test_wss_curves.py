@@ -36,8 +36,10 @@ AREA_START_LEVEL = "streefpeil"
 RESULT = WSS_DATA / "result.csv"
 RESULT_AGGREGATE = WSS_DATA / "result_aggregate.csv"
 
+
 class TestWSSAggregationFolders:
-    """ Generieke test, in onderstaande test worden ook output bestande getest""" 
+    """Generieke test, in onderstaande test worden ook output bestande getest"""
+
     def test_generating_folders(self):
         AreaDamageCurveFolders(TEMP_DIR)
 

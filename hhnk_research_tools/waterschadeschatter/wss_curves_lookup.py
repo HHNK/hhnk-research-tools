@@ -72,9 +72,9 @@ class WaterSchadeSchatterLookUp:
         self.dmg_table_landuse, self.dmg_table_general = wss_loading.read_dmg_table_config(wss_settings)
         self.indices = {
             "herstelperiode": self.dmg_table_general["herstelperiode"].index(wss_settings["herstelperiode"]),
-            "maand": self.dmg_table_general["maand"].index(wss_settings["maand"])
-            }
-        
+            "maand": self.dmg_table_general["maand"].index(wss_settings["maand"]),
+        }
+
         self.pixel_factor = pixel_factor
         self.caller = DummyCaller(nodata)
         self.depth_steps = depth_steps
@@ -124,5 +124,5 @@ class WaterSchadeSchatterLookUp:
 
         logger.info("Ended generating table")
 
-    def write_dict(self, path:Union[str, pathlib.Path]):
+    def write_dict(self, path: Union[str, pathlib.Path]):
         write_dict(self.output, path)

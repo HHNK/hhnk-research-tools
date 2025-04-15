@@ -10,15 +10,16 @@ TODO:
 """
 
 # First-party imports
-import json
 import functools
+import json
 import pathlib
 from typing import Union
+
+import geopandas as gpd
 
 # Third-party imports
 import numpy as np
 import pandas as pd
-import geopandas as gpd
 from tqdm import tqdm
 
 # Local imports
@@ -57,11 +58,14 @@ class AreaDamageCurvesAggregation:
         quiet: bool, Verbosity.
     """
 
-    def __init__(self, result_path: Union[str, pathlib.Path], 
-                 aggregate_vector_path: Union[str, pathlib.Path]=None, 
-                 vector_field:str=None, quiet:bool=False):
+    def __init__(
+        self,
+        result_path: Union[str, pathlib.Path],
+        aggregate_vector_path: Union[str, pathlib.Path] = None,
+        vector_field: str = None,
+        quiet: bool = False,
+    ):
         self.dir = AreaDamageCurveFolders(result_path, create=True)
-
 
         if self.dir.output.result_lu_areas.exists():
             self.lu_area_data = pd.read_csv(self.dir.output.result_lu_areas.path, index_col=0)
@@ -114,11 +118,11 @@ class AreaDamageCurvesAggregation:
     @functools.cached_property
     def damage_level_curve(self):
         return self._curves_to_level(self.damage_curve)
-        
+
     @functools.cached_property
     def vol_level_curve(self):
         return self._curves_to_level(self.vol_curve)
-        
+
     @functools.cached_property
     def damage_per_m3(self):
         """Damage per m3 at a certain waterlevel"""
@@ -375,7 +379,7 @@ class AreaDamageCurvesAggregation:
             for _, feature, _ in self:
                 name = feature[self.field]
                 agg_dir = self.dir.post_processing.create_aggregate_dir(name)
-        
+
                 # aggregations
                 aggregate = aggregations[name]
                 aggregate.index.name = "Volume [m3]"
@@ -399,6 +403,7 @@ class AreaDamageCurvesAggregation:
                 agg_l.index.name = "Peilstijging [m]"
                 agg_l = agg_l.add_suffix(" [m2]")
                 agg_l.to_csv(agg_dir.agg_landuse.path)
+
 
 if __name__ == "__main__":
     import sys
