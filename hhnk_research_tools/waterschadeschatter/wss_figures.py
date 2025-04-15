@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import os
+import matplotlib.patches as mpatches
 
 #Globals
 STANDAARD_FIGUUR = (10, 10)
@@ -42,7 +43,7 @@ class Figuur:
     
     def xticks(self, ticks, *labels):
         self.ax.set_xticks(ticks, *labels)
-    
+    .0
     def yticks(self, ticks, labels=[]):
         self.ax.set_yticks(ticks, labels)
 
@@ -69,11 +70,10 @@ class BergingsCurve(Figuur):
             plotpng = os.path.join(output_dir, f'bergingscurve_{col}.png')
             self.write(plotpng, dpi=dpi)
 
-class LandgebruikCurve(Figuur):
-    def __init__(self, path):
+class PercentageFiguur(Figuur):
+    def __init__(self):
         super().__init__(figsize = LANDGEBRUIK_FIGUUR)
-        self.df = pd.read_csv(path, index_col = 0)
-
+    
     def x_y_label(self):
         self.xlabel("Peilverhoging boven streefpeil (m)")
         self.ylabel("Percentage t.o.v. totaal")
@@ -86,35 +86,108 @@ class LandgebruikCurve(Figuur):
         self.xticks(np.arange(0.1, MAX_PEILVERHOGING+0.1, 0.1))
         self.yticks(ticks = np.arange(0, 1.1, 0.1), labels = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"])
 
-    def per_peilgebied(self, id):
-        self.df_peilgebied = self.df.loc[lu_area['fid'] == id].dropna(axis=1)
+    def handles_legend(self, lu_omzetting):
+        nieuwe_klasses = np.array(lu_omzetting['nieuwe_klasse'].unique())
+        self.color_dict = {}
+        colors = []
+        self.handels = []
+        self.labels = []
+        for klasse in nieuwe_klasses:
+            label = lu_omzetting.where(lu_omzetting['nieuwe_klasse'] == klasse)['beschrijving'].dropna().unique()[0]
+            color = lu_omzetting.where(lu_omzetting['nieuwe_klasse'] == klasse)['kleur'].dropna().unique()[0]
+            self.labels.append(label)
+            colors.append(color)
+        for i in range(0, len(colors)):
+            handle = mpatches.Patch(color = colors[i])
+            self.handels.append(handle)
+            self.color_dict[str(nieuwe_klasses[i])] = colors[i]
+
+    def lu_verdeling_peilgebied(self, id):
+        self.df_peilgebied = self.df.loc[self.df['fid'] == id].dropna(axis=1)
         self.df_peilgebied = self.df_peilgebied.drop('fid', axis=1)
         self.df_peilgebied_perc = self.df_peilgebied.divide(self.df_peilgebied.sum(axis=1), axis=0)
+        self.df_peilgebied_perc.columns = [str(int(x)) for x in self.df_peilgebied_perc]
 
-    def lu_peilgebied(self):
         self.lu = []
         self.lu_ids = []
         for col in self.df_peilgebied_perc.columns:
             self.lu.append(self.df_peilgebied_perc[col])
             self.lu_ids.append(col)
+    
+    def sum_damages(self):
+        self.df_sum_damages = self.df.copy()
+        self.df_sum_damages['totaal'] = self.df_sum_damages.drop('fid', axis=1).sum(axis=1)
 
+    def plot_schadecurve_totaal(self, id):
+        self.ax2 = self.ax.twinx()
+        self.ax2.plot(self.df_sum_damages.index.where(self.df['fid'] == id).dropna(), self.df_sum_damages['totaal'].where(self.df_sum_damages['fid'] == id).dropna(), color='black', linewidth=2)
+        self.ax2.set_ylabel("Schadebedrag (Euro's)")
+        self.ax2.set_ylim(bottom=0)
+    
+    def combine_classes(self, lu_omzetting, output_path):
+        nieuwe_klasses = np.array(lu_omzetting['nieuwe_klasse'].unique())
+        samenvoeging_klasses = {'fid' : self.df['fid']}
+        for klasse in nieuwe_klasses:
+            oude_lu_per_nieuwe_klasse = lu_omzetting.where(lu_omzetting['nieuwe_klasse'] == klasse)['LU_class'].dropna().values.tolist()
+            oude_lu_per_nieuwe_klasse = [str(int(x)) for x in oude_lu_per_nieuwe_klasse]
+            samenvoeging_klasses[klasse] = self.df.filter(items = oude_lu_per_nieuwe_klasse).sum(axis=1)
+        self.df_combined_classes = pd.DataFrame(data = samenvoeging_klasses)
+        self.df_combined_classes.to_csv(output_path, sep=',')
+        self.df = self.df_combined_classes.copy()
 
-    def run(self, output_dir, dpi=DPI):
+class LandgebruikCurve(PercentageFiguur):
+    def __init__(self, path):
+        super().__init__()
+        self.df = pd.read_csv(path, index_col = 0)
+    
+    def run(self, lu_omzetting, output_dir, schadecurve_totaal = False, dpi=DPI):
         ids = np.array(self.df['fid'].unique())
         for id in ids:
-            self.per_peilgebied(id)
-            self.lu_peilgebied()
-
+            self.lu_verdeling_peilgebied(id)
             self.create()
-            self.ax.stackplot(self.df_peilgebied_perc.index, self.lu, labels = self.lu_ids)
+            self.handles_legend(lu_omzetting)
+            self.ax.stackplot(self.df_peilgebied_perc.index, self.lu, colors = [self.color_dict.get(x, 'black') for x in self.df_peilgebied_perc.columns])
+            if schadecurve_totaal:
+                self.sum_damages()
+                self.plot_schadecurve_totaal(id)
             self.x_y_label()
             self.x_y_lim()
             self.x_y_ticks()
+            self.title(f"landgebruikverdeling voor {id}")
+    
+            self.ax.legend(handles = self.handels, labels = self.labels, bbox_to_anchor=(0.05, -0.05),loc="upper left", ncols=8)
 
             plotpng = os.path.join(output_dir, f'landgebruikcurve_{id}.png')
             self.write(plotpng, dpi=dpi) 
+
+class Damages_per_LU_curve(PercentageFiguur):
+    def __init__(self, path):
+        super().__init__()
+        self.df = pd.read_csv(path, index_col = 0)
+
+    def run(self, lu_omzetting, output_dir, schadecurve_totaal = False, dpi=DPI):
+        ids = np.array(self.df['fid'].unique())
+        for id in ids:
+            self.lu_verdeling_peilgebied(id)
+
+            self.create()
+            self.handles_legend(lu_omzetting)
+            self.ax.stackplot(self.df_peilgebied_perc.index, self.lu, colors = [self.color_dict.get(x, 'gray') for x in self.df_peilgebied_perc.columns])
+            if schadecurve_totaal:
+                self.sum_damages()
+                self.plot_schadecurve_totaal(id)
+            self.x_y_label()
+            self.x_y_lim()
+            self.x_y_ticks()
+            self.title(f"schadeverdeling voor {id}")
     
-#%%
+            self.ax.legend(handles = self.handels, labels = self.labels, bbox_to_anchor=(0.05, -0.05),loc="upper left", ncols=8)
+
+            plotpng = os.path.join(output_dir, f'schadecurve_{id}.png')
+            self.write(plotpng, dpi=dpi) 
+
+
+#%% figuur voor bergingscurve
 def bergingscurve(input, output_directory):
     os.mkdir(output_directory+"/Bergingscurve")
     output_dir = output_directory + "/Bergingscurve"
@@ -138,9 +211,10 @@ def bergingscurve(input, output_directory):
         plt.savefig(plotpng, dpi = 300)
         plt.close()
 
-# %%
+# %% figuur voor lu curve
 lu_area = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_areas.csv", index_col=0)
 def_max = 2.5
+lu_omzetting = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\Project\05 Project execution\Omzettingstabel_landgebruik.csv")
 
 def lu_curve(lu_area):
     ids = np.array(lu_area['fid'].unique())
@@ -169,11 +243,29 @@ def lu_curve(lu_area):
         plt.savefig(plotpng, dpi = 300)
         plt.close()
 
+# combineren van klasses landgebruik
+def reclassify_lu(lu_area, lu_omzetting):
+    nieuwe_klasses = np.array(lu_omzetting['nieuwe klasse'].unique())
+    d = {'fid':lu_area['fid']}
+    samenvoeging_klasses = {}
+    for klasse in nieuwe_klasses:
+        oude_lu_per_nieuwe_klasse = lu_omzetting.where(lu_omzetting['nieuwe klasse'] == klasse)['LU class'].dropna().values.tolist()
+        oude_lu_per_nieuwe_klasse = [str(int(x)) for x in oude_lu_per_nieuwe_klasse]
+        d[klasse] = lu_area.filter(items = oude_lu_per_nieuwe_klasse).sum(axis=1)
+    df = pd.DataFrame(data=d)
+
+    df.to_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_areas_classes.csv", sep=',')
+
 #%%
 if __name__ == "__main__":
     westzaan = AreaDamageCurveFolders(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan")
+    lu_omzetting = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\Project\05 Project execution\Omzettingstabel_landgebruik.csv")
     #bc = BergingsCurve(westzaan.post.vol_level_curve.path)
     #bc.run(r"C:\temp\HHNK\Bergingscurve_class")
 
-    luc = LandgebruikCurve(westzaan.output.result_lu_areas.path)
-    luc.run(r"C:\temp\HHNK\Landgebruikcurve_class")
+    lu_curve = LandgebruikCurve(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_areas_classes.csv")
+    lu_curve.run(lu_omzetting, r"C:\temp\HHNK\Landgebruikcurve_class_classes", schadecurve_totaal=True)
+
+    # damages = Damages_per_LU_curve(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_damage.csv")
+    # damages.combine_classes(lu_omzetting, r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_damages_classes.csv")
+    # damages.run(lu_omzetting, r"C:\temp\HHNK\Damages_perc")
