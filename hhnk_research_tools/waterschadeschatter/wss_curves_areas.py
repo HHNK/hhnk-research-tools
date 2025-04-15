@@ -81,32 +81,30 @@ class AreaDamageCurveMethods:
         self.nodata = data["nodata"]
         self.run_type = data["run_type"]
 
-        self.dir.work[self.run_type].add_fdla_dirs(self.depth_steps)
+        self.dir.work[self.run_type].add_fdla_dirs(self.depth_steps + [self.filter_settings['depth']])
         self.fdla_dir = self.dir.work[self.run_type][f"fdla_{peilgebied_id}"]
-        self.area_gdf, self.area_meta, self.area_start_level = self.get_area_meta(self.peilgebied_id)
+        
+        self.area_gdf = self.area_vector.loc[self.area_vector[ID_FIELD] == peilgebied_id]
+        self.area_start_level = self.area_gdf[DRAINAGE_LEVEL_FIELD].iloc[0]
+        self.area_meta = hrt.RasterMetadataV2.from_gdf(gdf=self.area_gdf, res=self.metadata.pixel_width)
+        
         self.pixel_width = self.metadata.pixel_width
         self.time = WSSTimelog("Multi", True, None, log_file=self.log_file)
         if nodamage_filter:
             self.damage_filter(self.filter_settings)
 
-    @functools.cached_property
+    
+    @property
     def geometry(self):
         return list(self.area_gdf.geometry)[0]
 
-    @functools.cached_property
+    @property
     def lu_array(self):
         return self.lu.read_geometry(self.geometry)
     
-    @functools.cached_property
+    @property
     def dem_array(self):
         return self.dem.read_geometry(self.geometry)
-    
-    def get_area_meta(self, peilgebied_id:int):
-        area = self.area_vector.loc[self.area_vector[ID_FIELD] == peilgebied_id]
-        area_meta = hrt.RasterMetadataV2.from_gdf(gdf=area, res=self.metadata.pixel_width)
-        start_level = area[DRAINAGE_LEVEL_FIELD].iloc[0]
-
-        return area, area_meta, start_level
 
     def damage_filter(self, settings:dict):
         # filter specifc landuse
@@ -304,7 +302,14 @@ class AreaDamageCurves:
     wss_config_file: str = None
     wss_settings_file: str = None
     settings_json_file: str = None
-
+    
+    def  __post_init__(self):
+        """initializes needed things"""
+        self.dir = AreaDamageCurveFolders(self.output_path, create=True)
+        self.time = WSSTimelog(NAME, self.quiet, self.dir.work.path)
+        self._write_settings_json()
+        self._create_input_vrt()
+        
     def __iter__(self):
         for id in self.area_vector[ID_FIELD]:
             yield id
@@ -436,12 +441,7 @@ class AreaDamageCurves:
             date = self.time.start_time.strftime("%Y%m%d%H%M")
             shutil.copy(self.settings_json_file, self.dir.input.path / f"settings_{date}.json")
 
-    def post_init(self):
-        """initializes needed things"""
-        self.dir = AreaDamageCurveFolders(self.output_path, create=True)
-        self.time = WSSTimelog(NAME, self.quiet, self.dir.work.path)
-        self._write_settings_json()
-        self._create_input_vrt()
+
 
     def write(self):
         logger.info("Start writing output")
@@ -491,8 +491,6 @@ class AreaDamageCurves:
         processes=MAX_PROCESSES,
         nodamage_filter=True,
     ):
-        self.post_init()
-
         self.run_type = "run_1d"
         if run_2d:
             self.run_type = "run_2d"
@@ -534,7 +532,9 @@ class AreaDamageCurves:
 
         if not multiprocessing:
             for peil_id in tqdm(self, f"{NAME}: Damage {self.run_type}"):
-                area_stats = AreaDamageCurveMethods(peil_id, self.area_data, nodamage_filter)
+                area_stats = AreaDamageCurveMethods(peilgebied_id=peil_id, 
+                                                    data=self.area_data, 
+                                                    nodamage_filter=nodamage_filter)
                 curve, curve_vol = area_stats.run(run_1d)
                 self.curve[peil_id] = curve
                 self.curve_vol[peil_id] = curve_vol

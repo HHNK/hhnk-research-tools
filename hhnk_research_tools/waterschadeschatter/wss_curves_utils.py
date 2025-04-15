@@ -160,9 +160,15 @@ class PostProcessing(Folder):
         self.add_file("damage_level_curve", "damage_level_curve.csv")
         self.add_file("vol_level_curve", "vol_level_curve.csv")
         self.add_file("damage_per_m3", "damage_per_m3.csv")
+    
+    def add_aggregate_dirs(self):
+        for i in self.path.glob("*"):
+            setattr(self, i.stem, AggregateDir(self.base, create=True, name=i.stem))
 
     def create_aggregate_dir(self, name):
-        return AggregateDir(self.base, True, name)
+        directory = AggregateDir(self.base, create=True, name=name)
+        setattr(self, name, directory)
+        return directory
 
 
 class FDLADir(Folder):
@@ -182,10 +188,16 @@ class FDLADir(Folder):
             self.add_file(f"damage_{ds}", f"damage_{ds}.tif")
 
 
-class AggregateDir:
+class AggregateDir(Folder):
     def __init__(self, base, create, name):
         super().__init__(os.path.join(base, name), create)
 
+        
+        self.add_file("agg_damage", "agg_damage.csv")
+        self.add_file("agg_landuse", "agg_landuse.csv")
+        self.add_file("agg_volume", "agg_volume.csv")
+        self.add_file("aggregate", "aggregate.csv")
+        self.add_file("selection", "selection.gpkg")
 
 class WSSTimelog:
     """
@@ -216,14 +228,6 @@ class WSSTimelog:
     @property
     def time_since_start(self):
         return datetime.datetime.now() - self.start_time
-
-    def _message(self, msg):
-        now = str(datetime.datetime.now())[:19]
-        if not self.quiet:
-            print(self.s, f"{now} [since start: {str(self.time_since_start)[:7]}]", msg)
-
-        if self.use_logging:
-            self.logger.info(msg)
 
     def close(self):
         handlers = self.logger.handlers[:]
