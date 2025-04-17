@@ -14,8 +14,8 @@ LANDGEBRUIK_FIGUUR = (20, 10)
 DPI = 300
 MAX_PEILVERHOGING = 2.5
 
-input = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\post\vol_level_curve.csv", index_col=0)
-output_directory = r"C:\temp\HHNK"
+# input = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\post\vol_level_curve.csv", index_col=0)
+# output_directory = r"C:\temp\HHNK"
 class Figuur:
     def __init__(self, figsize=STANDAARD_FIGUUR):
         self.figsize = figsize
@@ -43,7 +43,7 @@ class Figuur:
     
     def xticks(self, ticks, *labels):
         self.ax.set_xticks(ticks, *labels)
-    .0
+    
     def yticks(self, ticks, labels=[]):
         self.ax.set_yticks(ticks, labels)
 
@@ -215,70 +215,71 @@ def bergingscurve(input, output_directory):
 
 #%%
 if __name__ == "__main__":
+    pass
     # %% figuur voor lu curve
-    lu_area = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_areas.csv", index_col=0)
-    def_max = 2.5
-    lu_omzetting = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\Project\05 Project execution\Omzettingstabel_landgebruik.csv")
+    # lu_area = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_areas.csv", index_col=0)
+    # def_max = 2.5
+    # lu_omzetting = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\Project\05 Project execution\Omzettingstabel_landgebruik.csv")
 
-    def lu_curve(lu_area):
-        ids = np.array(lu_area['fid'].unique())
-        os.mkdir(output_directory+"/Landgebruikcurve")
-        output_dir = output_directory + "/Landgebruikcurve"
-        for id in ids:
-            lu_peilgebied = lu_area.loc[lu_area['fid'] == id].dropna(axis=1)
-            lu_peilgebied = lu_peilgebied.drop('fid', axis=1)
-            lu_peilgebied_perc = lu_peilgebied.divide(lu_peilgebied.sum(axis=1), axis=0)
+    # def lu_curve(lu_area):
+    #     ids = np.array(lu_area['fid'].unique())
+    #     os.mkdir(output_directory+"/Landgebruikcurve")
+    #     output_dir = output_directory + "/Landgebruikcurve"
+    #     for id in ids:
+    #         lu_peilgebied = lu_area.loc[lu_area['fid'] == id].dropna(axis=1)
+    #         lu_peilgebied = lu_peilgebied.drop('fid', axis=1)
+    #         lu_peilgebied_perc = lu_peilgebied.divide(lu_peilgebied.sum(axis=1), axis=0)
 
-            columns = []
-            for col in lu_peilgebied_perc.columns:
-                columns.append(lu_peilgebied_perc[col])
+    #         columns = []
+    #         for col in lu_peilgebied_perc.columns:
+    #             columns.append(lu_peilgebied_perc[col])
 
-            fig, ax = plt.subplots(figsize=(20,10))    
-            ax.stackplot(lu_peilgebied_perc.index, columns)
-            ax.set(xlabel = "Peilverhoging boven streefpeil (m)", 
-                ylabel = "Percentage t.o.v. totaal",
-                title = f'Landgebruikcurve {id}',
-                xlim = (0.1, def_max),
-                ylim = (0, 1),
-                xticks = np.arange(0.1, 2.6, 0.1))
-            ax.set_yticks(ticks = np.arange(0, 1.1, 0.1), labels = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"])
+    #         fig, ax = plt.subplots(figsize=(20,10))    
+    #         ax.stackplot(lu_peilgebied_perc.index, columns)
+    #         ax.set(xlabel = "Peilverhoging boven streefpeil (m)", 
+    #             ylabel = "Percentage t.o.v. totaal",
+    #             title = f'Landgebruikcurve {id}',
+    #             xlim = (0.1, def_max),
+    #             ylim = (0, 1),
+    #             xticks = np.arange(0.1, 2.6, 0.1))
+    #         ax.set_yticks(ticks = np.arange(0, 1.1, 0.1), labels = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"])
 
-            plotpng = os.path.join(output_dir, f'landgebruikcurve_{id}.png')
-            plt.savefig(plotpng, dpi = 300)
-            plt.close()
+    #         plotpng = os.path.join(output_dir, f'landgebruikcurve_{id}.png')
+    #         plt.savefig(plotpng, dpi = 300)
+    #         plt.close()
 
-    # combineren van klasses landgebruik
-    def reclassify_lu(lu_area, lu_omzetting):
-        nieuwe_klasses = np.array(lu_omzetting['nieuwe klasse'].unique())
-        d = {'fid':lu_area['fid']}
-        samenvoeging_klasses = {}
-        for klasse in nieuwe_klasses:
-            oude_lu_per_nieuwe_klasse = lu_omzetting.where(lu_omzetting['nieuwe klasse'] == klasse)['LU class'].dropna().values.tolist()
-            oude_lu_per_nieuwe_klasse = [str(int(x)) for x in oude_lu_per_nieuwe_klasse]
-            d[klasse] = lu_area.filter(items = oude_lu_per_nieuwe_klasse).sum(axis=1)
-        df = pd.DataFrame(data=d)
+    # # combineren van klasses landgebruik
+    # def reclassify_lu(lu_area, lu_omzetting):
+    #     nieuwe_klasses = np.array(lu_omzetting['nieuwe klasse'].unique())
+    #     d = {'fid':lu_area['fid']}
+    #     samenvoeging_klasses = {}
+    #     for klasse in nieuwe_klasses:
+    #         oude_lu_per_nieuwe_klasse = lu_omzetting.where(lu_omzetting['nieuwe klasse'] == klasse)['LU class'].dropna().values.tolist()
+    #         oude_lu_per_nieuwe_klasse = [str(int(x)) for x in oude_lu_per_nieuwe_klasse]
+    #         d[klasse] = lu_area.filter(items = oude_lu_per_nieuwe_klasse).sum(axis=1)
+    #     df = pd.DataFrame(data=d)
 
-        df.to_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_areas_classes.csv", sep=',')
+    #     df.to_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_areas_classes.csv", sep=',')
 
-    # poging tot labels
-    labeled_land_uses = [False] * len(lu_curve.df_peilgebied_perc.columns)
-    for j, label in enumerate(lu_curve.df_peilgebied_perc.columns):
-        for i in reversed(range(len(lu_curve.df_peilgebied_perc.index))):
-            if lu_curve.df_peilgebied_perc.iloc[i, j] > 0.15 and not labeled_land_uses[j]:
-                y_pos = lu_curve.df_peilgebied_perc.iloc[i, j]-0.1
-                lu_curve.ax.text(2, y_pos, label, fontsize=8)
-                labeled_land_uses[j] = True
-                print(label)
-                break
+    # # poging tot labels
+    # labeled_land_uses = [False] * len(lu_curve.df_peilgebied_perc.columns)
+    # for j, label in enumerate(lu_curve.df_peilgebied_perc.columns):
+    #     for i in reversed(range(len(lu_curve.df_peilgebied_perc.index))):
+    #         if lu_curve.df_peilgebied_perc.iloc[i, j] > 0.15 and not labeled_land_uses[j]:
+    #             y_pos = lu_curve.df_peilgebied_perc.iloc[i, j]-0.1
+    #             lu_curve.ax.text(2, y_pos, label, fontsize=8)
+    #             labeled_land_uses[j] = True
+    #             print(label)
+    #             break
 
-    westzaan = AreaDamageCurveFolders(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan")
-    lu_omzetting = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\Project\05 Project execution\Omzettingstabel_landgebruik.csv")
-    #bc = BergingsCurve(westzaan.post.vol_level_curve.path)
-    #bc.run(r"C:\temp\HHNK\Bergingscurve_class")
+    # westzaan = AreaDamageCurveFolders(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan")
+    # lu_omzetting = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\Project\05 Project execution\Omzettingstabel_landgebruik.csv")
+    # #bc = BergingsCurve(westzaan.post.vol_level_curve.path)
+    # #bc.run(r"C:\temp\HHNK\Bergingscurve_class")
 
-    lu_curve = LandgebruikCurve(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_areas_classes.csv")
-    lu_curve.run(lu_omzetting, r"C:\temp\HHNK\Landgebruikcurve_class_classes", schadecurve_totaal=True)
+    # lu_curve = LandgebruikCurve(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_areas_classes.csv")
+    # lu_curve.run(lu_omzetting, r"C:\temp\HHNK\Landgebruikcurve_class_classes", schadecurve_totaal=True)
 
-    # damages = Damages_per_LU_curve(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_damage.csv")
-    # damages.combine_classes(lu_omzetting, r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_damages_classes.csv")
-    # damages.run(lu_omzetting, r"C:\temp\HHNK\Damages_perc")
+    # # damages = Damages_per_LU_curve(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_damage.csv")
+    # # damages.combine_classes(lu_omzetting, r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_damages_classes.csv")
+    # # damages.run(lu_omzetting, r"C:\temp\HHNK\Damages_perc")
