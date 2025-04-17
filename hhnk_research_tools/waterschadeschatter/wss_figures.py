@@ -256,6 +256,17 @@ def reclassify_lu(lu_area, lu_omzetting):
 
     df.to_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\output\result_lu_areas_classes.csv", sep=',')
 
+# poging tot labels
+labeled_land_uses = [False] * len(lu_curve.df_peilgebied_perc.columns)
+for j, label in enumerate(lu_curve.df_peilgebied_perc.columns):
+    for i in reversed(range(len(lu_curve.df_peilgebied_perc.index))):
+        if lu_curve.df_peilgebied_perc.iloc[i, j] > 0.15 and not labeled_land_uses[j]:
+            y_pos = lu_curve.df_peilgebied_perc.iloc[i, j]-0.1
+            lu_curve.ax.text(2, y_pos, label, fontsize=8)
+            labeled_land_uses[j] = True
+            print(label)
+            break
+
 #%%
 if __name__ == "__main__":
     westzaan = AreaDamageCurveFolders(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan")
