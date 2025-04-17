@@ -134,6 +134,12 @@ class Run2D(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "run_2d"), create)
 
+    def add_fdla_dirs(self, depth_steps):
+        for i in self.path.glob("*"):
+            setattr(self, f"fdla_{i.stem}", FDLADir(self.base, False, i.stem, depth_steps))
+
+    def create_fdla_dir(self, name, depth_steps):
+        setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
 
 class Log(Folder):
     def __init__(self, base, create):
