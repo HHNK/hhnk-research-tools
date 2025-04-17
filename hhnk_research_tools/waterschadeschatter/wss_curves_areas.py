@@ -14,101 +14,106 @@ Methodiek schade, volume en landgebruik
 4. Volume = Oppervlak pixel vermenigvuldigd met de diepte en aantal pixels.
 """
 
+import functools
 import json
-import shutil
-import pathlib
-import traceback
-import pandas as pd
-import numpy as np
 import multiprocessing as mp
+import pathlib
+import shutil
+import traceback
+from dataclasses import dataclass
+from typing import Union
 
 import geopandas as gp
+import numpy as np
+import pandas as pd
 from tqdm import tqdm
 
 import hhnk_research_tools as hrt
-from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
-    WSSTimelog,
-    pad_zeros,
-    write_dict,
-    AreaDamageCurveFolders,
-    ID_FIELD,
-    DRAINAGE_LEVEL_FIELD,
-)
+
+# logging
+import hhnk_research_tools.logger as logging
+from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter.wss_curves_lookup import (
     WaterSchadeSchatterLookUp,
 )
+from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
+    DRAINAGE_LEVEL_FIELD,
+    ID_FIELD,
+    AreaDamageCurveFolders,
+    WSSTimelog,
+    pad_zeros,
+    write_dict,
+)
+
+# Logger
+logger = logging.get_logger(__name__)
 
 # Globals
-NODATA_UINT8 = 255
 DAMAGE_DECIMALS = 2
-MAX_PROCESSES = (
-    mp.cpu_count() - 1
-)  # still wanna do something on the computa use minus 2
+MAX_PROCESSES = mp.cpu_count() - 1  # still wanna do something on the computa use minus 2
 SHOW_LOG = 30  # seconds
 NAME = "WSS AreaDamageCurve"
 
+# Defaults
+DEFAULT_AREA_ID = "id"
+DEFAULT_AREA_START_LEVEL_FIELD = "streefpeil"
+DEFAULT_CURVE_STEP = 0.1
+DEFAULT_CURVE_MAX = 3
+DEFAULT_RASTER_RESOLUTION = 0.5
+DEFAULT_NODATA = -9999
+DEFAULT_QUIET = False
+
 
 class AreaDamageCurveMethods:
-    def __init__(self, peilgebied_id, data, nodamage_filter=True):
-        
-        
+    def __init__(self, peilgebied_id: int, data: dict, nodamage_filter: bool = True):
         self.peilgebied_id = peilgebied_id
-        self.dir = AreaDamageCurveFolders(data['output_dir'])
-        
+        self.dir = AreaDamageCurveFolders(data["output_dir"])
+
         self.area_vector = gp.read_file(self.dir.input.area.path)
         self.lu = hrt.Raster(self.dir.input.lu.path)
         self.dem = hrt.Raster(self.dir.input.dem.path)
-        
-        
+
         self.lookup_table = data["lookup_table"]
         self.filter_settings = data["filter_settings"]
         self.log_file = data["log_file"]
         self.metadata = data["metadata"]
         self.depth_steps = data["depth_steps"]
         self.nodata = data["nodata"]
-        self.run_type = data['run_type']
-        
-        
-        self.flda_dir = self.create_dir()
-        
-        self.area_dir = self.output_dir / str(peilgebied_id)
-        self.area_dir.mkdir(exist_ok=True)
-        self.area_gdf, self.area_meta, self.area_start_level = self.get_area_meta(
-            self.peilgebied_id
-        )
+        self.run_type = data["run_type"]
+
+        self.dir.work[self.run_type].add_fdla_dirs(self.depth_steps + [self.filter_settings["depth"]])
+        self.fdla_dir = self.dir.work[self.run_type][f"fdla_{peilgebied_id}"]
+
+        self.area_gdf = self.area_vector.loc[self.area_vector[ID_FIELD] == peilgebied_id]
+        self.area_start_level = self.area_gdf[DRAINAGE_LEVEL_FIELD].iloc[0]
+        self.area_meta = hrt.RasterMetadataV2.from_gdf(gdf=self.area_gdf, res=self.metadata.pixel_width)
+
         self.pixel_width = self.metadata.pixel_width
-        self.time = WSSTimelog(None, True, None, log_file=self.log_file)
+        self.time = WSSTimelog("Multi", True, None, log_file=self.log_file)
         if nodamage_filter:
             self.damage_filter(self.filter_settings)
-    
+
     @property
     def geometry(self):
         return list(self.area_gdf.geometry)[0]
 
-    def create_dir(self):
-        return self.dir.work[self.run_type].create_fdla_dir(self.peilkgebied_id, self.depth_steps)
-    
-    def get_area_meta(self, peilgebied_id):
-        area = self.area_vector.loc[self.area_vector[ID_FIELD] == peilgebied_id]
-        area_meta = hrt.RasterMetadataV2.from_gdf(
-            gdf=area, res=self.metadata.pixel_width
-        )
-        start_level = area[DRAINAGE_LEVEL_FIELD].iloc[0]
+    @property
+    def lu_array(self):
+        return self.lu.read_geometry(self.geometry)
 
-        return area, area_meta, start_level
+    @property
+    def dem_array(self):
+        return self.dem.read_geometry(self.geometry)
 
-    def damage_filter(self, settings):
-        
-        lu_array = self.lu.read(self.geometry)
-
+    def damage_filter(self, settings: dict):
         # filter specifc landuse
-        lu_select = np.isin(lu_array, settings["landuse"])
+        lu_select = np.isin(self.lu_array, settings["landuse"])
 
         # calculate damage at specific depth and filter above zero
         self.run(run_1d=False, depth_steps=[settings["depth"]])
         filter_path = self.fdla_dir.path / f"damage_{settings['depth']}.tif"
         damage = hrt.Raster(filter_path)
-        damage_array = damage.read(self.geometry)
+        damage_array = damage.read_geometry(self.geometry)
 
         # select only places with damage
         damage_select = damage_array > settings["damage_threshold"]
@@ -131,18 +136,18 @@ class AreaDamageCurveMethods:
         # extract from input
         dif = gp.overlay(self.area_gdf, no_damage, how="difference")
         dif = dif.drop(columns=[i for i in dif.columns if i not in ["geometry"]])
-        dif.to_file(self.fdla_dir.nodamage_filtere.path)
+        dif.to_file(self.fdla_dir.nodamage_filtered.path)
 
         self.area_gdf = dif
         damage = None  # close raster
 
-    def run(self, run_1d=True, depth_steps=None):
+    def run(self, run_1d: bool = True, depth_steps: list = None):
         """
-        run_1d: True: Runs the curves in 1d. All spatial sense is lost, but it is 
+        run_1d: True: Runs the curves in 1d. All spatial sense is lost, but it is
         quicker then 2D.
         run_1d: False: Runs the curves in 2d, which retains all spatial info.
         depth_steps: List of floats on which the damage is calculated.
-        
+
         Actually two functions in one, which is quite ugly.
         However, We try to keep 2d calculation as close
         as the 1d calculation to ensure the possibility of validating 1D
@@ -154,8 +159,8 @@ class AreaDamageCurveMethods:
 
         run_2d = not run_1d
 
-        lu_array = self.lu.read(self.geometry)
-        dem_array = self.dem.read(self.geometry).astype(float)
+        lu_array = self.lu_array
+        dem_array = self.dem_array.astype(float)
 
         if run_1d:
             lu_array = lu_array.flatten()
@@ -168,7 +173,7 @@ class AreaDamageCurveMethods:
             dem_array = dem_array[~nodata]
 
         if run_2d:
-            lu_array[nodata] = NODATA_UINT8
+            lu_array[nodata] = DEFAULT_NODATA_VALUES["uint8"]
             dem_array[nodata] = np.nan
 
         dem_array[dem_array < self.area_start_level] = self.area_start_level
@@ -188,12 +193,7 @@ class AreaDamageCurveMethods:
                 lu = lu[~zero_depth_mask]
 
                 data = pd.DataFrame(data={"depth": depth, "lu": lu})
-                unique_counts = (
-                    data.groupby(["depth", "lu"])
-                    .size()
-                    .reset_index()
-                    .rename(columns={0: "count"})
-                )
+                unique_counts = data.groupby(["depth", "lu"]).size().reset_index().rename(columns={0: "count"})
 
                 volume = 0
                 damage = 0
@@ -201,14 +201,12 @@ class AreaDamageCurveMethods:
                 for idx, row in unique_counts.iterrows():
                     row_damage = self.lookup_table[row.depth][row.lu] * row["count"]
                     damage += row_damage
-                    volume += (
-                        self.pixel_width * self.pixel_width * row.depth * row["count"]
-                    )
+                    volume += self.pixel_width * self.pixel_width * row.depth * row["count"]
                     damage_per_lu[row.lu] += row_damage
 
             if run_2d:
                 depth[zero_depth_mask] = np.nan
-                lu[zero_depth_mask] = NODATA_UINT8
+                lu[zero_depth_mask] = DEFAULT_NODATA_VALUES["uint8"]
 
                 # actual slow calc, but best to vis output.
                 stacked = np.vstack((depth.flatten(), lu.flatten()))
@@ -221,7 +219,7 @@ class AreaDamageCurveMethods:
                         continue
 
                     damage_1d[i] = self.lookup_table[d][l]
-                    volume_1d[i] = d * self.pixel_width * self.pixel_width
+                    volume_1d[i] = d * self.pixel_width**2
 
                 damage_2d = damage_1d.reshape(depth.shape)
                 damage = damage_2d.sum()
@@ -230,11 +228,11 @@ class AreaDamageCurveMethods:
                 volume = volume_2d.sum()
 
                 damage_per_lu = {}
-                self.write_tif(self.fdla_dir["depth_"+str(ds)].path, depth)
-                self.write_tif(self.fdla_dir["lu_"+str(ds)].path, lu)
-                self.write_tif(self.fdla_dir["damage_"+str(ds)].path, damage_2d)
-                self.write_tif(self.fdla_dir["level_"+str(ds)].path, depth + dem_array)
-                
+                self.write_tif(self.fdla_dir["depth_" + str(ds)].path, depth)
+                self.write_tif(self.fdla_dir["lu_" + str(ds)].path, lu)
+                self.write_tif(self.fdla_dir["damage_" + str(ds)].path, damage_2d)
+                self.write_tif(self.fdla_dir["level_" + str(ds)].path, depth + dem_array)
+
             curve[ds] = damage
             curve_vol[ds] = volume
             un, c = np.unique(lu, return_counts=True)
@@ -243,33 +241,31 @@ class AreaDamageCurveMethods:
 
         timedelta = self.time.time_since_start
         if timedelta.total_seconds() > SHOW_LOG:
-            self.time._message(
-                f"Area {self.peilgebied_id} calulation time is >30s: {str(timedelta)[:7]}"
-            )
+            logger.info(f"Area {self.peilgebied_id} calulation time is >30s: {str(timedelta)[:7]}")
 
         curve_df = pd.DataFrame(curve, index=range(0, len(curve)))
-        curve_df.to_csv(self.area_dir / "curve.csv")
+        curve_df.to_csv(self.fdla_dir.curve.path)
 
         curve_vol_df = pd.DataFrame(curve_vol, index=range(0, len(curve_vol)))
-        curve_vol_df.to_csv(self.area_dir / "curve_vol.csv")
+        curve_vol_df.to_csv(self.fdla_dir.curve_vol.path)
 
         counts_lu = pd.DataFrame(counts_lu).T
-        counts_lu.to_csv(self.area_dir / "counts_lu.csv")
+        counts_lu.to_csv(self.fdla_dir.counts_lu.path)
 
         damage_lu = pd.DataFrame(damage_lu).T
-        damage_lu.to_csv(self.area_dir / "damage_lu.csv")
+        damage_lu.to_csv(self.fdla_dir.damage_lu.path)
 
         return curve, curve_vol
 
     def write_tif(self, path, array):
-        hrt.save_raster_array_to_tiff(
-            path, array, self.nodata, self.area_meta, overwrite=True
-        )
+        hrt.save_raster_array_to_tiff(path, array, self.nodata, self.area_meta, overwrite=True)
 
 
+@dataclass
 class AreaDamageCurves:
     """
-    This object creates damage curves for given areas.
+    Creates damage curves for given areas.
+    Class works based on cached_properties delete variable to reset.
 
     Params:
         area_path:str, Vectorfile for areas to be processed.
@@ -287,62 +283,29 @@ class AreaDamageCurves:
 
     """
 
-    def __init__(
-        self,
-        area_path: str,
-        landuse_path_dir: str,
-        dem_path_dir: str,
-        output_dir: str,
-        area_id="id",
-        area_start_level: str = None,
-        curve_step: float = 0.1,
-        curve_max: float = 3,
-        res: float = 0.5,
-        nodata: int = -9999,
-        quiet: bool = False,
-        area_layer_name: str = None,
-        wss_filter_settings=None,
-        wss_config=None,
-        wss_settings=None,
-        settings_json_file=None
-    ):
+    area_path: Union[str, pathlib.Path]
+    landuse_path_dir: Union[str, pathlib.Path]
+    dem_path_dir: Union[str, pathlib.Path]
+    output_path: Union[str, pathlib.Path]
+    area_id: str = DEFAULT_AREA_ID
+    area_start_level_field: str = DEFAULT_AREA_START_LEVEL_FIELD
+    curve_step: float = DEFAULT_CURVE_STEP
+    curve_max: float = DEFAULT_CURVE_MAX
+    resolution: float = DEFAULT_RASTER_RESOLUTION
+    nodata: int = DEFAULT_NODATA
+    quiet: bool = DEFAULT_QUIET
+    area_layer_name: str = None
+    wss_curves_filter_settings_file: str = None
+    wss_config_file: str = None
+    wss_settings_file: str = None
+    settings_json_file: str = None
 
-        self.dir = AreaDamageCurveFolders(output_dir, create=True)
-        self.time = WSSTimelog(NAME, quiet, self.dir.work.path)
-
-        self._wss_settings = {}
-        self._wss_curves_filter_settings = None
-        self._wss_config = None
-
-        self.quiet = quiet
-        self.area_path = area_path
-        self.landuse_path_dir = landuse_path_dir
-        self.dem_path_dir = dem_path_dir
-        self.area_layer_name = area_layer_name
-        self.area_id = area_id
-        self.area_start_level = area_start_level
-        self.res = res
-        self.nodata = nodata
-        self.curve_step = curve_step
-        self.curve_max = curve_max
-        self.wss_curves_filter_settings = wss_filter_settings
-        self.wss_config = wss_config
-        self.wss_settings = wss_settings
-
-        self.area_vector = gp.read_file(self.area_path, layer=area_layer_name)
-        self.metadata = hrt.RasterMetadataV2.from_gdf(gdf=self.area_vector, res=res)
-        self.bbox_gdal = self.metadata.bbox_gdal
-
-        self.depth_steps = np.arange(curve_step, curve_max + curve_step, curve_step)
-        self.depth_steps = [round(i, 2) for i in self.depth_steps]
-
-        self._inputs_to_vrt()
-        
-        if settings_json_file:
-            date = self.time.start_time.strftime("%Y%m%d%H%M")
-            shutil.copy(settings_json_file, 
-                        self.dir.input.path / f"settings_{date}.json")
-            
+    def __post_init__(self):
+        """initializes needed things"""
+        self.dir = AreaDamageCurveFolders(self.output_path, create=True)
+        self.time = WSSTimelog(NAME, self.quiet, self.dir.work.path)
+        self._write_settings_json()
+        self._create_input_vrt()
 
     def __iter__(self):
         for id in self.area_vector[ID_FIELD]:
@@ -351,99 +314,90 @@ class AreaDamageCurves:
     def __len__(self):
         return len(self.area_vector)
 
-    def __repr__(self):
-        return f"""AreaDamageCures\n\nWSS settings: {self.wss_settings}\n\nFilter settings: {self.wss_curves_filter_settings}"""
-
     @classmethod
-    def from_settings_json(cls, file):
+    def from_settings_json(cls, file: Union[str, pathlib.Path]):
+        """
+        Initializes class from a settings.json, returns an AreaDamageCurves class.
+        """
+
         with open(str(file)) as json_file:
             settings = json.load(json_file)
-
         return cls(**settings, settings_json_file=file)
 
-    @property
+    @functools.cached_property
+    def output_dir(self):
+        return self.output_path
+
+    @functools.cached_property
     def area_vector(self):
-        return self._area_vector
+        vector = gp.read_file(self.area_path, layer=self.area_layer_name, engine="pyogrio")
+        keep_col = [self.area_id, "geometry", self.area_start_level_field]
+        drop_col = [i for i in vector.columns if i not in keep_col]
+        vector = vector.drop(columns=drop_col)
+        vector.rename(
+            columns={
+                self.area_id: ID_FIELD,
+                self.area_start_level_field: DRAINAGE_LEVEL_FIELD,
+            },
+            inplace=True,
+        )
+        vector = self._check_nan(vector)
+        vector.to_file(self.dir.input.area.path)
+        return vector
 
-    @area_vector.setter
-    def area_vector(self, value):
-        if value is None:
-            self._area_vector = None
-        else:
-            keep_col = [self.area_id, "geometry", self.area_start_level]
-            drop_col = [i for i in value.columns if i not in keep_col]
-            vector = value.drop(columns=drop_col)
-            vector.rename(
-                columns={
-                    self.area_id: ID_FIELD,
-                    self.area_start_level: DRAINAGE_LEVEL_FIELD,
-                },
-                inplace=True,
-            )
-            vector = self._check_nan(vector)
-            vector.to_file(self.dir.input.area.path)
-
-            self._area_vector = vector
-            return self._area_vector
-
-    @property
+    @functools.cached_property
     def wss_settings(self):
-        return {**self._wss_settings, **{"cfg_file": self.wss_config}}
+        with open(str(self.wss_settings_file)) as json_file:
+            settings = json.load(json_file)
+        write_dict(settings, self.dir.input.wss_settings.path)
 
-    @wss_settings.setter
-    def wss_settings(self, value):
-        if value is None:
-            self._wss_settings = None
-        else:
-            with open(str(value)) as json_file:
-                self._wss_settings = json.load(json_file)
+        return {**settings, **{"cfg_file": self.wss_config}}
 
-            write_dict(self._wss_settings, self.dir.input.wss_settings.path)
-
-        if hasattr(self, "_lookup"):
-            del self._lookup  # reset the lookup table
-
-    @property
+    @functools.cached_property
     def wss_config(self):
-        return self._wss_config
+        shutil.copy(self.wss_config_file, self.dir.input.wss_cfg_settings.path)
+        return self.wss_config_file
 
-    @wss_config.setter
-    def wss_config(self, value):
-        self._wss_config = value
-        if value is not None:
-            shutil.copy(value, self.dir.input.wss_cfg_settings.path)
-
-    @property
+    @functools.cached_property
     def wss_curves_filter_settings(self):
-        return self._wss_curves_filter_settings
+        with open(str(self.wss_curves_filter_settings_file)) as json_file:
+            settings = json.load(json_file)
 
-    @wss_curves_filter_settings.setter
-    def wss_curves_filter_settings(self, value):
-        if value is None:
-            self._wss_curves_filter_settings = None
-        else:
-            with open(str(value)) as json_file:
-                self._wss_curves_filter_settings = json.load(json_file)
+        write_dict(settings, self.dir.input.wss_curves_filter_settings.path)
+        return settings
 
-            write_dict(
-                self.wss_curves_filter_settings,
-                self.dir.input.wss_curves_filter_settings.path,
-            )
+    @functools.cached_property
+    def lookup(self):
+        step = 1 / 10**DAMAGE_DECIMALS
+        depth_steps = np.arange(step, self.curve_max + step, step)
+        depth_steps = [round(i, 2) for i in depth_steps]
+        _lookup = WaterSchadeSchatterLookUp(self.wss_settings, depth_steps)
+        _lookup.run()
+        _lookup.write_dict(self.dir.input.wss_lookup.path)
+        return _lookup
 
-    @property
-    def lookup(self):  # lookup is always based on 2 decimals
-        if not hasattr(self, "_lookup"):
-            step = 1 / 10**DAMAGE_DECIMALS
-            depth_steps = np.arange(step, self.curve_max + step, step)
-            depth_steps = [round(i, 2) for i in depth_steps]
-            self._lookup = WaterSchadeSchatterLookUp(self.wss_settings, depth_steps)
-            self._lookup.write(self.dir.input.wss_lookup.path)
+    @functools.cached_property
+    def lu(self):
+        logger.info("Start vrt conversion lu")
+        return self._input_to_vrt(self.landuse_path_dir, self.dir.input.lu.path)
 
-        return self._lookup
+    @functools.cached_property
+    def dem(self):
+        logger.info("Start vrt conversion dem")
+        return self._input_to_vrt(self.dem_path_dir, self.dir.input.dem.path)
+
+    @functools.cached_property
+    def metadata(self):
+        return hrt.RasterMetadataV2.from_gdf(gdf=self.area_vector, res=self.resolution)
+
+    @functools.cached_property
+    def depth_steps(self):
+        steps = np.arange(self.curve_step, self.curve_max + self.curve_step, self.curve_step)
+        return [round(i, 2) for i in steps]
 
     @property
     def area_data(self):
-        """ This is needed """
+        """This is needed for multiprocessing."""
         data = {}
         data["lu_vrt_path"] = self.dir.input.lu.path
         data["dem_vrt_path"] = self.dir.input.dem.path
@@ -456,21 +410,13 @@ class AreaDamageCurves:
         data["filter_settings"] = self.wss_curves_filter_settings
         data["log_file"] = self.time.log_file
         return data
-    
-    def _check_nan(self, gdf):
-        """ Checks for NAN's"""
-        if gdf[DRAINAGE_LEVEL_FIELD].isna().sum() >0:
-            self.time._message("Found drainage level NAN's, deleting from input.")
-            gdf = gdf[~gdf[DRAINAGE_LEVEL_FIELD].isna()]    
-            # gdf = gp.GeoDataFrame(gdf)
-        return gdf
 
-    def _inputs_to_vrt(self):
-        """creates vrt rasters out of all input"""
-        self.time._message("Start vrt conversion land use and dem")
-        self.lu = self._input_to_vrt(self.landuse_path_dir, self.dir.input.lu.path)
-        self.dem = self._input_to_vrt(self.dem_path_dir, self.dir.input.dem.path)
-        self.time._message("Ended vrt conversion land use and dem")
+    def _check_nan(self, gdf):
+        """Checks for NAN's"""
+        if gdf[DRAINAGE_LEVEL_FIELD].isna().sum() > 0:
+            logger.info("Found drainage level NAN's, deleting from input.")
+            gdf = gdf[~gdf[DRAINAGE_LEVEL_FIELD].isna()]
+        return gdf
 
     def _input_to_vrt(self, path_or_dir, vrt_path):
         _input = pathlib.Path(path_or_dir)
@@ -479,32 +425,36 @@ class AreaDamageCurves:
         elif _input.is_file():
             vrt_input = [str(_input)]
         else:
-            print("Unrecognized inputs")
+            logger.info("Unrecognized inputs")
 
-        return hrt.Raster.build_vrt(
-            vrt_path, vrt_input, bounds=self.bbox_gdal, overwrite=True
-        )
+        return hrt.Raster.build_vrt(vrt_path, vrt_input, bounds=self.metadata.bbox_gdal, overwrite=True)
+
+    def _create_input_vrt(self):
+        self.dem
+        self.lu
+
+    def _write_settings_json(self):
+        if self.settings_json_file:
+            date = self.time.start_time.strftime("%Y%m%d%H%M")
+            shutil.copy(self.settings_json_file, self.dir.input.path / f"settings_{date}.json")
 
     def write(self):
-
-        self.time._message("Start writing output")
-        self.time._message("Writing damage and volume curves")
+        logger.info("Start writing output")
+        logger.info("Writing damage and volume curves")
         self.curve_df = pd.DataFrame.from_dict(self.curve)
         self.curve_df.to_csv(self.dir.output.result.path)
 
         self.curve_vol_df = pd.DataFrame.from_dict(self.curve_vol)
         self.curve_vol_df.to_csv(self.dir.output.result_vol.path)
 
-        self.time._message("Writing combined land-use files")
+        logger.info("Writing combined land-use files")
         lu_counts = []
         for fid in tqdm(self, "Land-use counts"):
-            counts_lu_file  = self.dir.work[self.run_type][f"fdla_{fid}"].counts_lu.path
-            
-            # counts_lu_file = self.work_dir / str(fid) / "counts_lu.csv"
+            counts_lu_file = self.dir.work[self.run_type][f"fdla_{fid}"].counts_lu.path
             if not counts_lu_file.exists():
                 continue
             curve_lu = pd.read_csv(counts_lu_file, index_col=0)
-            curve_lu = curve_lu.fillna(0) * self.res * self.res
+            curve_lu = curve_lu.fillna(0) * self.resolution**2
             curve_lu["fid"] = str(fid)
             lu_counts.append(curve_lu)
         lu_areas = pd.concat(lu_counts)
@@ -512,7 +462,7 @@ class AreaDamageCurves:
 
         lu_damage = []
         for fid in tqdm(self, "Land-use damage"):
-            damage_lu_file = self.work_dir / str(fid) / "damage_lu.csv"
+            damage_lu_file = self.dir.work[self.run_type][f"fdla_{fid}"].damage_lu.path
             if not damage_lu_file.exists():
                 continue
             damage_lu = pd.read_csv(damage_lu_file, index_col=0)
@@ -521,12 +471,12 @@ class AreaDamageCurves:
             lu_damage.append(damage_lu)
         lu_damage = pd.concat(lu_damage)
         lu_damage.to_csv(self.dir.output.result_lu_damage.path)
-        
-        mask=self.area_vector[ID_FIELD].isin(self.failures)
+
+        mask = self.area_vector[ID_FIELD].isin(self.failures)
         failures = self.area_vector[mask]
         failures.to_file(self.dir.output.failures.path)
-        
-        self.time._message("End writing")
+
+        logger.info("End writing")
 
     def run(
         self,
@@ -536,17 +486,17 @@ class AreaDamageCurves:
         processes=MAX_PROCESSES,
         nodamage_filter=True,
     ):
-        self.quiet = True
-        
         self.run_type = "run_1d"
         if run_2d:
             self.run_type = "run_2d"
-            
-        
+
+        for pid in self:
+            self.dir.work[self.run_type].create_fdla_dir(str(pid), self.depth_steps)
+
         if processes == "max":
             processes = MAX_PROCESSES
 
-        self.time._message(f"Starting {self.run_type}!")
+        logger.info(f"Starting {self.run_type}!")
 
         self.curve = {}
         self.curve_vol = {}
@@ -568,18 +518,17 @@ class AreaDamageCurves:
             for run in output:
                 run = list(run)
                 if len(run[1]) == 0:
-                    self.time._message(f"{run[0]} failure! Traceback {run[2]}")
+                    logger.info(f"{run[0]} failure! Traceback {run[2]}")
                     self.failures.append(run[0])
                     run[2] = {}
 
                 self.curve[run[0]] = run[1]
                 self.curve_vol[run[0]] = run[2]
-                
 
         if not multiprocessing:
             for peil_id in tqdm(self, f"{NAME}: Damage {self.run_type}"):
                 area_stats = AreaDamageCurveMethods(
-                    peil_id, self.area_stats_data, nodamage_filter
+                    peilgebied_id=peil_id, data=self.area_data, nodamage_filter=nodamage_filter
                 )
                 curve, curve_vol = area_stats.run(run_1d)
                 self.curve[peil_id] = curve
@@ -587,7 +536,8 @@ class AreaDamageCurves:
 
         self.write()
         self.quiet = False
-        self.time._message(f"Ended {self.run_type}")
+        logger.info(f"Ended {self.run_type}")
+        self.time.close()
 
 
 def area_method_mp(args):
@@ -601,8 +551,6 @@ def area_method_mp(args):
         curve, curve_vol = area_method_1d.run(run_1d)
         return (peilgebied_id, curve, curve_vol)
     except Exception:
-        # print("Multiprocessing failure for area:", peilgebied_id)
-
         return (peilgebied_id, {}, str(traceback.format_exc()))
 
 

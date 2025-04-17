@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import geopandas as gpd
 import numpy as np
 from affine import Affine
+from rasterio.coords import BoundingBox
 
 from hhnk_research_tools.general_functions import get_functions, get_variables
 from hhnk_research_tools.variables import DEF_TRGT_CRS, GDAL_DATATYPE, GEOTIFF
@@ -56,6 +57,23 @@ class RasterMetadataV2:
         x_res = int((int(np.ceil(bounds_dict["maxx"])) - int(np.floor(bounds_dict["minx"]))) / res)
         y_res = int((int(np.ceil(bounds_dict["maxy"])) - int(np.floor(bounds_dict["miny"]))) / res)
         return cls(georef=georef, x_res=x_res, y_res=y_res, projection=projection)
+
+    @classmethod
+    def from_rio_bbox(cls, bbox: BoundingBox, res: float, projection="EPSG:28992"):
+        """_summary_
+
+        Parameters
+        ----------
+        bounds_dict : dict
+            bounds = {"minx":, "maxx":, "miny":, "maxy":}
+        res : float
+            resolution
+        projection : str, default is "EPSG:28992"
+            doesnt work on other projs.
+        """
+        data = {"minx": bbox.left, "maxx": bbox.right, "miny": bbox.bottom, "maxy": bbox.top}
+
+        return RasterMetadataV2.from_bounds(data, res, projection)
 
     @classmethod
     def from_gdf(cls, gdf: gpd.GeoDataFrame, res: float):

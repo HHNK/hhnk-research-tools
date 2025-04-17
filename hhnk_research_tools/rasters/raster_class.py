@@ -449,10 +449,18 @@ class Raster(File):
     def round_nearest(self, x, a):
         return round(round(x / a) * a, -int(math.floor(math.log10(a))))
 
-    def read(self, geometry, bounds=None, crs="EPSG:28992"):
+    def read_geometry(self, geometry: shapely.geometry.Polygon) -> np.array:
+        """
+        Reads data within geometry.
+
+        Parameters
+        ----------
+        geometry : shapely.geometry
+            Geometry in which the data is read.
+
+        """
         resolution = self.metadata.pixel_width
-        if bounds is None:
-            bounds = [self.round_nearest(i, resolution) for i in geometry.bounds]
+        bounds = [self.round_nearest(i, resolution) for i in geometry.bounds]
 
         width = (bounds[2] - bounds[0]) * (1 / resolution)
         height = (bounds[3] - bounds[1]) * (1 / resolution)
@@ -476,7 +484,6 @@ class Raster(File):
         data = raster.read(window=window)[0]
         data[array == 0] = raster.nodata
         raster.close()
-        # data[data == raster.nodata] = np.nan
         return data
 
     def polygonize(self, array=None, field_name="field"):

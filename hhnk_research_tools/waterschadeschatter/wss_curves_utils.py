@@ -4,18 +4,15 @@ Created on Wed Oct 16 11:07:02 2024
 
 @author: kerklaac5395
 """
-import os
-import json
+
 import datetime
+import json
+import os
+
 import numpy as np
 
-# First-party imports
-import os
-from pathlib import Path
-
-import pandas as pd
 from hhnk_research_tools import Folder
-
+from hhnk_research_tools.logger import add_file_handler, get_logger
 
 # GLOBALS
 ID_FIELD = "pid"
@@ -119,23 +116,29 @@ class Work(Folder):
         self.run_1d = Run1D(self.base, create)
         self.run_2d = Run2D(self.base, create)
         self.log = Log(self.base, create)
-        
-        
+
+
 class Run1D(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "run_1d"), create)
-    
+
+    def add_fdla_dirs(self, depth_steps):
+        for i in self.path.glob("*"):
+            setattr(self, f"fdla_{i.stem}", FDLADir(self.base, False, i.stem, depth_steps))
+
     def create_fdla_dir(self, name, depth_steps):
-        setattr(self, f"flda_{name}", FDLADir(self.base, True, name, depth_steps))
-        
-    
+        setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
+
+
 class Run2D(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "run_2d"), create)
-        
+
+
 class Log(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "log"), create)
+
 
 class Output(Folder):
     def __init__(self, base, create):
@@ -157,10 +160,17 @@ class PostProcessing(Folder):
         self.add_file("damage_level_curve", "damage_level_curve.csv")
         self.add_file("vol_level_curve", "vol_level_curve.csv")
         self.add_file("damage_per_m3", "damage_per_m3.csv")
-        
+
+    def add_aggregate_dirs(self):
+        for i in self.path.glob("*"):
+            setattr(self, i.stem, AggregateDir(self.base, create=True, name=i.stem))
+
     def create_aggregate_dir(self, name):
-        return AggregateDir(self.base, True, name)
-    
+        directory = AggregateDir(self.base, create=True, name=name)
+        setattr(self, name, directory)
+        return directory
+
+
 class FDLADir(Folder):
     def __init__(self, base, create, name, depth_steps):
         super().__init__(os.path.join(base, name), create)
@@ -170,23 +180,32 @@ class FDLADir(Folder):
         self.add_file("counts_lu", "counts_lu.csv")
         self.add_file("damage_lu", "damage_lu.csv")
         self.add_file("nodamage_filtered", "nodamage_filtered.gpkg")
-        
+
         for ds in depth_steps:
             self.add_file(f"depth_{ds}", f"depth_{ds}.tif")
             self.add_file(f"level_{ds}", f"level_{ds}.tif")
-            self.add_file(f"lu_{ds}", f"lu_{ds}.gpkg")
+            self.add_file(f"lu_{ds}", f"lu_{ds}.tif")
+            self.add_file(f"damage_{ds}", f"damage_{ds}.tif")
 
-class AggregateDir:
+
+class AggregateDir(Folder):
     def __init__(self, base, create, name):
         super().__init__(os.path.join(base, name), create)
-        
-        
+
+        self.add_file("agg_damage", "agg_damage.csv")
+        self.add_file("agg_landuse", "agg_landuse.csv")
+        self.add_file("agg_volume", "agg_volume.csv")
+        self.add_file("aggregate", "aggregate.csv")
+        self.add_file("selection", "selection.gpkg")
+
+
 class WSSTimelog:
     """
     WSSTimeLog logs all message and writes them to a logfile.
     It also print messages to your consolse and keeps track of time.
-    
+
     """
+
     def __init__(self, subject, quiet, output_dir=None, log_file=None):
         self.s = subject
         self.quiet = quiet
@@ -203,36 +222,18 @@ class WSSTimelog:
                 log_dir.mkdir(exist_ok=True, parents=True)
                 self.log_file = log_dir / f"{now} - {subject}.log"
 
-            self.logger = create_logger(self.log_file)
+            self.logger = get_logger(self.s)
+            add_file_handler(self.logger, self.log_file)
 
     @property
     def time_since_start(self):
-        delta = datetime.datetime.now() - self.start_time
-        return delta
+        return datetime.datetime.now() - self.start_time
 
-    def _message(self, msg):
-        now = str(datetime.datetime.now())[:19]
-        if not self.quiet:
-            print(self.s, f"{now} [since start: {str(self.time_since_start)[:7]}]", msg)
-
-        if self.use_logging:
-            self.logger.info(msg)
-
-
-def create_logger(filename):
-    import multiprocessing, logging
-
-    logger = multiprocessing.get_logger()
-    logger.setLevel(logging.INFO)
-    formatter = logging.Formatter("[%(asctime)s] %(message)s", "%Y-%m-%d %H:%M:%S")
-    handler = logging.FileHandler(filename)
-    handler.setFormatter(formatter)
-
-    # this bit will make sure you won't have
-    # duplicated messages in the output
-    if not len(logger.handlers):
-        logger.addHandler(handler)
-    return logger
+    def close(self):
+        handlers = self.logger.handlers[:]
+        for handler in handlers:
+            self.logger.removeHandler(handler)
+            handler.close()
 
 
 def write_dict(dictionary, path, overwrite=True):
@@ -246,10 +247,3 @@ def pad_zeros(a, shape):
     z = np.zeros(shape)
     z[: a.shape[0], : a.shape[1]] = a
     return z
-
-
-if __name__ == "__main__":
-    test = AreaDamageCurveFolders(
-        r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\output\damage_curves_2024_test",
-        create=True,
-    )
