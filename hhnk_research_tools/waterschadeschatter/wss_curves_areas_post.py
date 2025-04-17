@@ -21,6 +21,12 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     ID_FIELD,
     DRAINAGE_LEVEL_FIELD,
 )
+from hhnk_research_tools.waterschadeschatter.wss_figures import (
+    BergingsCurveFiguur,
+    PercentageFiguur,
+    LandgebruikCurveFiguur,
+    DamagesLuCurveFiguur,
+)
 
 
 BUFFER = 100

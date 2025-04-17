@@ -51,7 +51,7 @@ class Figuur:
         plt.savefig(path, dpi=dpi)
         plt.close()
 
-class BergingsCurve(Figuur):
+class BergingsCurveFiguur(Figuur):
     def __init__(self, path):
         super().__init__()
         self.df = pd.read_csv(path, index_col = 0)
@@ -135,7 +135,7 @@ class PercentageFiguur(Figuur):
         self.df_combined_classes.to_csv(output_path, sep=',')
         self.df = self.df_combined_classes.copy()
 
-class LandgebruikCurve(PercentageFiguur):
+class LandgebruikCurveFiguur(PercentageFiguur):
     def __init__(self, path):
         super().__init__()
         self.df = pd.read_csv(path, index_col = 0)
@@ -160,7 +160,7 @@ class LandgebruikCurve(PercentageFiguur):
             plotpng = os.path.join(output_dir, f'landgebruikcurve_{id}.png')
             self.write(plotpng, dpi=dpi) 
 
-class Damages_per_LU_curve(PercentageFiguur):
+class DamagesLuCurveFiguur(PercentageFiguur):
     def __init__(self, path):
         super().__init__()
         self.df = pd.read_csv(path, index_col = 0)
