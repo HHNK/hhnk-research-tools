@@ -47,18 +47,26 @@ class Figuur:
     def yticks(self, ticks, labels=[]):
         self.ax.set_yticks(ticks, labels)
 
+    def set_x_y_label(self):
+        self.xlabel(self.xlabel_dsc)
+        self.ylabel(self.ylabel_dsc)
+        
+    def set_x_y_lim(self):
+        self.xlim(self.xlim_min, self.xlim_max) 
+        self.ylim(self.ylim_min, self.ylim_max)
+        
     def write(self, path, dpi = DPI):
         plt.savefig(path, dpi=dpi)
         plt.close()
-
+        
+    
 class BergingsCurveFiguur(Figuur):
     def __init__(self, path):
         super().__init__()
         self.df = pd.read_csv(path, index_col = 0)
-
-    def x_y_label(self):
-        self.xlabel("Waterstand (m+NAP)")
-        self.ylabel("Volume (m3)")
+        
+        self.xlabel_dsc = "Waterstand (m+NAP)"
+        self.ylabel_dsc = "Volume (m3)"
         
     def run(self, output_dir, dpi=DPI):
         for col in self.df.columns:
@@ -73,18 +81,20 @@ class BergingsCurveFiguur(Figuur):
 class PercentageFiguur(Figuur):
     def __init__(self):
         super().__init__(figsize = LANDGEBRUIK_FIGUUR)
-    
-    def x_y_label(self):
-        self.xlabel("Peilverhoging boven streefpeil (m)")
-        self.ylabel("Percentage t.o.v. totaal")
-    
-    def x_y_lim(self):
-        self.xlim(0.1, MAX_PEILVERHOGING)
-        self.ylim(0, 1)
-    
-    def x_y_ticks(self):
-        self.xticks(np.arange(0.1, MAX_PEILVERHOGING+0.1, 0.1))
-        self.yticks(ticks = np.arange(0, 1.1, 0.1), labels = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"])
+        
+        self.xlabel_dsc = "Peilverhoging boven streefpeil (m)"
+        self.ylabel_dsc = "Percentage t.o.v. totaal"
+        self.xlim_min = 0.1
+        self.xlim_max = MAX_PEILVERHOGING
+        self.ylim_min = 0
+        self.ylim_max = 1
+        self.x_ticks_list = np.arange(0.1, MAX_PEILVERHOGING+0.1, 0.1)
+        self.y_ticks_list =  np.arange(0, 1.1, 0.1)
+        self.labels =  ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"]
+
+    def set_x_y_ticks(self):
+        self.xticks(self.x_ticks) 
+        self.yticks(ticks = self.y_ticks_list, labels = self.labels)
 
     def handles_legend(self, lu_omzetting):
         nieuwe_klasses = np.array(lu_omzetting['nieuwe_klasse'].unique())
@@ -126,7 +136,7 @@ class PercentageFiguur(Figuur):
     
     def combine_classes(self, lu_omzetting, output_path):
         nieuwe_klasses = np.array(lu_omzetting['nieuwe_klasse'].unique())
-        samenvoeging_klasses = {'fid' : self.df['fid']}
+        samenvoeging_klasses = {'fid' : self.df['fid']} # waar komt self.df vandaan? En misschien een iets duidelijkere naam geven hiervoor.
         for klasse in nieuwe_klasses:
             oude_lu_per_nieuwe_klasse = lu_omzetting.where(lu_omzetting['nieuwe_klasse'] == klasse)['LU_class'].dropna().values.tolist()
             oude_lu_per_nieuwe_klasse = [str(int(x)) for x in oude_lu_per_nieuwe_klasse]
@@ -150,9 +160,9 @@ class LandgebruikCurveFiguur(PercentageFiguur):
             if schadecurve_totaal:
                 self.sum_damages()
                 self.plot_schadecurve_totaal(id)
-            self.x_y_label()
-            self.x_y_lim()
-            self.x_y_ticks()
+            self.set_x_y_label()
+            self.set_x_y_lim()
+            self.set_x_y_ticks()
             self.title(f"landgebruikverdeling voor {id}")
     
             self.ax.legend(handles = self.handels, labels = self.labels, bbox_to_anchor=(0.05, -0.05),loc="upper left", ncols=8)
