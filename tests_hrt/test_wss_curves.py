@@ -9,6 +9,7 @@ Created on Thu Sep 26 15:44:05 2024
 import pandas as pd
 import pytest
 
+import hhnk_research_tools as hrt
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas import AreaDamageCurves
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas_post import AreaDamageCurvesAggregation
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import AreaDamageCurveFolders
@@ -28,13 +29,15 @@ DEM_PATH = WSS_DATA / "wss_curve_area_dem.tif"
 LU_PATH = WSS_DATA / "wss_curve_area_lu.tif"
 AREA_ID = "peil_id"
 VECTOR_FIELD = "name"
-OUTPUT_PATH = TEMP_DIR
+OUTPUT_DIR = TEMP_DIR / f"wss_curves_{hrt.current_time(date=True)}"
 CURVE_STEP = 0.5
 CURVE_MAX = 2.5
 AREA_START_LEVEL = "streefpeil"
-RESULT = WSS_DATA / "result.csv"
-RESULT_AGGREGATE = WSS_DATA / "result_aggregate.csv"
+EXPECTED_RESULT = WSS_DATA / "expected_result.csv"
+EXPECTED_RESULT_AGGREGATE = WSS_DATA / "expected_result_aggregate.csv"
 LANDUSE_CONVERSION_TABLE = WSS_DATA / "landuse_conversion_table.csv"
+
+# %%
 
 
 class TestWSSAggregationFolders:
@@ -52,11 +55,12 @@ class TestWSSAggregationFolders:
 class TestWSSCurves:
     @pytest.fixture(scope="class")
     def schadecurves(self):
-        schadecurves = AreaDamageCurves(
-            AREA_PATH,
-            LU_PATH,
-            DEM_PATH,
-            OUTPUT_PATH,
+        schadecurves = self = AreaDamageCurves(
+            output_dir=OUTPUT_DIR,
+            area_path=AREA_PATH,
+            landuse_path_dir=LU_PATH,
+            dem_path_dir=DEM_PATH,
+            wss_settings_file=WSS_SETTINGS_FILE,
             area_id=AREA_ID,
             curve_max=CURVE_MAX,
             curve_step=CURVE_STEP,
@@ -64,14 +68,13 @@ class TestWSSCurves:
         )
 
         schadecurves.wss_config_file = WSS_CFG_FILE
-        schadecurves.wss_settings_file = WSS_SETTINGS_FILE
         schadecurves.wss_curves_filter_settings_file = WSS_CURVE_FILTER_SETTINGS_FILE
 
         return schadecurves
 
     @pytest.fixture(scope="class")
     def output(self):
-        output = pd.read_csv(RESULT)
+        output = pd.read_csv(EXPECTED_RESULT)
         return output
 
     # def test_integrated_1d_mp(self, schadecurves, output):
@@ -103,7 +106,7 @@ class TestWSSAggregation:
     @pytest.fixture(scope="class")
     def aggregatie(self):
         aggregatie = AreaDamageCurvesAggregation(
-            result_path=OUTPUT_PATH,
+            result_path=OUTPUT_DIR,
             aggregate_vector_path=AREA_AGGREGATE_PATH,
             vector_field=VECTOR_FIELD,
             landuse_conversion_path=LANDUSE_CONVERSION_TABLE,
@@ -113,7 +116,7 @@ class TestWSSAggregation:
 
     @pytest.fixture(scope="class")
     def output(self):
-        output = pd.read_csv(RESULT_AGGREGATE)
+        output = pd.read_csv(EXPECTED_RESULT_AGGREGATE)
         return output
 
     def test_agg_methods(self, aggregatie, output):

@@ -1,3 +1,4 @@
+# %%
 # -*- coding: utf-8 -*-
 """
 Created on Fri Aug 23 15:50:56 2024
@@ -271,14 +272,14 @@ class AreaDamageCurves:
 
     Parameters
     ----------
+    output_dir : path
+        Output directory.
     area_path : str
         Vectorfile for areas to be processed.
     landuse_path_dir : str
         Directory or path to landuse file(s).
     dem_path_dir : str
         Directory or path to dem file(s).
-    output_dir : str
-        Output directory.
     area_id : str, default is "id"
         Unique id field from area_path.
     area_start_level : str
@@ -296,10 +297,11 @@ class AreaDamageCurves:
 
     """
 
+    output_dir: Path
     area_path: Union[str, Path]
     landuse_path_dir: Union[str, Path]
     dem_path_dir: Union[str, Path]
-    output_path: Union[str, Path]
+    wss_settings_file: Path
     area_id: str = "id"
     area_start_level_field: str = "streefpeil"
     curve_step: float = 0.1
@@ -309,12 +311,11 @@ class AreaDamageCurves:
     area_layer_name: Optional[str] = None
     wss_curves_filter_settings_file: Optional[str] = None
     wss_config_file: Optional[str] = None
-    wss_settings_file: Optional[str] = None
     settings_json_file: Optional[Path] = None
 
     def __post_init__(self):
         """Initialise needed things"""
-        self.dir = AreaDamageCurveFolders(base=self.output_path, create=True)
+        self.dir = AreaDamageCurveFolders(base=self.output_dir, create=True)
         self.timelog = WSSTimelog(subject=NAME, output_dir=self.dir.work.path)
 
         # Write settings json
@@ -329,7 +330,8 @@ class AreaDamageCurves:
         self.lu = self._input_to_vrt(self.landuse_path_dir, self.dir.input.lu.path)
 
         # Copy used config to workdir
-        shutil.copy(self.wss_config_file, self.dir.input.wss_cfg_settings.path)
+        if self.wss_config_file:
+            shutil.copy(self.wss_config_file, self.dir.input.wss_cfg_settings.path)
 
     def __iter__(self):
         for id in self.area_vector[ID_FIELD]:
@@ -384,7 +386,7 @@ class AreaDamageCurves:
         step = 1 / 10**DAMAGE_DECIMALS
         depth_steps = np.arange(step, self.curve_max + step, step)
         depth_steps = [round(i, 2) for i in depth_steps]
-        _lookup = WaterSchadeSchatterLookUp(self.wss_settings, depth_steps)
+        _lookup = WaterSchadeSchatterLookUp(wss_settings=self.wss_settings, depth_steps=depth_steps)
         _lookup.run()
         _lookup.write_dict(path=self.dir.input.wss_lookup.path)
         return _lookup
@@ -456,7 +458,7 @@ class AreaDamageCurves:
         lu_areas = pd.concat(lu_counts)
         lu_areas.to_csv(self.dir.output.result_lu_areas.path)
 
-        lu_damage = []
+        lu_damage: list[pd.DataFrame] = []
         for fid in tqdm(self, "Land-use damage"):
             damage_lu_file = self.dir.work[self.run_type][f"fdla_{fid}"].damage_lu.path
             if not damage_lu_file.exists():
@@ -477,14 +479,17 @@ class AreaDamageCurves:
     def run(
         self,
         run_1d: bool = False,
+        run_2d: bool = False,
         multiprocessing: bool = True,
         processes: Union[int, Literal["max"]] = MAX_PROCESSES,
         nodamage_filter: bool = True,
     ):
         if run_1d:
             self.run_type = "run_1d"
-        else:
+        elif run_2d:
             self.run_type = "run_2d"
+        else:
+            raise ValueError("Expected one of [run_1d,run_2d] to be True")
 
         for pid in self:
             self.dir.work[self.run_type].create_fdla_dir(str(pid), self.depth_steps)
@@ -553,6 +558,7 @@ def area_method_mp(args):
         return (peilgebied_id, {}, str(traceback.format_exc()))
 
 
+# %%
 if __name__ == "__main__":
     import sys
 
