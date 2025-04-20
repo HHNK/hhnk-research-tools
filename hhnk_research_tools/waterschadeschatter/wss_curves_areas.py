@@ -57,10 +57,6 @@ NAME = "WSS AreaDamageCurve"
 # Defaults
 DEFAULT_AREA_ID = "id"
 DEFAULT_AREA_START_LEVEL_FIELD = "streefpeil"
-DEFAULT_CURVE_STEP = 0.1
-DEFAULT_CURVE_MAX = 3
-DEFAULT_RASTER_RESOLUTION = 0.5
-DEFAULT_NODATA = -9999
 DEFAULT_QUIET = False
 
 
@@ -289,10 +285,10 @@ class AreaDamageCurves:
     output_path: Union[str, pathlib.Path]
     area_id: str = DEFAULT_AREA_ID
     area_start_level_field: str = DEFAULT_AREA_START_LEVEL_FIELD
-    curve_step: float = DEFAULT_CURVE_STEP
-    curve_max: float = DEFAULT_CURVE_MAX
-    resolution: float = DEFAULT_RASTER_RESOLUTION
-    nodata: int = DEFAULT_NODATA
+    curve_step: float = 0.1
+    curve_max: float = 3
+    resolution: float = 0.5
+    nodata: int = -9999  # TODO @Ckerklaan1 gebruik DEFAULT_NODATA_VALUES
     quiet: bool = DEFAULT_QUIET
     area_layer_name: str = None
     wss_curves_filter_settings_file: str = None
@@ -316,9 +312,7 @@ class AreaDamageCurves:
 
     @classmethod
     def from_settings_json(cls, file: Union[str, pathlib.Path]):
-        """
-        Initializes class from a settings.json, returns an AreaDamageCurves class.
-        """
+        """Initialise class from a settings.json, returns an AreaDamageCurves class."""
 
         with open(str(file)) as json_file:
             settings = json.load(json_file)
