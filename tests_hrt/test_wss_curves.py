@@ -4,6 +4,7 @@ Created on Thu Sep 26 15:44:05 2024
 
 @author: kerklaac5395
 """
+
 # import sys
 # sys.path.append(r"C:\Users\benschoj1923\OneDrive - ARCADIS\Documenten\GitHub")
 import shutil
@@ -36,7 +37,7 @@ CURVE_MAX = 2.5
 AREA_START_LEVEL = "streefpeil"
 RESULT = WSS_DATA / "result.csv"
 RESULT_AGGREGATE = WSS_DATA / "result_aggregate.csv"
-LANDUSE_CONVERSION_TABLE  = WSS_DATA / "landuse_conversion_table.csv"
+LANDUSE_CONVERSION_TABLE = WSS_DATA / "landuse_conversion_table.csv"
 
 # class TestWSSAggregationFolders:
 #     """Generieke test, in onderstaande test worden ook output bestande getest"""
@@ -103,7 +104,11 @@ class TestWSSAggregation:
     @pytest.fixture(scope="class")
     def aggregatie(self):
         aggregatie = AreaDamageCurvesAggregation(
-            result_path=OUTPUT_PATH, aggregate_vector_path=AREA_AGGREGATE_PATH, vector_field=VECTOR_FIELD, landuse_conversion_path=LANDUSE_CONVERSION_TABLE,quiet=False
+            result_path=OUTPUT_PATH,
+            aggregate_vector_path=AREA_AGGREGATE_PATH,
+            vector_field=VECTOR_FIELD,
+            landuse_conversion_path=LANDUSE_CONVERSION_TABLE,
+            quiet=False,
         )
 
         return aggregatie
