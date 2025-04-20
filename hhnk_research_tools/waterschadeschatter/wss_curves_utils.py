@@ -36,53 +36,52 @@ class AreaDamageCurveFolders(Folder):
 
     def create_readme(self):
         readme_txt = """ 
-        Deze tool wordt gebruikt om de schadecurve per peilgebied te berekenen.
-        De resultaten worden ondergebracht in een aantal mappen en bestanden:
+Deze tool wordt gebruikt om de schadecurve per peilgebied te berekenen.
+De resultaten worden ondergebracht in een aantal mappen en bestanden:
+
+    Input
+    area.gpkg: Peilgebieden
+    dem.vrt: Hoogtemodel
+    lu.vrt: Landgebruik
+    wss_config_settings.json: Schadetabel waterschadeschatter
+    wss_curves_filter_settings.json: Filter settings voor schadecurves
+    wss_lookup: Tabel voor schade per combinatie landgebruik en diepte
+    wss_settings: Instellingen voor de waterschadeschatter (duur, hersteltijd etc.)
+    
+    Work
+    log: Logging van processen
+    run_1d: Resultaten per peilgebied
+    run_2d: Resultaten per peilgebied
+    
+    Output
+    result.csv: Schadecurve per peilgebied
+    result_lu_areas.csv: Oppervlak landgebruiks(curve) per peilgebied
+    result_lu_damage.csv: Schade landgebruiks(curve) per peilgebied
+    result_vol.csv: Volume(curve) per peilgebied
+    
+    Post
+    damage_interpolated_curve.csv: Schadecurve per cm
+    damage_level_curve.csv: Schadecurve op basis van waterstand
+    damage_per_m3.csv: Schade per m3 per waterstand
+    
+        Folder per aggregatiegebied
+        agg_damage.csv: Sommering van schade
+        agg_landuse.csv: Sommering van landgebruiksoppervlak
+        agg_volume.csv: Sommering van volume
         
-            Input
-            area.gpkg: Peilgebieden
-            dem.vrt: Hoogtemodel
-            lu.vrt: Landgebruik
-            wss_config_settings.json: Schadetabel waterschadeschatter
-            wss_curves_filter_settings.json: Filter settings voor schadecurves
-            wss_lookup: Tabel voor schade per combinatie landgebruik en diepte
-            wss_settings: Instellingen voor de waterschadeschatter (duur, hersteltijd etc.)
+        Aggregatiemethodieken (150 mm neerslag)
+        1. agg_rain_lowest_area 
+        Een schadecurve die start vanaf het laatste peilgebied en wordt gesommeerd wanneer het volgende peilgebied wordt bereikt.
             
-            Work
-            log: Logging van processen
-            run_1d: Resultaten per peilgebied
-            run_2d: Resultaten per peilgebied
-            
-            Output
-            result.csv: Schadecurve per peilgebied
-            result_lu_areas.csv: Oppervlak landgebruiks(curve) per peilgebied
-            result_lu_damage.csv: Schade landgebruiks(curve) per peilgebied
-            result_vol.csv: Volume(curve) per peilgebied
-            
-            Post
-            damage_interpolated_curve.csv: Schadecurve per cm
-            damage_level_curve.csv: Schadecurve op basis van waterstand
-            damage_per_m3.csv: Schade per m3 per waterstand
-            
-                Folder per aggregatiegebied
-                agg_damage.csv: Sommering van schade
-                agg_landuse.csv: Sommering van landgebruiksoppervlak
-                agg_volume.csv: Sommering van volume
-                
-                Aggregatiemethodieken (150 mm neerslag)
-                1. agg_rain_lowest_area 
-                Een schadecurve die start vanaf het laatste peilgebied en wordt gesommeerd wanneer het volgende peilgebied wordt bereikt.
-                    
-                2. agg_rain_equal_depth
-                In elke peilgebied wordt waterdiepte behouden.
-                De schadecurves worden gesommeerd.
-                
-                3. agg_rain_own_area_retention
-                De neerslag die valt wordt hier ook vastgehouden in hetzelfde peilgebied.
-                
-                aggregate.csv: Bovenstaande methodiek zijn omgezet van schadecurves naar volumes en in een bestand gezet. 
-                    
-            """
+        2. agg_rain_equal_depth
+        In elke peilgebied wordt waterdiepte behouden.
+        De schadecurves worden gesommeerd.
+        
+        3. agg_rain_own_area_retention
+        De neerslag die valt wordt hier ook vastgehouden in hetzelfde peilgebied.
+        
+        aggregate.csv: Bovenstaande methodiek zijn omgezet van schadecurves naar volumes en in een bestand gezet. 
+"""
         self.joinpath("read_me.txt").write_text(readme_txt)
 
     @property
@@ -214,7 +213,7 @@ class WSSTimelog:
     """
 
     def __init__(self, subject, output_dir=None, log_file=None):
-        self.s = subject
+        self.subject = subject
         self.start_time = datetime.datetime.now()
         self.output_dir = output_dir
         self.use_logging = output_dir is not None or log_file is not None
@@ -228,8 +227,8 @@ class WSSTimelog:
                 log_dir.mkdir(exist_ok=True, parents=True)
                 self.log_file = log_dir / f"{now} - {subject}.log"
 
-            self.logger = get_logger(self.s)
-            add_file_handler(self.logger, self.log_file)
+            self.logger = get_logger(self.subject)
+            add_file_handler(logger=self.logger, file_path=self.log_file)
 
     @property
     def time_since_start(self):

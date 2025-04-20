@@ -80,7 +80,7 @@ class WaterSchadeSchatterLookUp:
         self.pixel_factor = pixel_factor
         self.caller = DummyCaller(nodata=nodata)
         self.depth_steps = depth_steps
-        self.time = WSSTimelog(subject=NAME)
+        self.timelog = WSSTimelog(subject=NAME)
         self.output = {}
 
     # @cached_property
