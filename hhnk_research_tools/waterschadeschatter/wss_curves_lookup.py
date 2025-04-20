@@ -79,7 +79,7 @@ class WaterSchadeSchatterLookUp:
         self.time = WSSTimelog(subject=NAME)
         self.output = {}
 
-    # @functools.cached_property
+    # @cached_property
     # def mapping_arrays(self):
 
     #     data = {}

@@ -14,13 +14,13 @@ Methodiek schade, volume en landgebruik
 4. Volume = Oppervlak pixel vermenigvuldigd met de diepte en aantal pixels.
 """
 
-import functools
 import json
 import multiprocessing as mp
 import pathlib
 import shutil
 import traceback
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Union
 
 import geopandas as gp
@@ -315,11 +315,11 @@ class AreaDamageCurves:
             settings = json.load(json_file)
         return cls(**settings, settings_json_file=file)
 
-    @functools.cached_property
+    @cached_property
     def output_dir(self):
         return self.output_path
 
-    @functools.cached_property
+    @cached_property
     def area_vector(self):
         vector = gp.read_file(self.area_path, layer=self.area_layer_name, engine="pyogrio")
         keep_col = [self.area_id, "geometry", self.area_start_level_field]
@@ -336,7 +336,7 @@ class AreaDamageCurves:
         vector.to_file(self.dir.input.area.path)
         return vector
 
-    @functools.cached_property
+    @cached_property
     def wss_settings(self):
         with open(str(self.wss_settings_file)) as json_file:
             settings = json.load(json_file)
@@ -344,12 +344,12 @@ class AreaDamageCurves:
 
         return {**settings, **{"cfg_file": self.wss_config}}
 
-    @functools.cached_property
+    @cached_property
     def wss_config(self):
         shutil.copy(self.wss_config_file, self.dir.input.wss_cfg_settings.path)
         return self.wss_config_file
 
-    @functools.cached_property
+    @cached_property
     def wss_curves_filter_settings(self):
         with open(str(self.wss_curves_filter_settings_file)) as json_file:
             settings = json.load(json_file)
@@ -357,7 +357,7 @@ class AreaDamageCurves:
         write_dict(settings, self.dir.input.wss_curves_filter_settings.path)
         return settings
 
-    @functools.cached_property
+    @cached_property
     def lookup(self):
         step = 1 / 10**DAMAGE_DECIMALS
         depth_steps = np.arange(step, self.curve_max + step, step)
@@ -367,21 +367,21 @@ class AreaDamageCurves:
         _lookup.write_dict(self.dir.input.wss_lookup.path)
         return _lookup
 
-    @functools.cached_property
+    @cached_property
     def lu(self):
         logger.info("Start vrt conversion lu")
         return self._input_to_vrt(self.landuse_path_dir, self.dir.input.lu.path)
 
-    @functools.cached_property
+    @cached_property
     def dem(self):
         logger.info("Start vrt conversion dem")
         return self._input_to_vrt(self.dem_path_dir, self.dir.input.dem.path)
 
-    @functools.cached_property
+    @cached_property
     def metadata(self):
         return hrt.RasterMetadataV2.from_gdf(gdf=self.area_vector, res=self.resolution)
 
-    @functools.cached_property
+    @cached_property
     def depth_steps(self):
         steps = np.arange(self.curve_step, self.curve_max + self.curve_step, self.curve_step)
         return [round(i, 2) for i in steps]

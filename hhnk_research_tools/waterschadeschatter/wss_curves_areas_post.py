@@ -14,6 +14,7 @@ TODO:
 import functools
 import json
 import pathlib
+from functools import cached_property
 from typing import Union
 
 import geopandas as gpd
@@ -104,37 +105,37 @@ class AreaDamageCurvesAggregation:
 
         return cls(**settings)
 
-    @functools.cached_property
+    @cached_property
     def damage_curve(self):
         if self.dir.output.result.exists():
             damage = pd.read_csv(self.dir.output.result.path, index_col=0)
             damage.columns = damage.columns.astype(int)
             return damage
 
-    @functools.cached_property
+    @cached_property
     def vol_curve(self):
         if self.dir.output.result_vol.exists():
             vol = pd.read_csv(self.dir.output.result_vol.path, index_col=0)
             vol.columns = vol.columns.astype(int)
             return vol
 
-    @functools.cached_property
+    @cached_property
     def damage_interpolated_curve(self):
         return self._curve_linear_interpolate(self.damage_curve, DEFAULT_RESOLUTION)
 
-    @functools.cached_property
+    @cached_property
     def vol_interpolated_curve(self):
         return self._curve_linear_interpolate(self.vol_curve, DEFAULT_RESOLUTION)
 
-    @functools.cached_property
+    @cached_property
     def damage_level_curve(self):
         return self._curves_to_level(self.damage_curve)
 
-    @functools.cached_property
+    @cached_property
     def vol_level_curve(self):
         return self._curves_to_level(self.vol_curve)
 
-    @functools.cached_property
+    @cached_property
     def damage_per_m3(self):
         """Damage per m3 at a certain waterlevel"""
         data = {}
