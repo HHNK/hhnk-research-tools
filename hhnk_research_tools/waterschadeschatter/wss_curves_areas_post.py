@@ -72,7 +72,6 @@ class AreaDamageCurvesAggregation:
         aggregate_vector_path: Union[str, pathlib.Path] = None,
         vector_field: str = None,
         landuse_conversion_path: Union[str, pathlib.Path] = None,
-        quiet: bool = False,
     ):
         self.dir = AreaDamageCurveFolders(result_path, create=True)
 
@@ -89,7 +88,7 @@ class AreaDamageCurvesAggregation:
             self.lu_conversion_table = pd.read_csv(landuse_conversion_path)
 
         self.predicate = DEFAULT_PREDICATE
-        self.time = WSSTimelog(NAME, quiet, self.dir.post_processing.path)
+        self.time = WSSTimelog(subject=NAME, output_dir=self.dir.post_processing.path)
 
     def __iter__(self):
         for idx, feature in tqdm(self.vector.iterrows(), NAME, total=len(self.vector)):

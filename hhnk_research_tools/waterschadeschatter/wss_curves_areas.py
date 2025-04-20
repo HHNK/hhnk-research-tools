@@ -57,7 +57,6 @@ NAME = "WSS AreaDamageCurve"
 # Defaults
 DEFAULT_AREA_ID = "id"
 DEFAULT_AREA_START_LEVEL_FIELD = "streefpeil"
-DEFAULT_QUIET = False
 
 
 class AreaDamageCurveMethods:
@@ -85,7 +84,7 @@ class AreaDamageCurveMethods:
         self.area_meta = hrt.RasterMetadataV2.from_gdf(gdf=self.area_gdf, res=self.metadata.pixel_width)
 
         self.pixel_width = self.metadata.pixel_width
-        self.time = WSSTimelog("Multi", True, None, log_file=self.log_file)
+        self.time = WSSTimelog(subject="Multi", output_dir=None, log_file=self.log_file)
         if nodamage_filter:
             self.damage_filter(self.filter_settings)
 
@@ -274,7 +273,6 @@ class AreaDamageCurves:
         curve_max:float=3, Maximum depth of damage curves.
         res:float=0.5, Resolution of rasters default 0.5.
         nodata:int=-9999, Nodata value of rasters default -9999.
-        quiet:bool=False, Show progress if false.
         area_layer_name:str=None, if type is geopackage, a layer name can be given.
 
     """
@@ -289,7 +287,6 @@ class AreaDamageCurves:
     curve_max: float = 3
     resolution: float = 0.5
     nodata: int = -9999  # TODO @Ckerklaan1 gebruik DEFAULT_NODATA_VALUES
-    quiet: bool = DEFAULT_QUIET
     area_layer_name: str = None
     wss_curves_filter_settings_file: str = None
     wss_config_file: str = None
@@ -297,9 +294,9 @@ class AreaDamageCurves:
     settings_json_file: str = None
 
     def __post_init__(self):
-        """initializes needed things"""
+        """Initialise needed things"""
         self.dir = AreaDamageCurveFolders(self.output_path, create=True)
-        self.time = WSSTimelog(NAME, self.quiet, self.dir.work.path)
+        self.time = WSSTimelog(subject=NAME, output_dir=self.dir.work.path)
         self._write_settings_json()
         self._create_input_vrt()
 
@@ -529,7 +526,6 @@ class AreaDamageCurves:
                 self.curve_vol[peil_id] = curve_vol
 
         self.write()
-        self.quiet = False
         logger.info(f"Ended {self.run_type}")
         self.time.close()
 

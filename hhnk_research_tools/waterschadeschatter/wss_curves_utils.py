@@ -213,9 +213,8 @@ class WSSTimelog:
 
     """
 
-    def __init__(self, subject, quiet, output_dir=None, log_file=None):
+    def __init__(self, subject, output_dir=None, log_file=None):
         self.s = subject
-        self.quiet = quiet
         self.start_time = datetime.datetime.now()
         self.output_dir = output_dir
         self.use_logging = output_dir is not None or log_file is not None

@@ -111,7 +111,6 @@ class TestWSSAggregation:
             aggregate_vector_path=AREA_AGGREGATE_PATH,
             vector_field=VECTOR_FIELD,
             landuse_conversion_path=LANDUSE_CONVERSION_TABLE,
-            quiet=False,
         )
 
         return aggregatie

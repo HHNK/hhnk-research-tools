@@ -38,7 +38,7 @@ class DummyCaller:
 
 class WaterSchadeSchatterLookUp:
     """
-    Is a lookup table which retrieves from a combinatie of depth and landuse,
+    Is a lookup table which retrieves from a combination of depth and landuse,
 
     bases on a configuration.
 
@@ -56,7 +56,6 @@ class WaterSchadeSchatterLookUp:
         depth_steps:list, Lijst met peilstijgingen
         pixel_factor:float, m2 per pixel
         nodata: int, nodata waarde
-        quiet: bool, Wel of geen console output.
     """
 
     def __init__(
@@ -65,7 +64,6 @@ class WaterSchadeSchatterLookUp:
         depth_steps=[0.1, 0.2, 0.3],
         pixel_factor=0.5 * 0.5,
         nodata=DEFAULT_NODATA_VALUES["float32"],
-        quiet=False,
     ):
         self.settings = wss_settings
 
@@ -76,10 +74,9 @@ class WaterSchadeSchatterLookUp:
         }
 
         self.pixel_factor = pixel_factor
-        self.caller = DummyCaller(nodata)
+        self.caller = DummyCaller(nodata=nodata)
         self.depth_steps = depth_steps
-        self.time = WSSTimelog(NAME, quiet)
-        self.quiet = quiet
+        self.time = WSSTimelog(subject=NAME)
         self.output = {}
 
     # @functools.cached_property
