@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Union
 
-import geopandas as gp
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -64,7 +64,7 @@ class AreaDamageCurveMethods:
         self.peilgebied_id = peilgebied_id
         self.dir = AreaDamageCurveFolders(data["output_dir"])
 
-        self.area_vector = gp.read_file(self.dir.input.area.path)
+        self.area_vector = gpd.read_file(self.dir.input.area.path)
         self.lu = hrt.Raster(self.dir.input.lu.path)
         self.dem = hrt.Raster(self.dir.input.dem.path)
 
@@ -129,7 +129,7 @@ class AreaDamageCurveMethods:
         no_damage.geometry = no_damage.buffer(settings["buffer"])
 
         # extract from input
-        dif = gp.overlay(self.area_gdf, no_damage, how="difference")
+        dif = gpd.overlay(self.area_gdf, no_damage, how="difference")
         dif = dif.drop(columns=[i for i in dif.columns if i not in ["geometry"]])
         dif.to_file(self.fdla_dir.nodamage_filtered.path)
 
@@ -244,11 +244,11 @@ class AreaDamageCurveMethods:
         curve_vol_df = pd.DataFrame(curve_vol, index=range(0, len(curve_vol)))
         curve_vol_df.to_csv(self.fdla_dir.curve_vol.path)
 
-        counts_lu = pd.DataFrame(counts_lu).T
-        counts_lu.to_csv(self.fdla_dir.counts_lu.path)
+        counts_lu_df = pd.DataFrame(counts_lu).T
+        counts_lu_df.to_csv(self.fdla_dir.counts_lu.path)
 
-        damage_lu = pd.DataFrame(damage_lu).T
-        damage_lu.to_csv(self.fdla_dir.damage_lu.path)
+        damage_lu_df = pd.DataFrame(damage_lu).T
+        damage_lu_df.to_csv(self.fdla_dir.damage_lu.path)
 
         return curve, curve_vol
 
@@ -321,7 +321,7 @@ class AreaDamageCurves:
 
     @cached_property
     def area_vector(self):
-        vector = gp.read_file(self.area_path, layer=self.area_layer_name, engine="pyogrio")
+        vector = gpd.read_file(self.area_path, layer=self.area_layer_name, engine="pyogrio")
         keep_col = [self.area_id, "geometry", self.area_start_level_field]
         drop_col = [i for i in vector.columns if i not in keep_col]
         vector = vector.drop(columns=drop_col)
@@ -340,7 +340,7 @@ class AreaDamageCurves:
     def wss_settings(self):
         with open(str(self.wss_settings_file)) as json_file:
             settings = json.load(json_file)
-        write_dict(settings, self.dir.input.wss_settings.path)
+        write_dict(dictionary=settings, path=self.dir.input.wss_settings.path)
 
         return {**settings, **{"cfg_file": self.wss_config}}
 
@@ -354,7 +354,7 @@ class AreaDamageCurves:
         with open(str(self.wss_curves_filter_settings_file)) as json_file:
             settings = json.load(json_file)
 
-        write_dict(settings, self.dir.input.wss_curves_filter_settings.path)
+        write_dict(dictionary=settings, path=self.dir.input.wss_curves_filter_settings.path)
         return settings
 
     @cached_property
@@ -364,7 +364,7 @@ class AreaDamageCurves:
         depth_steps = [round(i, 2) for i in depth_steps]
         _lookup = WaterSchadeSchatterLookUp(self.wss_settings, depth_steps)
         _lookup.run()
-        _lookup.write_dict(self.dir.input.wss_lookup.path)
+        _lookup.write_dict(path=self.dir.input.wss_lookup.path)
         return _lookup
 
     @cached_property
@@ -402,8 +402,8 @@ class AreaDamageCurves:
         data["log_file"] = self.time.log_file
         return data
 
-    def _check_nan(self, gdf):
-        """Checks for NAN's"""
+    def _check_nan(self, gdf) -> gpd.GeoDataFrame:
+        """Check for NaN"""
         if gdf[DRAINAGE_LEVEL_FIELD].isna().sum() > 0:
             logger.info("Found drainage level NAN's, deleting from input.")
             gdf = gdf[~gdf[DRAINAGE_LEVEL_FIELD].isna()]

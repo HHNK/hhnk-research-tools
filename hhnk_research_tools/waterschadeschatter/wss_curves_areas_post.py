@@ -197,7 +197,7 @@ class AreaDamageCurvesAggregation:
         return level_curve
 
     def agg_damage(self):
-        """Sums damage curves within the given areas."""
+        """Sum damage curves within the given areas."""
 
         self.agg_sum_curves_output = {}
         for idx, feature, areas_within in self:
@@ -208,7 +208,7 @@ class AreaDamageCurvesAggregation:
         return self.agg_sum_curves_output
 
     def agg_volume(self):
-        """Sums damage curves within the given areas."""
+        """Sum damage curves within the given areas."""
 
         agg_volume = {}
         for idx, feature, areas_within in self:
@@ -219,7 +219,7 @@ class AreaDamageCurvesAggregation:
         return agg_volume
 
     def agg_landuse(self):
-        """Sums land use areas data within the given areas."""
+        """Sum land use areas data within the given areas."""
         self.agg_lu = {}
         for idx, feature, areas_within in self:
             lu_data = self.lu_area_data[self.lu_area_data.fid.isin(areas_within[ID_FIELD])]
@@ -229,7 +229,7 @@ class AreaDamageCurvesAggregation:
         return self.agg_lu
 
     def aggregate_rain_curve(self, method="lowest_area", mm_rain=DEFAULT_RAIN):
-        """Methods for distribution of rain in the drainage area"""
+        """Different for distribution of rain in the drainage area"""
 
         output = {}
 
