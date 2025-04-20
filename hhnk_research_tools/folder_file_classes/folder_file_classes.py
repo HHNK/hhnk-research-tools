@@ -103,6 +103,9 @@ class Folder(BasePath):
             file_list += [i for i in self.path.glob(f"*.{e.replace('.', '')}")]
         return file_list
 
+    def joinpath(self, *args):
+        return self.path.joinpath(*args)
+
     def full_path(self, name, return_only_file_class=False):
         """
         Return the full path of a file or a folder when only a name is known.
@@ -115,7 +118,7 @@ class Folder(BasePath):
         if name.startswith("\\") or name.startswith("/"):
             name = name[1:]
 
-        filepath = self.path.joinpath(name)
+        filepath = self.joinpath(name)
 
         if name in [None, ""]:
             new_file = self  # TODO was, Path(""), gaat dit goed?
