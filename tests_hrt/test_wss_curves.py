@@ -29,7 +29,7 @@ DEM_PATH = WSS_DATA / "wss_curve_area_dem.tif"
 LU_PATH = WSS_DATA / "wss_curve_area_lu.tif"
 AREA_ID = "peil_id"
 VECTOR_FIELD = "name"
-OUTPUT_DIR = TEMP_DIR / f"wss_curves_{hrt.current_time(date=True)}"
+OUTPUT_DIR = TEMP_DIR.joinpath(f"wss_curves_{hrt.current_time(date=True)}")
 CURVE_STEP = 0.5
 CURVE_MAX = 2.5
 AREA_START_LEVEL = "streefpeil"
@@ -44,12 +44,12 @@ class TestWSSAggregationFolders:
     """Generieke test, in onderstaande test worden ook output bestande getest"""
 
     def test_generating_folders(self):
-        AreaDamageCurveFolders(TEMP_DIR)
+        self = AreaDamageCurveFolders(OUTPUT_DIR, create=True)
 
-        assert (TEMP_DIR / "work").exists()
-        assert (TEMP_DIR / "post_processing").exists()
-        assert (TEMP_DIR / "input").exists()
-        assert (TEMP_DIR / "output").exists()
+        assert (OUTPUT_DIR / "work").exists()
+        assert (OUTPUT_DIR / "post_processing").exists()
+        assert (OUTPUT_DIR / "input").exists()
+        assert (OUTPUT_DIR / "output").exists()
 
 
 class TestWSSCurves:
@@ -77,12 +77,10 @@ class TestWSSCurves:
         output = pd.read_csv(EXPECTED_RESULT)
         return output
 
-    # def test_integrated_1d_mp(self, schadecurves, output):
-    #     # FIXME SLOW
-    #     # shutil.rmtree(OUTPUT_PATH)
-    #     schadecurves.run(run_1d=True, multiprocessing=True, processes=4)
-    #     test_output = pd.read_csv(schadecurves.dir.output.result.path)
-    #     pd.testing.assert_frame_equal(output, test_output)
+    def test_integrated_1d_mp(self, schadecurves, output):
+        schadecurves.run(run_1d=True, multiprocessing=True, processes=4)
+        test_output = pd.read_csv(schadecurves.dir.output.result.path)
+        pd.testing.assert_frame_equal(output, test_output)
 
     def test_integrated_1d(self, schadecurves, output):
         schadecurves.run(run_1d=True, multiprocessing=False)
@@ -104,6 +102,7 @@ class TestWSSCurves:
 
 class TestWSSAggregation:
     @pytest.fixture(scope="class")
+    @pytest.mark.dependency(name="test_integrated_1d")
     def aggregatie(self):
         aggregatie = AreaDamageCurvesAggregation(
             result_path=OUTPUT_DIR,

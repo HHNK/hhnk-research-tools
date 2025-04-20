@@ -60,7 +60,7 @@ NAME = "WSS AreaDamageCurve"
 class AreaDamageCurveMethods:
     def __init__(self, peilgebied_id: int, data: dict, nodamage_filter: bool = True):
         self.peilgebied_id = peilgebied_id
-        self.dir = AreaDamageCurveFolders(data["output_dir"])
+        self.dir = AreaDamageCurveFolders(data["output_dir"], create=True)
 
         self.area_vector = gpd.read_file(self.dir.input.area.path)
         self.lu = hrt.Raster(self.dir.input.lu.path)

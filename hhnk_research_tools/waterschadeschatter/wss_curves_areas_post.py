@@ -12,6 +12,7 @@ TODO:
 
 # First-party imports
 import json
+from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 from typing import Optional, Union
@@ -21,6 +22,7 @@ import geopandas as gpd
 # Third-party imports
 import numpy as np
 import pandas as pd
+import shapely
 from tqdm import tqdm
 
 import hhnk_research_tools.logger as logging
@@ -41,7 +43,6 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
 # Logger
 logger = logging.get_logger(__name__)
 
-# %%
 # Globals
 NAME = "AreaDamageCurves Aggregation"
 
@@ -55,6 +56,7 @@ DEFAULT_AGG_METHODS = ["lowest_area", "equal_depth", "equal_rain"]
 DEFAULT_PREDICATE = "_within"
 
 
+@dataclass
 class AreaDamageCurvesAggregation:
     """
     Aggregate the output of wss_curves_areas.py.
@@ -71,26 +73,27 @@ class AreaDamageCurvesAggregation:
         Path to the landuse conversion table
     """
 
-    def __init__(
+    result_path: Union[str, Path]
+    aggregate_vector_path: Union[str, Path, None] = None
+    vector_field: Optional[str] = None
+    landuse_conversion_path: Union[str, Path, None] = None
+
+    def __post_init__(
         self,
-        result_path: Union[str, Path],
-        aggregate_vector_path: Union[str, Path, None] = None,
-        vector_field: Optional[str] = None,
-        landuse_conversion_path: Union[str, Path, None] = None,
     ):
-        self.dir = AreaDamageCurveFolders(result_path, create=True)
+        self.dir = AreaDamageCurveFolders(self.result_path, create=True)
 
         if self.dir.output.result_lu_areas.exists():
             self.lu_area_data = pd.read_csv(self.dir.output.result_lu_areas.path, index_col=0)
 
         self.drainage_areas = self.dir.input.area.load()
 
-        if aggregate_vector_path:
-            self.vector = gpd.read_file(aggregate_vector_path)
-            self.field = vector_field
+        if self.aggregate_vector_path:
+            self.vector = gpd.read_file(self.aggregate_vector_path, use_arrow=True)
+            self.field = self.vector_field
 
-        if landuse_conversion_path:
-            self.lu_conversion_table = pd.read_csv(landuse_conversion_path)
+        if self.landuse_conversion_path:
+            self.lu_conversion_table = pd.read_csv(self.landuse_conversion_path)
 
         self.predicate = DEFAULT_PREDICATE
         self.time = WSSTimelog(subject=NAME, output_dir=self.dir.post_processing.path)
@@ -104,7 +107,7 @@ class AreaDamageCurvesAggregation:
 
     def __iter__(self):
         for idx, feature in tqdm(self.vector.iterrows(), NAME, total=len(self.vector)):
-            predicate_func = getattr(self, self.predicate)
+            predicate_func = getattr(self, self.predicate)  # default = self._within
             areas = predicate_func(feature.geometry)
             if len(areas) > 0:
                 yield idx, feature, areas
@@ -125,11 +128,11 @@ class AreaDamageCurvesAggregation:
 
     @cached_property
     def damage_interpolated_curve(self):
-        return self._curve_linear_interpolate(self.damage_curve, DEFAULT_RESOLUTION)
+        return self._curve_linear_interpolate(curve=self.damage_curve, resolution=DEFAULT_RESOLUTION)
 
     @cached_property
     def vol_interpolated_curve(self):
-        return self._curve_linear_interpolate(self.vol_curve, DEFAULT_RESOLUTION)
+        return self._curve_linear_interpolate(curve=self.vol_curve, resolution=DEFAULT_RESOLUTION)
 
     @cached_property
     def damage_level_curve(self) -> pd.DataFrame:
@@ -155,13 +158,13 @@ class AreaDamageCurvesAggregation:
         return pd.DataFrame(data)
 
     @property
-    def selection(self) -> dict[str : pd.Series]:
+    def selection(self) -> dict[str, pd.Series]:
         selection = {}
         for idx, feature, areas in self:
             selection[feature[self.field]] = areas
         return selection
 
-    def _within(self, geometry, buffer: int = DEFAULT_BUFFER):
+    def _within(self, geometry: shapely.geometry, buffer: int = DEFAULT_BUFFER):
         buffered = geometry.buffer(buffer)
         area_within = self.drainage_areas[self.drainage_areas.geometry.within(buffered)]
         return area_within
@@ -202,7 +205,7 @@ class AreaDamageCurvesAggregation:
 
         return level_curve
 
-    def agg_damage(self) -> dict[pd.Series]:
+    def agg_damage(self) -> dict[str, pd.Series]:
         """Sum damage curves within the given areas."""
 
         self.agg_sum_curves_output = {}
@@ -213,7 +216,7 @@ class AreaDamageCurvesAggregation:
 
         return self.agg_sum_curves_output
 
-    def agg_volume(self) -> dict[pd.Series]:
+    def agg_volume(self) -> dict[str, pd.Series]:
         """Sum damage curves within the given areas."""
 
         agg_volume = {}
@@ -224,7 +227,7 @@ class AreaDamageCurvesAggregation:
 
         return agg_volume
 
-    def agg_landuse(self) -> dict[pd.Series]:
+    def agg_landuse(self) -> dict[str, pd.Series]:
         """Sum land use areas data within the given areas."""
         self.agg_lu = {}
         for idx, feature, areas_within in self:
@@ -234,7 +237,7 @@ class AreaDamageCurvesAggregation:
 
         return self.agg_lu
 
-    def aggregate_rain_curve(self, method="lowest_area", mm_rain=DEFAULT_RAIN) -> dict[pd.Series]:
+    def aggregate_rain_curve(self, method="lowest_area", mm_rain=DEFAULT_RAIN) -> dict[str, pd.Series]:
         """Different for distribution of rain in the drainage area"""
 
         output = {}
@@ -369,7 +372,11 @@ class AreaDamageCurvesAggregation:
         bc.run(agg_dir.joinpath("bergingscurve"))
 
         lu_curve = LandgebruikCurveFiguur(agg_dir.agg_landuse.path)
-        lu_curve.combine_classes(self.lu_conversion_table, agg_dir.joinpath("result_lu_areas_classes.csv"))
+        lu_curve.combine_classes(
+            lu_omzetting=self.lu_conversion_table,
+            output_path=agg_dir.joinpath("result_lu_areas_classes.csv"),
+        )
+
         agg_dir.joinpath("landgebruikscurve").mkdir(exist_ok=True)
         lu_curve.run(
             lu_omzetting=self.lu_conversion_table,
@@ -444,9 +451,10 @@ class AreaDamageCurvesAggregation:
                 agg_l.index.name = "Peilstijging [m]"
                 agg_l = agg_l.add_suffix(" [m2]")
                 agg_l.to_csv(agg_dir.agg_landuse.path)
-                self.create_figures(agg_dir)
+                # self.create_figures(agg_dir) #FIXME dit werkt nog niet. -> KeyError: 'fid'
 
 
+# %%
 if __name__ == "__main__":
     import sys
 

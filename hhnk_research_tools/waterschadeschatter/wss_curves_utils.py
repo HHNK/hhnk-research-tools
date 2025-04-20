@@ -31,7 +31,8 @@ class AreaDamageCurveFolders(Folder):
 
         self.post_processing = PostProcessing(self.base, create=create)
 
-        self.create_readme()
+        if self.exists():
+            self.create_readme()
 
     def create_readme(self):
         readme_txt = """ 
@@ -82,8 +83,7 @@ class AreaDamageCurveFolders(Folder):
                 aggregate.csv: Bovenstaande methodiek zijn omgezet van schadecurves naar volumes en in een bestand gezet. 
                     
             """
-        with open(os.path.join(self.base, "read_me.txt"), mode="w") as f:
-            f.write(readme_txt)
+        self.joinpath("read_me.txt").write_text(readme_txt)
 
     @property
     def structure(self):

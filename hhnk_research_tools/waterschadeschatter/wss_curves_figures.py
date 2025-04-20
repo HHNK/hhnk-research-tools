@@ -1,6 +1,6 @@
 # %%
-import os
 from pathlib import Path
+from typing import Tuple
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -16,7 +16,7 @@ MAX_PEILVERHOGING = 2.5  # meter
 
 
 class Figuur:
-    def __init__(self, figsize=STANDAARD_FIGUUR):
+    def __init__(self, figsize: Tuple[int, int] = STANDAARD_FIGUUR):
         self.figsize = figsize
 
     def create(self):
@@ -60,7 +60,7 @@ class Figuur:
 
 
 class BergingsCurveFiguur(Figuur):
-    def __init__(self, path):
+    def __init__(self, path: Path):
         super().__init__()
         self.df = pd.read_csv(path, index_col=0)
 
@@ -71,7 +71,7 @@ class BergingsCurveFiguur(Figuur):
         for col in self.df.columns:
             valid_data = self.df[col].dropna()
             self.create()
-            self.x_y_label()
+            self.set_x_y_label()
             self.plot(valid_data)
             self.title(f"bergingscurve voor {col}")
             plotpng = output_dir.joinpath(f"bergingscurve_{col}.png")
@@ -92,11 +92,11 @@ class PercentageFiguur(Figuur):
         self.y_ticks_list = np.arange(0, 1.1, 0.1)
         self.labels = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"]
 
-    def set_x_y_ticks(self):
+    def set_x_y_ticks(self) -> None:
         self.xticks(self.x_ticks)
         self.yticks(ticks=self.y_ticks_list, labels=self.labels)
 
-    def handles_legend(self, lu_omzetting):
+    def handles_legend(self, lu_omzetting) -> None:
         nieuwe_klasses = np.array(lu_omzetting["nieuwe_klasse"].unique())
         self.color_dict = {}
         colors = []
@@ -112,7 +112,7 @@ class PercentageFiguur(Figuur):
             self.handels.append(handle)
             self.color_dict[str(nieuwe_klasses[i])] = colors[i]
 
-    def lu_verdeling_peilgebied(self, id):
+    def lu_verdeling_peilgebied(self, id) -> None:
         self.df_peilgebied = self.df.loc[self.df["fid"] == id].dropna(axis=1)
         self.df_peilgebied = self.df_peilgebied.drop("fid", axis=1)
         self.df_peilgebied_perc = self.df_peilgebied.divide(self.df_peilgebied.sum(axis=1), axis=0)
@@ -124,11 +124,11 @@ class PercentageFiguur(Figuur):
             self.lu.append(self.df_peilgebied_perc[col])
             self.lu_ids.append(col)
 
-    def sum_damages(self):
+    def sum_damages(self) -> None:
         self.df_sum_damages = self.df.copy()
         self.df_sum_damages["totaal"] = self.df_sum_damages.drop("fid", axis=1).sum(axis=1)
 
-    def plot_schadecurve_totaal(self, id):
+    def plot_schadecurve_totaal(self, id) -> None:
         self.ax2 = self.ax.twinx()
         self.ax2.plot(
             self.df_sum_damages.index.where(self.df["fid"] == id).dropna(),
@@ -139,7 +139,7 @@ class PercentageFiguur(Figuur):
         self.ax2.set_ylabel("Schadebedrag (Euro's)")
         self.ax2.set_ylim(bottom=0)
 
-    def combine_classes(self, lu_omzetting, output_path: Path):
+    def combine_classes(self, lu_omzetting: pd.DataFrame, output_path: Path) -> None:
         nieuwe_klasses = np.array(lu_omzetting["nieuwe_klasse"].unique())
         samenvoeging_klasses = {
             "fid": self.df["fid"]
@@ -207,9 +207,9 @@ class DamagesLuCurveFiguur(PercentageFiguur):
             if schadecurve_totaal:
                 self.sum_damages()
                 self.plot_schadecurve_totaal(id)
-            self.x_y_label()
-            self.x_y_lim()
-            self.x_y_ticks()
+            self.set_x_y_label()
+            self.set_x_y_lim()
+            self.set_x_y_ticks()
             self.title(f"schadeverdeling voor {id}")
 
             self.ax.legend(
