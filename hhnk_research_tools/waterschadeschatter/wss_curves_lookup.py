@@ -25,13 +25,13 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import WSSTimelog,
 logger = logging.get_logger(__name__)
 
 # Globals
-DMG_NODATA = 0  # let op staat dubbel, ook in wss_main.
-NODATA_UINT16 = 65535
 NAME = "WSS LookupTable"
 
 
 class DummyCaller:
-    def __init__(self, nodata=-9999):
+    """TODO"""
+
+    def __init__(self, nodata):
         self.depth_raster = namedtuple("Raster", "nodata")(nodata)
         self.gamma_inundatiediepte = 0
 

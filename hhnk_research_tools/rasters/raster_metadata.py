@@ -42,7 +42,9 @@ class RasterMetadataV2:
 
     @classmethod
     def from_bounds(cls, bounds_dict, res: float, projection="EPSG:28992"):
-        """_summary_
+        """Get metadata from bounds and resolution.
+
+        Bounds can be accessed with hrt.Raster.metadata.bounds_dict
 
         Parameters
         ----------
@@ -71,9 +73,9 @@ class RasterMetadataV2:
         projection : str, default is "EPSG:28992"
             doesnt work on other projs.
         """
-        data = {"minx": bbox.left, "maxx": bbox.right, "miny": bbox.bottom, "maxy": bbox.top}
+        bounds_dict = {"minx": bbox.left, "maxx": bbox.right, "miny": bbox.bottom, "maxy": bbox.top}
 
-        return RasterMetadataV2.from_bounds(data, res, projection)
+        return RasterMetadataV2.from_bounds(bounds_dict, res, projection)
 
     @classmethod
     def from_gdf(cls, gdf: gpd.GeoDataFrame, res: float):

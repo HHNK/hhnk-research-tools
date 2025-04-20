@@ -1,3 +1,4 @@
+# %%
 # -*- coding: utf-8 -*-
 """
 Created on Thu Oct 10 15:27:18 2024
@@ -39,14 +40,15 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
 # Logger
 logger = logging.get_logger(__name__)
 
+# %%
 # Globals
 NAME = "AreaDamageCurves Aggregation"
 
 # Defaults
-DEFAULT_RAIN = 200
-DEFAULT_BUFFER = 100
+DEFAULT_RAIN = 200  # TODO @Ckerklaan1 units
+DEFAULT_BUFFER = 100  # TODO @Ckerklaan1 units
 DEFAULT_NODATA = -9999
-DEFAULT_RESOLUTION = 0.01
+DEFAULT_RESOLUTION = 0.01  # TODO @Ckerklaan1 units
 DEFAULT_ROUND = 2
 DEFAULT_AGG_METHODS = ["lowest_area", "equal_depth", "equal_rain"]
 DEFAULT_PREDICATE = "_within"
@@ -54,13 +56,14 @@ DEFAULT_PREDICATE = "_within"
 
 class AreaDamageCurvesAggregation:
     """
-    Aggregates the output of wss_curves_areas.py.
+    Aggregate the output of wss_curves_areas.py.
 
     Params:
         result_path:str, Result path for the output directory.
         aggregate_vector_path: str, Aggregation vector
         vector_field: str, field which is used to acces the aggregation vector.
-        quiet: bool, Verbosity.
+        verbose: bool, Verbosity.
+        landuse_conversion_path: str, Path to the landuse conversion table
     """
 
     def __init__(

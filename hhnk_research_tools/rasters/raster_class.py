@@ -451,7 +451,7 @@ class Raster(File):
 
     def read_geometry(self, geometry: shapely.geometry.Polygon) -> np.array:
         """
-        Reads data within geometry.
+        Read data within geometry. Outside geometry is set to NaN.
 
         Parameters
         ----------
