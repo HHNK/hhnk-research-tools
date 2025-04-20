@@ -6,10 +6,6 @@ Created on Thu Sep 26 15:44:05 2024
 @author: kerklaac5395
 """
 
-# import sys
-# sys.path.append(r"C:\Users\benschoj1923\OneDrive - ARCADIS\Documenten\GitHub")
-import shutil
-
 import pandas as pd
 import pytest
 

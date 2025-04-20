@@ -1,5 +1,6 @@
 # %%
 import os
+from pathlib import Path
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -7,17 +8,13 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from hhnk_research_tools.waterschadeschatter.wss_curves_utils import AreaDamageCurveFolders
-
 # Globals
-STANDAARD_FIGUUR = (10, 10)
-LANDGEBRUIK_FIGUUR = (20, 10)
+STANDAARD_FIGUUR = (10, 10)  # figsize
+LANDGEBRUIK_FIGUUR = (20, 10)  # figsize
 DPI = 300
-MAX_PEILVERHOGING = 2.5
+MAX_PEILVERHOGING = 2.5  # meter
 
 
-# input = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\External\output\westzaan\post\vol_level_curve.csv", index_col=0)
-# output_directory = r"C:\temp\HHNK"
 class Figuur:
     def __init__(self, figsize=STANDAARD_FIGUUR):
         self.figsize = figsize
@@ -70,14 +67,14 @@ class BergingsCurveFiguur(Figuur):
         self.xlabel_dsc = "Waterstand (m+NAP)"
         self.ylabel_dsc = "Volume (m3)"
 
-    def run(self, output_dir, dpi=DPI):
+    def run(self, output_dir: Path, dpi=DPI):
         for col in self.df.columns:
             valid_data = self.df[col].dropna()
             self.create()
             self.x_y_label()
             self.plot(valid_data)
             self.title(f"bergingscurve voor {col}")
-            plotpng = os.path.join(output_dir, f"bergingscurve_{col}.png")
+            plotpng = output_dir.joinpath(f"bergingscurve_{col}.png")
             self.write(plotpng, dpi=dpi)
 
 
@@ -142,11 +139,11 @@ class PercentageFiguur(Figuur):
         self.ax2.set_ylabel("Schadebedrag (Euro's)")
         self.ax2.set_ylim(bottom=0)
 
-    def combine_classes(self, lu_omzetting, output_path):
+    def combine_classes(self, lu_omzetting, output_path: Path):
         nieuwe_klasses = np.array(lu_omzetting["nieuwe_klasse"].unique())
         samenvoeging_klasses = {
             "fid": self.df["fid"]
-        }  # waar komt self.df vandaan? En misschien een iets duidelijkere naam geven hiervoor.
+        }  # TODO waar komt self.df vandaan? En misschien een iets duidelijkere naam geven hiervoor.
         for klasse in nieuwe_klasses:
             oude_lu_per_nieuwe_klasse = (
                 lu_omzetting.where(lu_omzetting["nieuwe_klasse"] == klasse)["LU_class"].dropna().values.tolist()
@@ -163,7 +160,7 @@ class LandgebruikCurveFiguur(PercentageFiguur):
         super().__init__()
         self.df = pd.read_csv(path, index_col=0)
 
-    def run(self, lu_omzetting, output_dir, schadecurve_totaal=False, dpi=DPI):
+    def run(self, lu_omzetting, output_dir: Path, schadecurve_totaal=False, dpi=DPI):
         ids = np.array(self.df["fid"].unique())
         for id in ids:
             self.lu_verdeling_peilgebied(id)
@@ -186,7 +183,7 @@ class LandgebruikCurveFiguur(PercentageFiguur):
                 handles=self.handels, labels=self.labels, bbox_to_anchor=(0.05, -0.05), loc="upper left", ncols=8
             )
 
-            plotpng = os.path.join(output_dir, f"landgebruikcurve_{id}.png")
+            plotpng = output_dir.joinpath(f"landgebruikcurve_{id}.png")
             self.write(plotpng, dpi=dpi)
 
 
@@ -195,7 +192,7 @@ class DamagesLuCurveFiguur(PercentageFiguur):
         super().__init__()
         self.df = pd.read_csv(path, index_col=0)
 
-    def run(self, lu_omzetting, output_dir, schadecurve_totaal=False, dpi=DPI):
+    def run(self, lu_omzetting, output_dir: Path, schadecurve_totaal: bool = False, dpi: int = DPI):
         ids = np.array(self.df["fid"].unique())
         for id in ids:
             self.lu_verdeling_peilgebied(id)
@@ -219,18 +216,19 @@ class DamagesLuCurveFiguur(PercentageFiguur):
                 handles=self.handels, labels=self.labels, bbox_to_anchor=(0.05, -0.05), loc="upper left", ncols=8
             )
 
-            plotpng = os.path.join(output_dir, f"schadecurve_{id}.png")
+            plotpng = output_dir.joinpath(f"schadecurve_{id}.png")
             self.write(plotpng, dpi=dpi)
 
 
 # %% figuur voor bergingscurve
-def bergingscurve(input, output_directory):
-    os.mkdir(output_directory + "/Bergingscurve")
-    output_dir = output_directory + "/Bergingscurve"
+def bergingscurve(input: pd.DataFrame, output_directory: Path):
+    output_dir = output_directory.joinpath("Bergingscurve")
+    output_dir.mkdir(exist_ok=True)
+
     for col in input.columns:
         valid = input[col].dropna()
         # Prettier plotting with seaborn
-        sns.set(font_scale=1.5)
+        sns.set_theme(font_scale=1.5)
         sns.set_style("whitegrid")
 
         # Format histograms
@@ -244,7 +242,7 @@ def bergingscurve(input, output_directory):
             title=f"bergingscurve voor {col}",
         )
 
-        plotpng = os.path.join(output_dir, f"bergingscurve_{col}.png")
+        plotpng = output_dir.joinpath(f"bergingscurve_{col}.png")
         plt.savefig(plotpng, dpi=300)
         plt.close()
 

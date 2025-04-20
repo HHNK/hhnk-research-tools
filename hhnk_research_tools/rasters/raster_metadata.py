@@ -1,6 +1,5 @@
 # %%
 
-import inspect
 from dataclasses import dataclass
 
 import geopandas as gpd
@@ -9,7 +8,6 @@ from affine import Affine
 from rasterio.coords import BoundingBox
 
 from hhnk_research_tools.general_functions import get_functions, get_variables
-from hhnk_research_tools.variables import DEF_TRGT_CRS, GDAL_DATATYPE, GEOTIFF
 
 
 @dataclass

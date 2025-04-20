@@ -6,9 +6,8 @@ Created on Fri Aug 30 14:29:47 2024
 """
 
 # First-party imports
-# import functools
-import pathlib
 from collections import namedtuple
+from pathlib import Path
 from typing import Union
 
 # Third-party imports
@@ -51,19 +50,24 @@ class WaterSchadeSchatterLookUp:
         table = wsslookup.output
 
 
-    Params:
-        wss_settings:str, Pad naar een config file van de waterschadeschatter.
-        depth_steps:list, Lijst met peilstijgingen
-        pixel_factor:float, m2 per pixel
-        nodata: int, nodata waarde
+    Parameters
+    ----------
+    wss_settings : dict
+        Pad naar een config file van de waterschadeschatter. FIXME @ckerklaan1 dit klopt niet.
+    depth_steps : list[float]
+        Lijst met peilstijgingen
+    pixel_factor : float
+        m2 per pixel
+    nodata : Union[int, float]
+        nodata waarde
     """
 
     def __init__(
         self,
-        wss_settings: str,
-        depth_steps=[0.1, 0.2, 0.3],
-        pixel_factor=0.5 * 0.5,
-        nodata=DEFAULT_NODATA_VALUES["float32"],
+        wss_settings: dict,
+        depth_steps: list[float] = [0.1, 0.2, 0.3],
+        pixel_factor: float = 0.5 * 0.5,
+        nodata: Union[int, float] = DEFAULT_NODATA_VALUES["float32"],
     ):
         self.settings = wss_settings
 
@@ -121,5 +125,5 @@ class WaterSchadeSchatterLookUp:
 
         logger.info("Ended generating table")
 
-    def write_dict(self, path: Union[str, pathlib.Path]):
+    def write_dict(self, path: Union[str, Path]):
         write_dict(self.output, path)
