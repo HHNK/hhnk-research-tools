@@ -64,8 +64,8 @@ class SpatialDatabaseLayer:
         self.name = name
         self.parent = parent
 
-    def load(self):
-        return gpd.read_file(self.parent.base, layer=self.name)
+    def load(self) -> gpd.GeoDataFrame:
+        return gpd.read_file(self.parent.base, layer=self.name, engine="pyogrio")
 
 
 class FileGDB(SpatialDatabase):

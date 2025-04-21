@@ -29,7 +29,7 @@ class Folder(BasePath):
         return ""
 
     @property
-    def content(self):
+    def content(self) -> list:
         return [i for i in self.path.glob("*")]
 
     # @property
