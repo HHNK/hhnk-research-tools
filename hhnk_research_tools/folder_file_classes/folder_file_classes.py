@@ -71,21 +71,24 @@ class Folder(BasePath):
 
         self.mkdir(parents=parents, verbose=verbose)
 
-    def mkdir(self, parents=False, verbose=False):
+    def mkdir(self, parents: bool = False, verbose: bool = False, exist_ok: bool = True):
         """Create folder and parents
 
         Parameters
         ----------
-        parents; Bool
-            False: dont create if parent don't exist.
-            True: also create parents.
+        parents : bool, default is True
+            False -> dont create if parent don't exist.
+            True -> also create parents.
+        verbose : bool, default is True
+            False
+            True -> Print output
         """
         if not parents:
             if not self.parent.exists():
                 if verbose:
                     print(f"'{self.path}' not created, parent does not exist.")
                 return
-        self.path.mkdir(parents=parents, exist_ok=True)
+        self.path.mkdir(parents=parents, exist_ok=exist_ok)
 
     def find_ext(self, ext: list):
         """Find files with a certain extension"""
