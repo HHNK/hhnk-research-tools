@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Optional
 
 from hhnk_research_tools.general_functions import (
     ensure_file_path,
@@ -17,12 +18,12 @@ class BasePath:
 
     # decorated properties
     @property
-    def base(self):
+    def base(self) -> str:
         """Path as posix string (foreward slashes)"""
         return self.path.as_posix()
 
     @property
-    def name(self):
+    def name(self) -> str:
         """Name with suffix"""
         return self.path.name
 
@@ -39,7 +40,7 @@ class BasePath:
         return self.path
 
     @property
-    def path_if_exists(self):
+    def path_if_exists(self) -> Optional[str]:
         """Return filepath if the file exists otherwise return None"""
         if self.exists():
             return str(self.path)
@@ -48,7 +49,7 @@ class BasePath:
     # def is_file(self):
     #     return self.path.suffix != ""
 
-    def exists(self):
+    def exists(self) -> bool:
         """Dont return true on empty path."""
         if not self._base:
             return False
@@ -66,17 +67,17 @@ class File(BasePath):
 
     # Path properties
     @property
-    def stem(self):  # stem (without suffix)
+    def stem(self) -> str:  # stem (without suffix)
         return self.path.stem
 
     @property
-    def suffix(self):
+    def suffix(self) -> str:
         return self.path.suffix
 
-    def unlink(self, missing_ok=True):
+    def unlink(self, missing_ok: bool = True) -> None:
         self.path.unlink(missing_ok=missing_ok)
 
-    def read_json(self):
+    def read_json(self) -> str:
         if self.path.suffix == ".json":
             return json.loads(self.path.read_text())
         raise TypeError(f"{self.name} is not a json.")
@@ -93,7 +94,7 @@ class File(BasePath):
 
         return Folder(self.path.parent)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         repr_str = f"""{self.path.name} @ {self.path}
 exists: {self.exists()}
 type: {type(self)}
@@ -102,7 +103,7 @@ variables: {get_variables(self)}
 """
         return repr_str
 
-    def view_name_with_parents(self, parents: int = 0):
+    def view_name_with_parents(self, parents: int = 0) -> str:
         """Display name of file with number of parents
 
         parents (int): defaults to 0

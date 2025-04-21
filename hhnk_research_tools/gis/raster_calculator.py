@@ -2,6 +2,7 @@ import datetime
 import json
 import types
 from dataclasses import dataclass
+from typing import Optional
 
 import geopandas as gpd
 import numpy as np
@@ -40,10 +41,10 @@ class RasterBlocks:
     """
 
     window: list
-    raster_paths_dict: dict[str : hrt.Raster]
-    nodata_keys: list[str] = None
-    yesdata_dict: dict[str : list[float]] = None
-    mask_keys: list[str] = None
+    raster_paths_dict: dict[str, hrt.Raster]
+    nodata_keys: Optional[list[str]] = None
+    yesdata_dict: Optional[dict[str, list[float]]] = None
+    mask_keys: Optional[list[str]] = None
 
     def __post_init__(self):
         self.cont = True

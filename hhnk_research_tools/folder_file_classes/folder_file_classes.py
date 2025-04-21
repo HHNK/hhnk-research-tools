@@ -1,13 +1,10 @@
 # %%
-import types
 import warnings
-from pathlib import Path
-
-import fiona
-import geopandas as gpd
+from typing import Optional, Union
 
 from hhnk_research_tools import Raster
 from hhnk_research_tools.folder_file_classes.file_class import BasePath, File
+from hhnk_research_tools.folder_file_classes.spatial_database_class import SpatialDatabase
 from hhnk_research_tools.folder_file_classes.sqlite_class import Sqlite
 from hhnk_research_tools.general_functions import get_functions, get_variables
 
@@ -32,7 +29,7 @@ class Folder(BasePath):
         return ""
 
     @property
-    def content(self):
+    def content(self) -> list:
         return [i for i in self.path.glob("*")]
 
     # @property
@@ -77,21 +74,24 @@ class Folder(BasePath):
 
         self.mkdir(parents=parents, verbose=verbose)
 
-    def mkdir(self, parents=False, verbose=False):
+    def mkdir(self, parents: bool = False, verbose: bool = False, exist_ok: bool = True):
         """Create folder and parents
 
         Parameters
         ----------
-        parents; Bool
-            False: dont create if parent don't exist.
-            True: also create parents.
+        parents : bool, default is True
+            False -> dont create if parent don't exist.
+            True -> also create parents.
+        verbose : bool, default is True
+            False
+            True -> Print output
         """
         if not parents:
             if not self.parent.exists():
                 if verbose:
                     print(f"'{self.path}' not created, parent does not exist.")
                 return
-        self.path.mkdir(parents=parents, exist_ok=True)
+        self.path.mkdir(parents=parents, exist_ok=exist_ok)
         return self.full_path(parents)
 
     def find_ext(self, ext: list):
@@ -107,12 +107,17 @@ class Folder(BasePath):
         return self.path.joinpath(*args)
 
     def full_path(self, name, return_only_file_class=False):
+    def full_path(self, name, return_only_file_class=False):  # -> Union[File, Folder, FileGDB, Raster, Sqlite]:
         """
         Return the full path of a file or a folder when only a name is known.
         Will return the object based on suffix
 
         return_only_file_class (bool): only return file class, can speed up
             some functions because hrt.Raster initialization takes some time.
+
+        Returns
+        -------
+        FileLike
         """
         name = str(name)
         if name.startswith("\\") or name.startswith("/"):
@@ -121,14 +126,14 @@ class Folder(BasePath):
         filepath = self.joinpath(name)
 
         if name in [None, ""]:
-            new_file = self  # TODO was, Path(""), gaat dit goed?
+            new_file = self
         elif return_only_file_class:
             new_file = File(filepath)
         else:
             if filepath.suffix == "":
                 new_file = Folder(filepath)
             elif filepath.suffix in [".gdb", ".gpkg", ".shp"]:
-                new_file = FileGDB(filepath)
+                new_file = SpatialDatabase(filepath)
             elif filepath.suffix in [".tif", ".tiff", ".vrt"]:
                 new_file = Raster(filepath)
             elif filepath.suffix in [".sqlite"]:
@@ -145,11 +150,26 @@ class Folder(BasePath):
         setattr(self, objectname, new_file)
         return new_file
 
-    def unlink_contents(self, names=[], rmfiles=True, rmdirs=False):
+    def unlink_contents(
+        self,
+        names: Optional[list[str]] = None,
+        rmfiles: bool = True,
+        rmdirs: bool = False,
+    ) -> None:
         """Unlink all content when names is an empty list.
         Otherwise just remove the names.
+
+        Parameters
+        ----------
+        names : list[str], optional, default: None
+            Names of files or directories to unlink
+        rmfiles : bool, optional, default: True
+            Whether to remove regular files
+        rmdirs : bool, optional, default: False
+            Whether to remove empty directories
+
         """
-        if not names:
+        if names is None:
             names = self.content
         for name in names:
             pathname = self.path / name
@@ -181,55 +201,3 @@ type: {type(self)}
 functions: {get_functions(self)}
 variables: {get_variables(self)}"""
         return repr_str
-
-
-class FileGDB(File):
-    def __init__(self, base):
-        super().__init__(base)
-
-        self.layerlist = []
-        self.layers = types.SimpleNamespace()  # empty class
-
-    def load(self, layer=None):
-        if layer is None:
-            avail_layers = self.available_layers()
-            if len(avail_layers) == 1:
-                layer = avail_layers[0]
-            else:
-                layer = input(f"Select layer [{avail_layers}]:")
-        return gpd.read_file(self.path, layer=layer, engine="pyogrio")
-
-    def add_layer(self, name: str):
-        """Predefine layers so we can write output to that layer."""
-        if name not in self.layerlist:
-            new_layer = FileGDBLayer(name, parent=self)
-            self.layerlist.append(name)
-            setattr(self.layers, name, new_layer)
-
-    def add_layers(self, names: list):
-        """Add multiple layers"""
-        for name in names:
-            self.add_layer(name)
-
-    def available_layers(self):
-        """Return available layers in file gdb"""
-        return fiona.listlayers(self.base)
-
-    def __repr__(self):
-        repr_str = f"""{self.path.name} @ {self.path}
-exists: {self.exists()}
-type: {type(self)}
-
-functions: {get_functions(self)}
-variables: {get_variables(self)}
-layers (access through .layers): {self.layerlist}"""
-        return repr_str
-
-
-class FileGDBLayer:
-    def __init__(self, name: str, parent: FileGDB):
-        self.name = name
-        self.parent = parent
-
-    def load(self):
-        return gpd.read_file(self.parent.base, layer=self.name)

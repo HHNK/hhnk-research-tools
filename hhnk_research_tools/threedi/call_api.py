@@ -1,7 +1,7 @@
 import time
 
 
-def call_threedi_api(func, max_retries=60, **kwargs):
+def call_threedi_api(func, max_retries: int = 60, **kwargs):
     """Add something to simulation, if apiexcetion is raised sleep on it and try again."""
     from threedi_api_client.openapi import ApiException  # Import here so its not a forced dependency
 
@@ -9,7 +9,7 @@ def call_threedi_api(func, max_retries=60, **kwargs):
         try:
             # check if data is dict
             if "data" in kwargs.keys():
-                if type(kwargs["data"]) != dict:
+                if not isinstance(kwargs["data"], dict):
                     print("OJEE... data is geen dict {func}")
                     break
 

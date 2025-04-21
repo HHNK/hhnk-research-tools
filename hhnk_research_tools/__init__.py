@@ -23,9 +23,13 @@ from hhnk_research_tools.dataframe_functions import (
 from hhnk_research_tools.folder_file_classes.file_class import File
 from hhnk_research_tools.folder_file_classes.folder_file_classes import (
     File,
-    FileGDB,
-    FileGDBLayer,
     Folder,
+)
+from hhnk_research_tools.folder_file_classes.spatial_database_class import (
+    SpatialDatabase,
+    SpatialDatabaseLayer,
+    FileGDB,  # TODO pending deprecation
+    FileGDBLayer,  # TODO pending deprecation
 )
 from hhnk_research_tools.folder_file_classes.sqlite_class import (
     Sqlite,
