@@ -228,7 +228,7 @@ class WSSTimelog:
                 self.log_file = log_dir / f"{now} - {subject}.log"
 
             self.logger = get_logger(self.subject)
-            add_file_handler(logger=self.logger, file_path=self.log_file)
+            add_file_handler(logger=self.logger, filepath=self.log_file)
 
     @property
     def time_since_start(self):

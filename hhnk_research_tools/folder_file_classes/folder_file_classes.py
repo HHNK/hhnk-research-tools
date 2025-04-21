@@ -1,5 +1,6 @@
 # %%
 import warnings
+from pathlib import Path
 from typing import Optional, Union
 
 from hhnk_research_tools import Raster
@@ -80,11 +81,12 @@ class Folder(BasePath):
         Parameters
         ----------
         parents : bool, default is True
-            False -> dont create if parent don't exist.
-            True -> also create parents.
+            False -> dont create if parent don't exist
+            True -> also create parent dirs
         verbose : bool, default is True
-            False
             True -> Print output
+        exist_ok : bool, default is True
+            False -> raises error when folder folder already exists
         """
         if not parents:
             if not self.parent.exists():
@@ -96,28 +98,32 @@ class Folder(BasePath):
 
     def find_ext(self, ext: list):
         """Find files with a certain extension"""
-        if type(ext) == str:
+        if isinstance(ext, str):
             ext = [ext]
         file_list = []
         for e in ext:
             file_list += [i for i in self.path.glob(f"*.{e.replace('.', '')}")]
         return file_list
 
-    def joinpath(self, *args):
+    def joinpath(self, *args) -> Path:
         return self.path.joinpath(*args)
 
-    def full_path(self, name, return_only_file_class=False):
-    def full_path(self, name, return_only_file_class=False):  # -> Union[File, Folder, FileGDB, Raster, Sqlite]:
+    def full_path(
+        self, name, return_only_file_class: bool = False
+    ):  # -> Union[File, Folder, SpatialDatabase, Raster, Sqlite]:
         """
         Return the full path of a file or a folder when only a name is known.
         Will return the object based on suffix
 
-        return_only_file_class (bool): only return file class, can speed up
-            some functions because hrt.Raster initialization takes some time.
+        Parameters
+        ----------
+        return_only_file_class : bool
+            Only return file class, can speed up some functions because hrt.Raster
+            initialization takes some time.
 
         Returns
         -------
-        FileLike
+        Union[File, Folder, SpatialDatabase, Raster, Sqlite]
         """
         name = str(name)
         if name.startswith("\\") or name.startswith("/"):

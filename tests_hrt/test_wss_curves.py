@@ -77,23 +77,23 @@ class TestWSSCurves:
         output = pd.read_csv(EXPECTED_RESULT)
         return output
 
-    def test_integrated_1d_mp(self, schadecurves, output):
+    def test_integrated_1d_mp(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
         schadecurves.run(run_1d=True, multiprocessing=True, processes=4)
         test_output = pd.read_csv(schadecurves.dir.output.result.path)
         pd.testing.assert_frame_equal(output, test_output)
 
-    def test_integrated_1d(self, schadecurves, output):
+    def test_integrated_1d(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
         schadecurves.run(run_1d=True, multiprocessing=False)
         test_output = pd.read_csv(schadecurves.dir.output.result.path)
         pd.testing.assert_frame_equal(output, test_output)
 
-    def test_integrated_2d_mp(self, schadecurves, output):
+    def test_integrated_2d_mp(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
         schadecurves.run(run_2d=True, multiprocessing=True, processes=4, nodamage_filter=True)
 
         test_output = pd.read_csv(schadecurves.dir.output.result.path)
         pd.testing.assert_frame_equal(output, test_output)
 
-    def test_integrated_2d(self, schadecurves, output):
+    def test_integrated_2d(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
         schadecurves.run(run_2d=True, multiprocessing=False, processes=4, nodamage_filter=True)
 
         test_output = pd.read_csv(schadecurves.dir.output.result.path)
@@ -118,7 +118,11 @@ class TestWSSAggregation:
         output = pd.read_csv(EXPECTED_RESULT_AGGREGATE)
         return output
 
-    def test_agg_methods(self, aggregatie, output):
+    def test_agg_methods(
+        self,
+        aggregatie: AreaDamageCurvesAggregation,
+        output: pd.DataFrame,
+    ):
         aggregatie.run()
         test_output = pd.read_csv(aggregatie.dir.post_processing["Wieringermeer"].aggregate.path)
         pd.testing.assert_frame_equal(output, test_output)
