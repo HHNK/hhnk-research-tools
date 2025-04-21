@@ -2,6 +2,7 @@
 import types
 import warnings
 from pathlib import Path
+from typing import Optional
 
 import fiona
 import geopandas as gpd
@@ -183,14 +184,20 @@ class FileGDB(File):
         self.layerlist = []
         self.layers = types.SimpleNamespace()  # empty class
 
-    def load(self, layer=None):
+    def load(self, layer: Optional[str] = None) -> gpd.GeoDataFrame:
+        """Load layer from geodataframe. When no layer provided, use the default / first one."""
+        avail_layers = self.available_layers()
         if layer is None:
-            avail_layers = self.available_layers()
             if len(avail_layers) == 1:
                 layer = avail_layers[0]
             else:
                 layer = input(f"Select layer [{avail_layers}]:")
-        return gpd.read_file(self.path, layer=layer, engine="pyogrio")
+        if layer not in avail_layers:
+            raise ValueError(
+                f"Layer {layer} not available in {self.view_name_with_parents(2)}. Options are: {avail_layers}"
+            )
+        gdf = gpd.read_file(self.path, layer=layer, engine="pyogrio")
+        return gdf
 
     def add_layer(self, name: str):
         """Predefine layers so we can write output to that layer."""
