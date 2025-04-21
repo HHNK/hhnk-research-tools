@@ -3,8 +3,9 @@ from pathlib import Path
 
 
 def read_api_file(file_path):
-    """Reads Lizard and 3Di api-keys from a JSON-file. The JSON-file should contain e.g.:
-    {"lizard: "valid_lizard_key","threedi: "valid_threedi_key"}"""
+    """Read Lizard and 3Di api-keys from a JSON-file. The JSON-file should contain e.g.:
+    {"lizard: "valid_lizard_key","threedi: "valid_threedi_key"}
+    """
     api_keys = {"lizard": "", "threedi": ""}
     file_path = Path(file_path)
     if file_path.exists():

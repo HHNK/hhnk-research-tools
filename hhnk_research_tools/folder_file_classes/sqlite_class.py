@@ -1,7 +1,9 @@
 # %%
 import os
 import sqlite3
+from typing import Optional, Union
 
+import geopandas as gpd
 import pandas as pd
 
 import hhnk_research_tools as hrt
@@ -13,13 +15,13 @@ class Sqlite(File):
     def __init__(self, base):
         super().__init__(base)
 
-    def connect(self):
+    def connect(self) -> Optional[sqlite3.Connection]:
         if self.exists():
             return self.create_sqlite_connection()
         else:
             return None
 
-    def create_sqlite_connection(self):
+    def create_sqlite_connection(self) -> sqlite3.Connection:
         r"""Create connection to database. On windows with conda envs this requires the mod_spatialaite extension
         to be installed explicitly. The location of this extension is stored in
         hhnk_research_tools.variables.MOD_SPATIALITE_PATH (C:\ProgramData\Anaconda3\mod_spatialite-5.0.1-win-amd64)
@@ -39,23 +41,39 @@ class Sqlite(File):
                     conn.enable_load_extension(True)
                     conn.execute("SELECT load_extension('mod_spatialite')")
                     return conn
-                else:
-                    print(
-                        r"""Download mod_spatialite extension from http://www.gaia-gis.it/gaia-sins/windows-bin-amd64/ 
-                    and place into anaconda installation C:\ProgramData\Anaconda3\mod_spatialite-5.0.1-win-amd64."""
-                    )
-                    raise e from None
+            else:
+                print(
+                    r"""Download mod_spatialite extension from http://www.gaia-gis.it/gaia-sins/windows-bin-amd64/ 
+                and place into anaconda installation C:\ProgramData\Anaconda3\mod_spatialite-5.0.1-win-amd64."""
+                )
+                raise e from None
 
         except Exception as e:
             raise e from None
 
-    def read_table(self, table_name: str, id_col: str = None, columns: list = []):
+    def read_table(
+        self,
+        table_name: str,
+        id_col: Optional[str] = None,
+        columns: Optional[list] = None,
+    ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
         """Read table as (geo)dataframe. If there is a geometry column
         then it will load as a gdf in epsg 28992.
         Run .list_tables to get an overview over available (v2) tables
-        table_name: table in sqlite
-        id_col: sets the index of the dataframe to this column
-        columns: filter columns that are returned
+
+        Parameters
+        ----------
+        table_name : str
+            Name of the SQLite table to read.
+        id_col : str, optional
+            Column name to set as index.
+        columns : list[str], optional
+            List of column names to include in the DataFrame.
+
+        Returns
+        -------
+        df : Union[pd.DataFrame, gpd.GeoDataFrame]
+            Loaded table as a (Geo)DataFrame.
         """
         conn = None
         try:
@@ -107,7 +125,7 @@ class Sqlite(File):
             if kill_connection and conn is not None:
                 conn.close()
 
-    def execute_sql_changes(self, query, conn=None):
+    def execute_sql_changes(self, query: str, conn=None):
         """
         Take a query that changes the database and try
         to execute it. On success, changes are committed.

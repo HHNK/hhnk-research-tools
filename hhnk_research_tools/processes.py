@@ -1,10 +1,20 @@
 # -*- coding: utf-8 -*-
 import multiprocessing as mp
+from typing import Union
 
+import geopandas as gpd
+import pandas as pd
 from tqdm import tqdm
 
 
-def multiprocess(df, target_function, processes=mp.cpu_count(), use_pbar=True, stepsize=None, **kwargs):
+def multiprocess(
+    df: Union[pd.DataFrame, gpd.GeoDataFrame],
+    target_function,
+    processes: int = mp.cpu_count(),
+    use_pbar: bool = True,
+    stepsize=None,
+    **kwargs,
+):
     """Input every row of the df in the target function. the target function should always contain (idx,row) as the first two arguments
     subsequent arguments are passed with the kwargs.
     Stepsize splits the dataframe into smaller pieces to prevent the loop from breaking.
@@ -14,11 +24,11 @@ def multiprocess(df, target_function, processes=mp.cpu_count(), use_pbar=True, s
     !!!!!
     """
 
-    if stepsize == None:
+    if stepsize is None:
         stepsize = len(df)
 
     def update_pbar(*a):
-        """show progress of the function"""
+        """Show progress of the function"""
         pbar.update()
 
     def main_multi():
@@ -44,7 +54,7 @@ def multiprocess(df, target_function, processes=mp.cpu_count(), use_pbar=True, s
         return results_local
 
     # Call target function with or without pbar
-    if use_pbar == True:
+    if use_pbar:
         with tqdm(total=len(df), unit="row") as pbar:
             results_local = main_multi()
     else:
