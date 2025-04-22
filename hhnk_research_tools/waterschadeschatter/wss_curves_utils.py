@@ -122,12 +122,12 @@ class Run1D(Folder):
         super().__init__(os.path.join(base, "run_1d"), create)
 
     def add_fdla_dirs(self, depth_steps):
-        """ Add directory fixed drainage level areas"""
+        """Add directory fixed drainage level areas"""
         for i in self.path.glob("*"):
             setattr(self, f"fdla_{i.stem}", FDLADir(self.base, False, i.stem, depth_steps))
 
     def create_fdla_dir(self, name, depth_steps):
-        """ Create fixed drainage level areas"""
+        """Create fixed drainage level areas"""
         setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
 
 
@@ -180,7 +180,8 @@ class PostProcessing(Folder):
 
 
 class FDLADir(Folder):
-    """ Folder/directory for fixed drainage level areas."""
+    """Folder/directory for fixed drainage level areas."""
+
     def __init__(self, base, create, name, depth_steps):
         super().__init__(os.path.join(base, name), create)
 
@@ -238,7 +239,7 @@ class WSSTimelog:
         return datetime.datetime.now() - self.start_time
 
     def close(self):
-        """ Loggers have to be removed in handler"""
+        """Loggers have to be removed in handler"""
         handlers = self.logger.handlers[:]
         for handler in handlers:
             self.logger.removeHandler(handler)
@@ -252,8 +253,8 @@ def write_dict(dictionary, path, overwrite=True):
             json.dump(dictionary, fp)
 
 
-def pad_zeros(a:np.array, shape:tuple):
-    """ paddes an array with zero's to shape"""
+def pad_zeros(a: np.array, shape: tuple):
+    """paddes an array with zero's to shape"""
     z = np.zeros(shape)
     z[: a.shape[0], : a.shape[1]] = a
     return z

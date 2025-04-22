@@ -24,7 +24,6 @@ import hhnk_research_tools.logger as logging
 
 # Local imports
 from hhnk_research_tools.variables import DEFAULT_NODATA_GENERAL
-
 from hhnk_research_tools.waterschadeschatter.wss_curves_figures import (
     BergingsCurveFiguur,
     LandgebruikCurveFiguur,
@@ -44,9 +43,9 @@ logger = logging.get_logger(__name__)
 NAME = "AreaDamageCurves Aggregation"
 
 # Defaults
-DEFAULT_RAIN = 200 #mm
-DEFAULT_BUFFER = 100 #m
-DEFAULT_RESOLUTION = 0.01 #m
+DEFAULT_RAIN = 200  # mm
+DEFAULT_BUFFER = 100  # m
+DEFAULT_RESOLUTION = 0.01  # m
 DEFAULT_ROUND = 2
 DEFAULT_AGG_METHODS = ["lowest_area", "equal_depth", "equal_rain"]
 DEFAULT_PREDICATE = "_within"
@@ -448,6 +447,7 @@ class AreaDamageCurvesAggregation:
                 agg_l = agg_l.add_suffix(" [m2]")
                 agg_l.to_csv(agg_dir.agg_landuse.path)
                 self.create_figures(agg_dir)
+
 
 if __name__ == "__main__":
     import sys
