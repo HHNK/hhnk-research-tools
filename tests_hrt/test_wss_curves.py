@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 
 import hhnk_research_tools as hrt
+import hhnk_research_tools.waterschadeschatter.resources as wss_resources
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas import AreaDamageCurves
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas_post import AreaDamageCurvesAggregation
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import AreaDamageCurveFolders
@@ -31,12 +32,12 @@ AREA_ID = "peil_id"
 VECTOR_FIELD = "name"
 OUTPUT_DIR = TEMP_DIR.joinpath(f"wss_curves_{hrt.current_time(date=True)}")
 CURVE_STEP = 0.5
+
 CURVE_MAX = 2.5
 AREA_START_LEVEL = "streefpeil"
 EXPECTED_RESULT = WSS_DATA / "expected_result.csv"
 EXPECTED_RESULT_AGGREGATE = WSS_DATA / "expected_result_aggregate.csv"
-LANDUSE_CONVERSION_TABLE = TEST_DIRECTORY.parents[1] / "waterschadeschatter" / "resources" / "landuse_conversion_table.csv"
-
+LANDUSE_CONVERSION_TABLE = hrt.get_pkg_resource_path(wss_resources, "landuse_conversion_table.csv")
 # %%
 
 
@@ -65,9 +66,9 @@ class TestWSSCurves:
             curve_max=CURVE_MAX,
             curve_step=CURVE_STEP,
             area_start_level_field=AREA_START_LEVEL,
-            wss_config_file = WSS_CFG_FILE,
-            wss_curves_filter_settings_file=WSS_CURVE_FILTER_SETTINGS_FILE
-        )    
+            wss_config_file=WSS_CFG_FILE,
+            wss_curves_filter_settings_file=WSS_CURVE_FILTER_SETTINGS_FILE,
+        )
 
         return schadecurves
 
