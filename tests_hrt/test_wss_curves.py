@@ -102,7 +102,7 @@ class TestWSSCurves:
 
 class TestWSSAggregation:
     @pytest.fixture(scope="class")
-    @pytest.mark.dependency(name="test_integrated_1d")
+    @pytest.mark.dependency(name="TestWSSCurves")
     def aggregatie(self):
         aggregatie = AreaDamageCurvesAggregation(
             result_path=OUTPUT_DIR,

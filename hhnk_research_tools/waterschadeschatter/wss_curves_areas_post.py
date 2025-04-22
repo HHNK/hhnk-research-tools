@@ -446,7 +446,7 @@ class AreaDamageCurvesAggregation:
                 agg_l.index.name = "Peilstijging [m]"
                 agg_l = agg_l.add_suffix(" [m2]")
                 agg_l.to_csv(agg_dir.agg_landuse.path)
-                self.create_figures(agg_dir)
+                # self.create_figures(agg_dir)
 
 
 if __name__ == "__main__":
