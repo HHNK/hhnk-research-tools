@@ -348,6 +348,7 @@ class Raster(File):
             # Check resolution of input files
             input_resolutions = []
             for r in input_files:
+                # break
                 r = cls(r)
                 input_resolutions.append(r.metadata.pixel_width)
             if len(np.unique(input_resolutions)) > 1:
@@ -448,10 +449,18 @@ class Raster(File):
     def round_nearest(self, x, a):
         return round(round(x / a) * a, -int(math.floor(math.log10(a))))
 
-    def read(self, geometry, bounds=None, crs="EPSG:28992"):
+    def read_geometry(self, geometry: shapely.geometry.Polygon) -> np.array:
+        """
+        Read data within geometry. Outside geometry is set to NaN.
+
+        Parameters
+        ----------
+        geometry : shapely.geometry
+            Geometry in which the data is read.
+
+        """
         resolution = self.metadata.pixel_width
-        if bounds is None:
-            bounds = [self.round_nearest(i, resolution) for i in geometry.bounds]
+        bounds = [self.round_nearest(i, resolution) for i in geometry.bounds]
 
         width = (bounds[2] - bounds[0]) * (1 / resolution)
         height = (bounds[3] - bounds[1]) * (1 / resolution)
@@ -473,9 +482,8 @@ class Raster(File):
         raster = self.open_rio()
         window = raster.window(*bounds)
         data = raster.read(window=window)[0]
-        data[array == 0] = raster.nodata
+        data[array == 0] = raster.nodata  # shape = 1, outside shape = 0
         raster.close()
-        # data[data == raster.nodata] = np.nan
         return data
 
     def polygonize(self, array=None, field_name="field"):

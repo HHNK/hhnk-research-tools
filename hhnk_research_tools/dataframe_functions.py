@@ -22,7 +22,7 @@ from hhnk_research_tools.variables import (
 # Conversion
 def _set_geometry_by_type(df, geom_col_type, col=DEF_GEOMETRY_COL):
     """
-    Converts geometry if necessary, depending on geometry column type
+    Convert geometry if necessary, depending on geometry column type
 
         _set_geometry_by_type(
             df (pandas DataFrame),
@@ -81,7 +81,7 @@ def df_convert_to_gdf(
 
 def df_add_geometry_to_gdf(df, geometry_col, crs=DEF_TRGT_CRS) -> gpd.GeoDataFrame:
     """
-    Creates geopandas GeoDataFrame from pandas DataFrame
+    Create geopandas GeoDataFrame from pandas DataFrame
 
         df_add_geometry_to_gdf(
                 df (pandas DataFrame)
