@@ -6,9 +6,8 @@ Created on Fri Aug 30 14:29:47 2024
 """
 
 # First-party imports
-# import functools
-import pathlib
 from collections import namedtuple
+from pathlib import Path
 from typing import Union
 
 # Third-party imports
@@ -25,20 +24,20 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import WSSTimelog,
 logger = logging.get_logger(__name__)
 
 # Globals
-DMG_NODATA = 0  # let op staat dubbel, ook in wss_main.
-NODATA_UINT16 = 65535
 NAME = "WSS LookupTable"
 
 
 class DummyCaller:
-    def __init__(self, nodata=-9999):
+    """TODO"""
+
+    def __init__(self, nodata):
         self.depth_raster = namedtuple("Raster", "nodata")(nodata)
         self.gamma_inundatiediepte = 0
 
 
 class WaterSchadeSchatterLookUp:
     """
-    Is a lookup table which retrieves from a combinatie of depth and landuse,
+    Is a lookup table which retrieves from a combination of depth and landuse,
 
     bases on a configuration.
 
@@ -51,21 +50,24 @@ class WaterSchadeSchatterLookUp:
         table = wsslookup.output
 
 
-    Params:
-        wss_settings:str, Pad naar een config file van de waterschadeschatter.
-        depth_steps:list, Lijst met peilstijgingen
-        pixel_factor:float, m2 per pixel
-        nodata: int, nodata waarde
-        quiet: bool, Wel of geen console output.
+    Parameters
+    ----------
+    wss_settings : dict
+        Pad naar een config file van de waterschadeschatter. FIXME @ckerklaan1 dit klopt niet.
+    depth_steps : list[float]
+        Lijst met peilstijgingen
+    pixel_factor : float
+        m2 per pixel
+    nodata : Union[int, float]
+        nodata waarde
     """
 
     def __init__(
         self,
-        wss_settings: str,
-        depth_steps=[0.1, 0.2, 0.3],
-        pixel_factor=0.5 * 0.5,
-        nodata=DEFAULT_NODATA_VALUES["float32"],
-        quiet=False,
+        wss_settings: dict,
+        depth_steps: list[float] = [0.1, 0.2, 0.3],
+        pixel_factor: float = 0.5 * 0.5,
+        nodata: Union[int, float] = DEFAULT_NODATA_VALUES["float32"],
     ):
         self.settings = wss_settings
 
@@ -76,13 +78,12 @@ class WaterSchadeSchatterLookUp:
         }
 
         self.pixel_factor = pixel_factor
-        self.caller = DummyCaller(nodata)
+        self.caller = DummyCaller(nodata=nodata)
         self.depth_steps = depth_steps
-        self.time = WSSTimelog(NAME, quiet)
-        self.quiet = quiet
+        self.timelog = WSSTimelog(subject=NAME)
         self.output = {}
 
-    # @functools.cached_property
+    # @cached_property
     # def mapping_arrays(self):
 
     #     data = {}
@@ -124,5 +125,5 @@ class WaterSchadeSchatterLookUp:
 
         logger.info("Ended generating table")
 
-    def write_dict(self, path: Union[str, pathlib.Path]):
+    def write_dict(self, path: Union[str, Path]):
         write_dict(self.output, path)

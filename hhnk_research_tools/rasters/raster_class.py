@@ -2,7 +2,7 @@
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 import geopandas as gpd
 import numpy as np
@@ -41,7 +41,7 @@ class Raster(File):
         self._metadata = None
 
     # DEPRECATED
-    def deprecation_warn(self, txt=""):
+    def deprecation_warn(self, txt: str = "") -> DeprecationWarning:
         return DeprecationWarning(f"Not available since 2024.2{txt}")
 
     @property
@@ -52,7 +52,7 @@ class Raster(File):
     def _array(self):
         raise self.deprecation_warn()
 
-    def _read_array(self, band=None, window=None):
+    def _read_array(self, band=None, window: Optional[list] = None):
         """window=[x0, y0, x1, y1]--oud.
         window=[x0, y0, xsize, ysize]
         x0, y0 is left top corner!!
@@ -112,13 +112,13 @@ class Raster(File):
         return self._profile
 
     @property
-    def metadata(self):
+    def metadata(self) -> RasterMetadataV2:
         if self._metadata is None:
             self._metadata = RasterMetadataV2.from_rio_profile(rio_prof=self.open_rio().profile)
         return self._metadata
 
     @property
-    def nodata(self):
+    def nodata(self) -> float:
         return self.profile["nodata"]
 
     @property
@@ -126,7 +126,7 @@ class Raster(File):
         return self.metadata.shape
 
     @property
-    def pixelarea(self):
+    def pixelarea(self) -> float:
         return self.metadata.pixelarea
 
     def open_gdal_source_read(self):
@@ -190,7 +190,7 @@ class Raster(File):
             mask_and_scale=mask_and_scale,
         )
 
-    def overviews_build(self, factors: list = [10, 50], resampling="average"):
+    def overviews_build(self, factors: list = [10, 50], resampling="average") -> None:
         """Build overviews for faster rendering.
         documentation: https://gdal.org/programs/gdaladdo.html
         """
@@ -216,7 +216,7 @@ class Raster(File):
 
         print(f"Removed overviews: {self.view_name_with_parents(2)}")
 
-    def statistics(self, decimals=6):
+    def statistics(self, decimals=6) -> dict[str, float]:
         raster_src = self.open_rxr()
         return {
             "min": np.round(float(raster_src.min().values), decimals),
@@ -230,9 +230,9 @@ class Raster(File):
         cls,
         raster_out: Union[str, Path],
         result: xr.DataArray,
-        nodata: float = None,
+        nodata: Optional[float] = None,
         dtype: str = "float32",
-        scale_factor: float = None,
+        scale_factor: Optional[float] = None,
         chunksize: int = CHUNKSIZE,  # TODO not sure if chunksize needed here
         crs=28992,
     ):
@@ -451,7 +451,7 @@ class Raster(File):
 
     def read_geometry(self, geometry: shapely.geometry.Polygon) -> np.array:
         """
-        Reads data within geometry.
+        Read data within geometry. Outside geometry is set to NaN.
 
         Parameters
         ----------

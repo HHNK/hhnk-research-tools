@@ -104,7 +104,7 @@ def test_raster_label_stats():
         block_out[block.masks_all] = output_nodata
         return block_out
 
-    label_shape = hrt.FileGDB(TEST_DIRECTORY / r"area_test_labels.gpkg")
+    label_shape = hrt.SpatialDatabase(TEST_DIRECTORY / r"area_test_labels.gpkg")
     label_raster = hrt.Raster(TEST_DIRECTORY / r"area_test_labels.tif")
     lu_raster = hrt.Raster(TEST_DIRECTORY / r"landuse_test.tif")
     stats_json = hrt.File(TEMP_DIR / f"rasterstats_{hrt.get_uuid()}.json")

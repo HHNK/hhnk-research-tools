@@ -15,7 +15,7 @@ def coordinates_to_points(nodes):
 def grid_nodes_to_gdf(results):
     try:
         nodes_gdf_crds = coordinates_to_points(results.nodes)
-        nodes_gdf = gpd.GeoDataFrame(geometry=nodes_gdf_crds, crs=f"EPSG:28992")
+        nodes_gdf = gpd.GeoDataFrame(geometry=nodes_gdf_crds, crs="EPSG:28992")
         return nodes_gdf
     except Exception as e:
         raise e from None
@@ -45,7 +45,8 @@ def line_geometries_to_coords(lines):
 
 def extract_boundary_from_polygon(polygon, df_geo_col):
     """Extract the boundaries from a multipolygon.
-    This way the intersection with the boundaries can be found."""
+    This way the intersection with the boundaries can be found.
+    """
     try:
         lines_gdf = polygon.explode(index_parts=True)
         lines_gdf[df_geo_col] = lines_gdf[df_geo_col].boundary
