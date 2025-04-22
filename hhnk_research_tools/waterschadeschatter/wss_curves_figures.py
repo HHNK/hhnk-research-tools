@@ -90,11 +90,11 @@ class PercentageFiguur(Figuur):
         self.ylim_max = 1
         self.x_ticks_list = np.arange(0.1, MAX_PEILVERHOGING + 0.1, 0.1)
         self.y_ticks_list = np.arange(0, 1.1, 0.1)
-        self.labels = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"]
+        self.ylabels = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"]
 
     def set_x_y_ticks(self) -> None:
-        self.xticks(self.x_ticks)
-        self.yticks(ticks=self.y_ticks_list, labels=self.labels)
+        self.xticks(self.x_ticks_list)
+        self.yticks(ticks=self.y_ticks_list, labels=self.ylabels)
 
     def handles_legend(self, lu_omzetting) -> None:
         nieuwe_klasses = np.array(lu_omzetting["nieuwe_klasse"].unique())
