@@ -7,6 +7,7 @@ import seaborn as sns
 import numpy as np
 import os
 import matplotlib.patches as mpatches
+import pathlib
 
 #Globals
 STANDAARD_FIGUUR = (10, 10)
@@ -63,24 +64,25 @@ class Figuur:
 class BergingsCurveFiguur(Figuur):
     def __init__(self, path):
         super().__init__()
-        self.df = pd.read_csv(path, index_col = 0)
+        self.df_vol_level = pd.read_csv(path, index_col = 0)
         
         self.xlabel_dsc = "Waterstand (m+NAP)"
         self.ylabel_dsc = "Volume (m3)"
         
     def run(self, output_dir, dpi=DPI):
-        for col in self.df.columns:
-            valid_data = self.df[col].dropna()
+        for col in self.df_vol_level.columns:
+            valid_data = self.df_vol_level[col].dropna()
             self.create()
-            self.x_y_label()
+            self.set_x_y_label()
             self.plot(valid_data)
             self.title(f"bergingscurve voor {col}")
             plotpng = os.path.join(output_dir, f'bergingscurve_{col}.png')
             self.write(plotpng, dpi=dpi)
 
 class PercentageFiguur(Figuur):
-    def __init__(self):
+    def __init__(self, path):
         super().__init__(figsize = LANDGEBRUIK_FIGUUR)
+        self.df_lu_opp_schade = pd.read_csv(path, index_col = 0)
         
         self.xlabel_dsc = "Peilverhoging boven streefpeil (m)"
         self.ylabel_dsc = "Percentage t.o.v. totaal"
@@ -93,7 +95,7 @@ class PercentageFiguur(Figuur):
         self.labels =  ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"]
 
     def set_x_y_ticks(self):
-        self.xticks(self.x_ticks) 
+        self.xticks(self.x_ticks_list) 
         self.yticks(ticks = self.y_ticks_list, labels = self.labels)
 
     def handles_legend(self, lu_omzetting):
@@ -113,7 +115,7 @@ class PercentageFiguur(Figuur):
             self.color_dict[str(nieuwe_klasses[i])] = colors[i]
 
     def lu_verdeling_peilgebied(self, id):
-        self.df_peilgebied = self.df.loc[self.df['fid'] == id].dropna(axis=1)
+        self.df_peilgebied = self.df_lu_opp_schade.loc[self.df_lu_opp_schade['fid'] == id].dropna(axis=1)
         self.df_peilgebied = self.df_peilgebied.drop('fid', axis=1)
         self.df_peilgebied_perc = self.df_peilgebied.divide(self.df_peilgebied.sum(axis=1), axis=0)
         self.df_peilgebied_perc.columns = [str(int(x)) for x in self.df_peilgebied_perc]
@@ -125,33 +127,32 @@ class PercentageFiguur(Figuur):
             self.lu_ids.append(col)
     
     def sum_damages(self):
-        self.df_sum_damages = self.df.copy()
+        self.df_sum_damages = self.df_lu_opp_schade.copy()
         self.df_sum_damages['totaal'] = self.df_sum_damages.drop('fid', axis=1).sum(axis=1)
 
     def plot_schadecurve_totaal(self, id):
         self.ax2 = self.ax.twinx()
-        self.ax2.plot(self.df_sum_damages.index.where(self.df['fid'] == id).dropna(), self.df_sum_damages['totaal'].where(self.df_sum_damages['fid'] == id).dropna(), color='black', linewidth=2)
+        self.ax2.plot(self.df_sum_damages.index.where(self.df_lu_opp_schade['fid'] == id).dropna(), self.df_sum_damages['totaal'].where(self.df_sum_damages['fid'] == id).dropna(), color='black', linewidth=2)
         self.ax2.set_ylabel("Schadebedrag (Euro's)")
         self.ax2.set_ylim(bottom=0)
     
     def combine_classes(self, lu_omzetting, output_path):
         nieuwe_klasses = np.array(lu_omzetting['nieuwe_klasse'].unique())
-        samenvoeging_klasses = {'fid' : self.df['fid']} # waar komt self.df vandaan? En misschien een iets duidelijkere naam geven hiervoor.
+        samenvoeging_klasses = {'fid' : self.df_lu_opp_schade['fid']} # waar komt self.df vandaan? En misschien een iets duidelijkere naam geven hiervoor.
         for klasse in nieuwe_klasses:
             oude_lu_per_nieuwe_klasse = lu_omzetting.where(lu_omzetting['nieuwe_klasse'] == klasse)['LU_class'].dropna().values.tolist()
             oude_lu_per_nieuwe_klasse = [str(int(x)) for x in oude_lu_per_nieuwe_klasse]
-            samenvoeging_klasses[klasse] = self.df.filter(items = oude_lu_per_nieuwe_klasse).sum(axis=1)
+            samenvoeging_klasses[klasse] = self.df_lu_opp_schade.filter(items = oude_lu_per_nieuwe_klasse).sum(axis=1)
         self.df_combined_classes = pd.DataFrame(data = samenvoeging_klasses)
         self.df_combined_classes.to_csv(output_path, sep=',')
-        self.df = self.df_combined_classes.copy()
+        self.df_lu_opp_schade = self.df_combined_classes.copy()
 
 class LandgebruikCurveFiguur(PercentageFiguur):
     def __init__(self, path):
-        super().__init__()
-        self.df = pd.read_csv(path, index_col = 0)
+        super().__init__(path)
     
     def run(self, lu_omzetting, output_dir, schadecurve_totaal = False, dpi=DPI):
-        ids = np.array(self.df['fid'].unique())
+        ids = np.array(self.df_lu_opp_schade['fid'].unique())
         for id in ids:
             self.lu_verdeling_peilgebied(id)
             self.create()
@@ -172,11 +173,10 @@ class LandgebruikCurveFiguur(PercentageFiguur):
 
 class DamagesLuCurveFiguur(PercentageFiguur):
     def __init__(self, path):
-        super().__init__()
-        self.df = pd.read_csv(path, index_col = 0)
+        super().__init__(path)
 
     def run(self, lu_omzetting, output_dir, schadecurve_totaal = False, dpi=DPI):
-        ids = np.array(self.df['fid'].unique())
+        ids = np.array(self.df_lu_opp_schade['fid'].unique())
         for id in ids:
             self.lu_verdeling_peilgebied(id)
 
@@ -186,40 +186,41 @@ class DamagesLuCurveFiguur(PercentageFiguur):
             if schadecurve_totaal:
                 self.sum_damages()
                 self.plot_schadecurve_totaal(id)
-            self.x_y_label()
-            self.x_y_lim()
-            self.x_y_ticks()
+            self.set_x_y_label()
+            self.set_x_y_lim()
+            self.set_x_y_ticks()
             self.title(f"schadeverdeling voor {id}")
     
-            self.ax.legend(handles = self.handels, labels = self.labels, bbox_to_anchor=(0.05, -0.05),loc="upper left", ncols=8)
+            self.ax.legend(handles = self.handels, labels = self.labels, bbox_to_anchor=(0.05, -0.05), loc="upper left", ncols=8)
 
-            plotpng = os.path.join(output_dir, f'schadecurve_{id}.png')
+            plotpng = pathlib.Path(output_dir) / f'schadecurve_{id}.png'
+            os.path.join(output_dir, f'schadecurve_{id}.png')
             self.write(plotpng, dpi=dpi) 
 
 
 #%% figuur voor bergingscurve
-def bergingscurve(input, output_directory):
-    os.mkdir(output_directory+"/Bergingscurve")
-    output_dir = output_directory + "/Bergingscurve"
-    for col in input.columns:
-        valid = input[col].dropna()
-        # Prettier plotting with seaborn
-        sns.set(font_scale=1.5)
-        sns.set_style("whitegrid")
+# def bergingscurve(input, output_directory):
+#     os.mkdir(output_directory+"/Bergingscurve")
+#     output_dir = output_directory + "/Bergingscurve"
+#     for col in input.columns:
+#         valid = input[col].dropna()
+#         # Prettier plotting with seaborn
+#         sns.set(font_scale=1.5)
+#         sns.set_style("whitegrid")
         
-        # Format histograms
-        plt.rcParams['figure.figsize'] = (8, 8)
+#         # Format histograms
+#         plt.rcParams['figure.figsize'] = (8, 8)
          
-        fig, ax = plt.subplots(figsize=(10,10))
-        ax = sns.lineplot(valid)
-        ax.set(xlabel = 'Waterstand (m+NAP)', 
-            ylabel = 'Volume (m3)',
-            title = f'bergingscurve voor {col}',
-            )
+#         fig, ax = plt.subplots(figsize=(10,10))
+#         ax = sns.lineplot(valid)
+#         ax.set(xlabel = 'Waterstand (m+NAP)', 
+#             ylabel = 'Volume (m3)',
+#             title = f'bergingscurve voor {col}',
+#             )
         
-        plotpng = os.path.join(output_dir, f'bergingscurve_{col}.png')
-        plt.savefig(plotpng, dpi = 300)
-        plt.close()
+#         plotpng = os.path.join(output_dir, f'bergingscurve_{col}.png')
+#         plt.savefig(plotpng, dpi = 300)
+#         plt.close()
 
 
 
