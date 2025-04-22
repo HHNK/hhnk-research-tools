@@ -84,3 +84,5 @@ DEFAULT_NODATA_VALUES = {
     "bool": False,
 }  # TODO the gdal datatypes to numpy name conversion is found here; rasterio.dtypes.dtype_fwd
 GDAL_DTYPES = rio.dtypes.dtype_fwd  # dict with keys=gdal int, value=str dtype
+
+DEFAULT_NODATA_GENERAL = -9999

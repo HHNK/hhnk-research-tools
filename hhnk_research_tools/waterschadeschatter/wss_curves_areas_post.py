@@ -1,13 +1,8 @@
-# %%
 # -*- coding: utf-8 -*-
 """
 Created on Thu Oct 10 15:27:18 2024
 
 @author: kerklaac5395
-
-TODO:
-    4. Log bestand netjes maken
-
 """
 
 # First-party imports
@@ -28,6 +23,8 @@ from tqdm import tqdm
 import hhnk_research_tools.logger as logging
 
 # Local imports
+from hhnk_research_tools.variables import DEFAULT_NODATA_GENERAL
+
 from hhnk_research_tools.waterschadeschatter.wss_curves_figures import (
     BergingsCurveFiguur,
     LandgebruikCurveFiguur,
@@ -47,10 +44,9 @@ logger = logging.get_logger(__name__)
 NAME = "AreaDamageCurves Aggregation"
 
 # Defaults
-DEFAULT_RAIN = 200  # TODO @Ckerklaan1 units
-DEFAULT_BUFFER = 100  # TODO @Ckerklaan1 units
-DEFAULT_NODATA = -9999
-DEFAULT_RESOLUTION = 0.01  # TODO @Ckerklaan1 units
+DEFAULT_RAIN = 200 #mm
+DEFAULT_BUFFER = 100 #m
+DEFAULT_RESOLUTION = 0.01 #m
 DEFAULT_ROUND = 2
 DEFAULT_AGG_METHODS = ["lowest_area", "equal_depth", "equal_rain"]
 DEFAULT_PREDICATE = "_within"
@@ -196,7 +192,7 @@ class AreaDamageCurvesAggregation:
         for idx, drainage_area in d_sorted.iterrows():
             curve = curves[drainage_area[ID_FIELD]]
             if pd.isna(curve).all():
-                curve = curve.fillna(DEFAULT_NODATA)
+                curve = curve.fillna(DEFAULT_NODATA_GENERAL)
             curve = curve.astype(int)
             interpolated_curve = self._curve_linear_interpolate(curve=curve, resolution=resolution)
             level = self._curve_depth_to_level(curve=interpolated_curve, drainage_area=drainage_area)
@@ -451,10 +447,8 @@ class AreaDamageCurvesAggregation:
                 agg_l.index.name = "Peilstijging [m]"
                 agg_l = agg_l.add_suffix(" [m2]")
                 agg_l.to_csv(agg_dir.agg_landuse.path)
-                # self.create_figures(agg_dir) #FIXME dit werkt nog niet. -> KeyError: 'fid'
+                self.create_figures(agg_dir)
 
-
-# %%
 if __name__ == "__main__":
     import sys
 

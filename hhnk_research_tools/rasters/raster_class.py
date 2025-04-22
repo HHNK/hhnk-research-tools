@@ -482,7 +482,7 @@ class Raster(File):
         raster = self.open_rio()
         window = raster.window(*bounds)
         data = raster.read(window=window)[0]
-        data[array == 0] = raster.nodata
+        data[array == 0] = raster.nodata # shape = 1, outside shape = 0 
         raster.close()
         return data
 

@@ -35,7 +35,7 @@ CURVE_MAX = 2.5
 AREA_START_LEVEL = "streefpeil"
 EXPECTED_RESULT = WSS_DATA / "expected_result.csv"
 EXPECTED_RESULT_AGGREGATE = WSS_DATA / "expected_result_aggregate.csv"
-LANDUSE_CONVERSION_TABLE = WSS_DATA / "landuse_conversion_table.csv"
+LANDUSE_CONVERSION_TABLE = TEST_DIRECTORY.parents[1] / "waterschadeschatter" / "resources" / "landuse_conversion_table.csv"
 
 # %%
 
@@ -65,10 +65,9 @@ class TestWSSCurves:
             curve_max=CURVE_MAX,
             curve_step=CURVE_STEP,
             area_start_level_field=AREA_START_LEVEL,
-        )
-
-        schadecurves.wss_config_file = WSS_CFG_FILE
-        schadecurves.wss_curves_filter_settings_file = WSS_CURVE_FILTER_SETTINGS_FILE
+            wss_config_file = WSS_CFG_FILE,
+            wss_curves_filter_settings_file=WSS_CURVE_FILTER_SETTINGS_FILE
+        )    
 
         return schadecurves
 

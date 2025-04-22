@@ -60,8 +60,9 @@ class Folder(BasePath):
     def __getitem__(self, attribute):
         return getattr(self, attribute)
 
-    # def __setattr__(self, name, value):
-    #     return setattr(self, name, value)
+    #Gives an recursion error
+    #def __setattr__(self, name, value):
+    #    return setattr(self, name, value)
 
     def create(self, parents=False, verbose=False):
         """Create folder, if parents==False path wont be
