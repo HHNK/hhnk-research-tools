@@ -232,6 +232,16 @@ class AreaDamageCurvesAggregation:
 
         return self.agg_lu
 
+    def agg_landuse_dmg(self) -> dict[str, pd.Series]:
+        """Sum land use areas data within the given areas."""
+        self.agg_lu = {}
+        for idx, feature, areas_within in self:
+            lu_data = self.lu_area_data[self.lu_area_data.fid.isin(areas_within[ID_FIELD])]
+            lu_areas_summed = lu_data.groupby(lu_data.index).sum()
+            self.agg_lu[feature[self.field]] = lu_areas_summed
+
+        return self.agg_lu
+
     def aggregate_rain_curve(self, method="lowest_area", mm_rain=DEFAULT_RAIN) -> dict[str, pd.Series]:
         """Different for distribution of rain in the drainage area"""
 
