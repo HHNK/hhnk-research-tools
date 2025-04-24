@@ -81,6 +81,9 @@ class AreaDamageCurvesAggregation:
         if self.dir.output.result_lu_areas.exists():
             self.lu_area_data = pd.read_csv(self.dir.output.result_lu_areas.path, index_col=0)
 
+        if self.dir.output.result_lu_damage.exists():
+            self.lu_dmg_data = pd.read_csv(self.dir.output.result_lu_damage.path, index_col=0)
+            
         self.drainage_areas = self.dir.input.area.load()
 
         if self.aggregate_vector_path:
@@ -233,10 +236,10 @@ class AreaDamageCurvesAggregation:
         return self.agg_lu
 
     def agg_landuse_dmg(self) -> dict[str, pd.Series]:
-        """Sum land use areas data within the given areas."""
+        """Sum land use damage data within the given areas."""
         self.agg_lu = {}
         for idx, feature, areas_within in self:
-            lu_data = self.lu_area_data[self.lu_area_data.fid.isin(areas_within[ID_FIELD])]
+            lu_data = self.lu_dmg_data[self.lu_dmg_data.fid.isin(areas_within[ID_FIELD])]
             lu_areas_summed = lu_data.groupby(lu_data.index).sum()
             self.agg_lu[feature[self.field]] = lu_areas_summed
 
@@ -428,6 +431,7 @@ class AreaDamageCurvesAggregation:
             agg_damage = self.agg_damage()
             agg_volume = self.agg_volume()
             agg_landuse = self.agg_landuse()
+            agg_landuse_dmg = self.agg_landuse_dmg()
 
             for _, feature, _ in self:
                 name = feature[self.field]
@@ -456,7 +460,13 @@ class AreaDamageCurvesAggregation:
                 agg_l.index.name = "Peilstijging [m]"
                 agg_l = agg_l.add_suffix(" [m2]")
                 agg_l.to_csv(agg_dir.agg_landuse.path)
-                # self.create_figures(agg_dir)
+
+                agg_ld = agg_landuse_dmg[name]
+                agg_ld.index.name = "Peilstijging [m]"
+                agg_ld = agg_ld.add_suffix(" [euro]")
+                agg_ld.to_csv(agg_dir.agg_landuse_dmg.path)
+
+                self.create_figures(agg_dir)
 
 
 if __name__ == "__main__":

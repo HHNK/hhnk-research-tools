@@ -203,7 +203,8 @@ class AggregateDir(Folder):
         super().__init__(os.path.join(base, name), create)
 
         self.add_file("agg_damage", "agg_damage.csv")
-        self.add_file("agg_landuse", "agg_landuse.csv")
+        self.add_file("agg_landuse", "agg_landuse_area.csv")
+        self.add_file("agg_landuse_dmg", "agg_landuse_damage.csv")
         self.add_file("agg_volume", "agg_volume.csv")
         self.add_file("aggregate", "aggregate.csv")
         self.add_file("selection", "selection.gpkg")
