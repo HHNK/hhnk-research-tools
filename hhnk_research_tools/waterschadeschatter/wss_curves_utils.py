@@ -168,6 +168,7 @@ class PostProcessing(Folder):
         self.add_file("damage_level_curve", "damage_level_curve.csv")
         self.add_file("vol_level_curve", "vol_level_curve.csv")
         self.add_file("damage_per_m3", "damage_per_m3.csv")
+        self.add_file("damage_level_per_ha", "damage_level_per_ha.csv")
 
     def add_aggregate_dirs(self):
         for i in self.path.glob("*"):

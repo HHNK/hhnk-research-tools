@@ -139,6 +139,16 @@ class AreaDamageCurvesAggregation:
     @cached_property
     def vol_level_curve(self) -> pd.DataFrame:
         return self._curves_to_level(curves=self.vol_curve)
+    
+    @cached_property
+    def damage_level_per_ha(self) -> pd.DataFrame:
+        damage_per_ha = {}
+        for idx, area in self.drainage_areas.iterrows():
+            level_data = self.damage_level_curve[area[ID_FIELD]]
+            level_damage_m2 = level_data / area.geometry.area # eur/m2
+            level_damage_ha = level_damage_m2 / 10000 # eur/ha
+            damage_per_ha[area[ID_FIELD]] = level_damage_ha
+        return pd.DataFrame(damage_per_ha)
 
     @cached_property
     def damage_per_m3(self) -> pd.DataFrame:
@@ -154,7 +164,7 @@ class AreaDamageCurvesAggregation:
             damage_per_m3.loc[0.1] = 0
             data[area[ID_FIELD]] = damage_per_m3
         return pd.DataFrame(data)
-
+    
     @property
     def selection(self) -> dict[str, pd.Series]:
         selection = {}
@@ -426,7 +436,9 @@ class AreaDamageCurvesAggregation:
         self.vol_interpolated_curve.to_csv(self.dir.post_processing.volume_interpolated_curve.path)
         self.damage_level_curve.to_csv(self.dir.post_processing.damage_level_curve.path)
         self.vol_level_curve.to_csv(self.dir.post_processing.vol_level_curve.path)
+
         self.damage_per_m3.to_csv(self.dir.post_processing.damage_per_m3.path)
+        self.damage_level_per_ha.to_csv(self.dir.post_processing.damage_level_per_ha.path)
 
         if aggregation:
             aggregations = self.agg_run(mm_rain)
