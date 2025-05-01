@@ -61,28 +61,45 @@ class Figuur:
         
     
 class BergingsCurveFiguur(Figuur):
-    def __init__(self, path):
+    def __init__(self, path, feature):
         super().__init__()
         self.df_vol_level = pd.read_csv(path, index_col = 0)
         
         self.xlabel_dsc = "Waterstand (m+NAP)"
         self.ylabel_dsc = "Volume (m3)"
-        
-    def run(self, output_dir, dpi=DPI):
+        self.ylabel_mm = "Berging (mm)"
+        self.feature = feature
+    
+    def volume2mm(self, y):
+        area = self.feature.geometry.area
+        return y/area*1000
+
+    def convert_V_to_mm(self, ax):
+        y1, y2 = self.ax.get_ylim()
+        self.ax_mm.set_ylim(self.volume2mm(y1), self.volume2mm(y2))
+        self.ax_mm.figure.canvas.draw()
+
+    def run(self, output_dir, name, dpi=DPI):
         for col in self.df_vol_level.columns:
             valid_data = self.df_vol_level[col].dropna()
             self.create()
-            self.set_x_y_label()
+            self.ax_mm = self.ax.twinx()
+            self.ax.callbacks.connect("ylim_changed", self.convert_V_to_mm)
+            
             self.plot(valid_data)
-            self.title(f"bergingscurve voor {col}")
-            plotpng = os.path.join(output_dir, f'bergingscurve_{col}.png')
+            self.set_x_y_label()
+            self.ax_mm.set_ylabel(self.ylabel_mm)
+            self.title(f"bergingscurve voor {name}")
+            plotpng = output_dir.path / f'bergingscurve_{name}.png'
             self.write(plotpng, dpi=dpi)
 
 class PercentageFiguur(Figuur):
-    def __init__(self, path):
+    def __init__(self, path, agg_dir):
         super().__init__(figsize = LANDGEBRUIK_FIGUUR)
         self.df_lu_opp_schade = pd.read_csv(path, index_col = 0)
         self.df_lu_opp_schade.columns = pd.Series(self.df_lu_opp_schade.columns).str.split(" ").str[0]
+        self.df_sum_damages = pd.read_csv(agg_dir.agg_damage.path, index_col=0)
+        self.agg_dir = agg_dir
 
         self.xlabel_dsc = "Peilverhoging boven streefpeil (m)"
         self.ylabel_dsc = "Percentage t.o.v. totaal"
@@ -126,13 +143,15 @@ class PercentageFiguur(Figuur):
             self.lu.append(self.df_peilgebied_perc[col])
             self.lu_ids.append(col)
     
-    def sum_damages(self):
-        self.df_sum_damages = self.df_lu_opp_schade.copy()
-        self.df_sum_damages['totaal'] = self.df_sum_damages.drop('fid', axis=1).sum(axis=1)
+    # def sum_damages(self):
+    #     self.df_sum_damages = self.df_lu_opp_schade.copy()
+    #     self.df_sum_damages['totaal'] = self.df_sum_damages.drop('fid', axis=1).sum(axis=1)
+
+    # .index.where(self.df_lu_opp_schade['fid'] == id).dropna(), self.df_sum_damages['totaal'].where(self.df_sum_damages['fid'] == id).dropna()
 
     def plot_schadecurve_totaal(self, id):
         self.ax2 = self.ax.twinx()
-        self.ax2.plot(self.df_sum_damages.index.where(self.df_lu_opp_schade['fid'] == id).dropna(), self.df_sum_damages['totaal'].where(self.df_sum_damages['fid'] == id).dropna(), color='black', linewidth=2)
+        self.ax2.plot(self.df_sum_damages, color='black', linewidth=2)
         self.ax2.set_ylabel("Schadebedrag (Euro's)")
         self.ax2.set_ylim(bottom=0)
     
@@ -148,10 +167,10 @@ class PercentageFiguur(Figuur):
         self.df_lu_opp_schade = self.df_combined_classes.copy()
 
 class LandgebruikCurveFiguur(PercentageFiguur):
-    def __init__(self, path):
-        super().__init__(path)
+    def __init__(self, path, agg_dir):
+        super().__init__(path, agg_dir)
     
-    def run(self, lu_omzetting, output_dir, schadecurve_totaal = False, dpi=DPI):
+    def run(self, lu_omzetting, name, schadecurve_totaal = False, dpi=DPI):
         ids = np.array(self.df_lu_opp_schade['fid'].unique())
         for id in ids:
             self.lu_verdeling_peilgebied(id)
@@ -159,23 +178,23 @@ class LandgebruikCurveFiguur(PercentageFiguur):
             self.handles_legend(lu_omzetting)
             self.ax.stackplot(self.df_peilgebied_perc.index, self.lu, colors = [self.color_dict.get(x, 'black') for x in self.df_peilgebied_perc.columns])
             if schadecurve_totaal:
-                self.sum_damages()
+                # self.sum_damages()
                 self.plot_schadecurve_totaal(id)
             self.set_x_y_label()
             self.set_x_y_lim()
             self.set_x_y_ticks()
-            self.title(f"landgebruikverdeling voor {id}")
+            self.title(f"landgebruikverdeling voor {name}")
     
             self.ax.legend(handles = self.handels, labels = self.labels, bbox_to_anchor=(0.05, -0.05),loc="upper left", ncols=8)
 
-            plotpng = os.path.join(output_dir, f'landgebruikcurve_{id}.png')
+            plotpng = self.agg_dir.path / f'landgebruikcurve_{name}.png'
             self.write(plotpng, dpi=dpi) 
 
 class DamagesLuCurveFiguur(PercentageFiguur):
-    def __init__(self, path):
-        super().__init__(path)
+    def __init__(self, path, agg_dir):
+        super().__init__(path, agg_dir)
 
-    def run(self, lu_omzetting, output_dir, schadecurve_totaal = False, dpi=DPI):
+    def run(self, lu_omzetting, name, schadecurve_totaal = False, dpi=DPI):
         ids = np.array(self.df_lu_opp_schade['fid'].unique())
         for id in ids:
             self.lu_verdeling_peilgebied(id)
@@ -184,15 +203,21 @@ class DamagesLuCurveFiguur(PercentageFiguur):
             self.handles_legend(lu_omzetting)
             self.ax.stackplot(self.df_peilgebied_perc.index, self.lu, colors = [self.color_dict.get(x, 'gray') for x in self.df_peilgebied_perc.columns])
             if schadecurve_totaal:
-                self.sum_damages()
+                # self.sum_damages()
                 self.plot_schadecurve_totaal(id)
             self.set_x_y_label()
             self.set_x_y_lim()
             self.set_x_y_ticks()
-            self.title(f"schadeverdeling voor {id}")
+            self.title(f"schadeverdeling voor {name}")
     
             self.ax.legend(handles = self.handels, labels = self.labels, bbox_to_anchor=(0.05, -0.05), loc="upper left", ncols=8)
 
-            plotpng = pathlib.Path(output_dir) / f'schadecurve_{id}.png'
-            os.path.join(output_dir, f'schadecurve_{id}.png')
+            plotpng = self.agg_dir.path / f'schadecurve_{name}.png'
             self.write(plotpng, dpi=dpi) 
+
+if __name__ == "__main__":
+    lu_conversion_table = pd.read_csv(r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\Project\05 Project execution\Omzettingstabel_landgebruik.csv")
+    # damages = DamagesLuCurveFiguur(agg_dir.agg_landuse_damages.path)
+    # damages.combine_classes(lu_conversion_table, agg_dir.path/"result_lu_damages_classes.csv")
+    # (agg_dir.path/"schade_percentagescurve").mkdir(exist_ok = True)
+    # damages.run(self.lu_conversion_table, agg_dir.path/"schade_percentagescurve")

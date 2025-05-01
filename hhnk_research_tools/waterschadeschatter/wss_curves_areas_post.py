@@ -27,7 +27,7 @@ from hhnk_research_tools.variables import DEFAULT_NODATA_GENERAL
 from hhnk_research_tools.waterschadeschatter.wss_curves_figures import (
     BergingsCurveFiguur,
     LandgebruikCurveFiguur,
-    # DamagesLuCurveFiguur,
+    DamagesLuCurveFiguur,
 )
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     DRAINAGE_LEVEL_FIELD,
@@ -366,7 +366,7 @@ class AreaDamageCurvesAggregation:
         agg_series = pd.Series(aggregate_curve, name="damage_own_area_retention")
         return agg_series
 
-    def create_figures(self, agg_dir) -> None:
+    def create_figures(self, agg_dir, name, feature) -> None:
         """
 
         Parameters
@@ -375,27 +375,33 @@ class AreaDamageCurvesAggregation:
             Aggregate directory from AggregateDir in AreaDamageCurveFolders
         """
 
-        bc = BergingsCurveFiguur(path=agg_dir.agg_volume.path)
-        agg_dir.joinpath("bergingscurve").mkdir(exist_ok=True)
-        bc.run(agg_dir.joinpath("bergingscurve"))
+        bc = BergingsCurveFiguur(path=agg_dir.agg_volume.path, feature=feature)
+        # agg_dir.joinpath("bergingscurve").mkdir(exist_ok=True)
+        bc.run(output_dir=agg_dir, name=name)
 
-        lu_curve = LandgebruikCurveFiguur(agg_dir.agg_landuse.path)
+        lu_curve = LandgebruikCurveFiguur(agg_dir.agg_landuse.path, agg_dir)
         lu_curve.combine_classes(
             lu_omzetting=self.lu_conversion_table,
             output_path=agg_dir.joinpath("result_lu_areas_classes.csv"),
         )
-
-        agg_dir.joinpath("landgebruikscurve").mkdir(exist_ok=True)
+        #agg_dir.joinpath("landgebruikscurve").mkdir(exist_ok=True)
         lu_curve.run(
             lu_omzetting=self.lu_conversion_table,
-            output_dir=agg_dir.joinpath("landgebruikscurve"),
+            name=name,
             schadecurve_totaal=True,
         )
 
-        # damages = DamagesLuCurveFiguur(agg_dir.agg_landuse_damages.path)
-        # damages.combine_classes(self.lu_conversion_table, agg_dir.path/"result_lu_damages_classes.csv")
+        damages = DamagesLuCurveFiguur(agg_dir.agg_landuse_dmg.path, agg_dir)
+        damages.combine_classes(
+            lu_omzetting=self.lu_conversion_table, 
+            output_path=agg_dir.path/"result_lu_damages_classes.csv",
+            )
         # (agg_dir.path/"schade_percentagescurve").mkdir(exist_ok = True)
-        # damages.run(self.lu_conversion_table, agg_dir.path/"schade_percentagescurve")
+        damages.run(
+            lu_omzetting=self.lu_conversion_table, 
+            name=name,
+            schadecurve_totaal=True
+            )
 
     def agg_run(self, mm_rain=DEFAULT_RAIN) -> dict:
         """Create a dataframe in which methods can be compared"""
@@ -466,7 +472,7 @@ class AreaDamageCurvesAggregation:
                 agg_ld = agg_ld.add_suffix(" [euro]")
                 agg_ld.to_csv(agg_dir.agg_landuse_dmg.path)
 
-                self.create_figures(agg_dir)
+                self.create_figures(agg_dir, name, feature)
 
 
 if __name__ == "__main__":
