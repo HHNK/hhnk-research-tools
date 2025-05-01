@@ -77,16 +77,8 @@ class TestWSSCurves:
         output = pd.read_csv(EXPECTED_RESULT)
         return output
 
-    def test_integrated_1d_mp(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
-        schadecurves.run(run_1d=True, multiprocessing=True, processes=4)
-        test_output = pd.read_csv(schadecurves.dir.output.result.path)
-        pd.testing.assert_frame_equal(output, test_output)
-
-    def test_integrated_1d(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
-        schadecurves.run(run_1d=True, multiprocessing=False)
-        test_output = pd.read_csv(schadecurves.dir.output.result.path)
-        pd.testing.assert_frame_equal(output, test_output)
-
+    # Note: 2D wordt eerst getest omdat result_lu_damage.csv wordt overschreven en
+    # zodoende niet goed getest wordt in de validatie.
     def test_integrated_2d_mp(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
         schadecurves.run(run_2d=True, multiprocessing=True, processes=4, nodamage_filter=True)
 
@@ -96,6 +88,16 @@ class TestWSSCurves:
     def test_integrated_2d(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
         schadecurves.run(run_2d=True, multiprocessing=False, processes=4, nodamage_filter=True)
 
+        test_output = pd.read_csv(schadecurves.dir.output.result.path)
+        pd.testing.assert_frame_equal(output, test_output)
+
+    def test_integrated_1d_mp(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
+        schadecurves.run(run_1d=True, multiprocessing=True, processes=4)
+        test_output = pd.read_csv(schadecurves.dir.output.result.path)
+        pd.testing.assert_frame_equal(output, test_output)
+
+    def test_integrated_1d(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
+        schadecurves.run(run_1d=True, multiprocessing=False)
         test_output = pd.read_csv(schadecurves.dir.output.result.path)
         pd.testing.assert_frame_equal(output, test_output)
 
@@ -127,10 +129,16 @@ class TestWSSAggregation:
         test_output = pd.read_csv(aggregatie.dir.post_processing["Wieringermeer"].aggregate.path)
         pd.testing.assert_frame_equal(output, test_output)
 
-        path_landgebruikcurve = aggregatie.dir.post_processing["Wieringermeer"].path/"landgebruikcurve.png"
-        path_bergingscurve = aggregatie.dir.post_processing["Wieringermeer"].path/"bergingscurve_Wieringermeer [m3].png"
+        path_landgebruikcurve = (
+            aggregatie.dir.post_processing["Wieringermeer"].path / "landgebruikcurve_Wieringermeer.png"
+        )
+        path_bergingscurve = aggregatie.dir.post_processing["Wieringermeer"].path / "bergingscurve_Wieringermeer.png"
+        path_schadecurve = aggregatie.dir.post_processing["Wieringermeer"].path / "schadecurve_Wieringermeer.png"
+
         assert path_landgebruikcurve.exists()
         assert path_bergingscurve.exists()
+        assert path_schadecurve.exists()
+
 
 # %%
 if __name__ == "__main__":

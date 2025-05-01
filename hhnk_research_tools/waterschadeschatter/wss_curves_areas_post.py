@@ -26,8 +26,8 @@ import hhnk_research_tools.logger as logging
 from hhnk_research_tools.variables import DEFAULT_NODATA_GENERAL
 from hhnk_research_tools.waterschadeschatter.wss_curves_figures import (
     BergingsCurveFiguur,
-    LandgebruikCurveFiguur,
     DamagesLuCurveFiguur,
+    LandgebruikCurveFiguur,
 )
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     DRAINAGE_LEVEL_FIELD,
@@ -83,7 +83,7 @@ class AreaDamageCurvesAggregation:
 
         if self.dir.output.result_lu_damage.exists():
             self.lu_dmg_data = pd.read_csv(self.dir.output.result_lu_damage.path, index_col=0)
-            
+
         self.drainage_areas = self.dir.input.area.load()
 
         if self.aggregate_vector_path:
@@ -384,7 +384,7 @@ class AreaDamageCurvesAggregation:
             lu_omzetting=self.lu_conversion_table,
             output_path=agg_dir.joinpath("result_lu_areas_classes.csv"),
         )
-        #agg_dir.joinpath("landgebruikscurve").mkdir(exist_ok=True)
+        # agg_dir.joinpath("landgebruikscurve").mkdir(exist_ok=True)
         lu_curve.run(
             lu_omzetting=self.lu_conversion_table,
             name=name,
@@ -393,15 +393,11 @@ class AreaDamageCurvesAggregation:
 
         damages = DamagesLuCurveFiguur(agg_dir.agg_landuse_dmg.path, agg_dir)
         damages.combine_classes(
-            lu_omzetting=self.lu_conversion_table, 
-            output_path=agg_dir.path/"result_lu_damages_classes.csv",
-            )
+            lu_omzetting=self.lu_conversion_table,
+            output_path=agg_dir.path / "result_lu_damages_classes.csv",
+        )
         # (agg_dir.path/"schade_percentagescurve").mkdir(exist_ok = True)
-        damages.run(
-            lu_omzetting=self.lu_conversion_table, 
-            name=name,
-            schadecurve_totaal=True
-            )
+        damages.run(lu_omzetting=self.lu_conversion_table, name=name, schadecurve_totaal=True)
 
     def agg_run(self, mm_rain=DEFAULT_RAIN) -> dict:
         """Create a dataframe in which methods can be compared"""
