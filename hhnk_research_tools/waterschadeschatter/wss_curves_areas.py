@@ -58,7 +58,7 @@ NAME = "WSS AreaDamageCurve"
 
 
 class AreaDamageCurveMethods:
-    def __init__(self, peilgebied_id: int, data: dict, nodamage_filter: bool = True):
+    def __init__(self, peilgebied_id: int, data: dict, nodamage_filter: bool = True, depth_filter: bool = True):
         self.peilgebied_id = peilgebied_id
         self.dir = AreaDamageCurveFolders(data["output_dir"], create=True)
 
@@ -73,6 +73,7 @@ class AreaDamageCurveMethods:
         self.depth_steps = data["depth_steps"]
         self.nodata = data["nodata"]
         self.run_type = data["run_type"]
+        self.nodamage_file = data["nodamage_file"]
 
         self.dir.work[self.run_type].add_fdla_dirs(self.depth_steps + [self.filter_settings["depth"]])
         self.fdla_dir = self.dir.work[self.run_type][f"fdla_{peilgebied_id}"]
@@ -83,12 +84,18 @@ class AreaDamageCurveMethods:
 
         self.pixel_width = self.metadata.pixel_width
         self.timelog = WSSTimelog(subject="Multi", output_dir=None, log_file=self.log_file)
+        if depth_filter:
+            self.depth_damage_filter(self.filter_settings)
         if nodamage_filter:
-            self.damage_filter(self.filter_settings)
+            self.nodamage_filter()
 
     @property
     def geometry(self):
         return list(self.area_gdf.geometry)[0]
+
+    @cached_property
+    def nodamage_gdf(self):
+        return gpd.read_file(self.nodamage_file)
 
     @property
     def lu_array(self) -> np.ndarray:
@@ -98,7 +105,15 @@ class AreaDamageCurveMethods:
     def dem_array(self) -> np.ndarray:
         return self.dem.read_geometry(geometry=self.geometry)
 
-    def damage_filter(self, settings: dict) -> None:
+    def nodamage_filter(self) -> None:
+        """Filter the input polygon based on a nodamage gdf"""
+        dif = gpd.overlay(self.area_gdf, self.nodamage_gdf, how="difference")
+        dif = dif.drop(columns=[i for i in dif.columns if i not in ["geometry"]])
+        dif.to_file(self.fdla_dir.nodamage_filtered.path)
+        self.area_gdf = dif
+
+    def depth_damage_filter(self, settings: dict) -> None:
+        """Filter the input polygon based on damage at a certain depth."""
         # filter specifc landuse
         lu_select = np.isin(self.lu_array, settings["landuse"])
 
@@ -129,7 +144,7 @@ class AreaDamageCurveMethods:
         # extract from input
         dif = gpd.overlay(self.area_gdf, no_damage, how="difference")
         dif = dif.drop(columns=[i for i in dif.columns if i not in ["geometry"]])
-        dif.to_file(self.fdla_dir.nodamage_filtered.path)
+        dif.to_file(self.fdla_dir.depth_filter.path)
 
         self.area_gdf = dif
         damage = None  # close raster
@@ -309,6 +324,7 @@ class AreaDamageCurves:
     resolution: float = 0.5
     nodata: int = -9999  # TODO @Ckerklaan1 gebruik DEFAULT_NODATA_VALUES
     area_layer_name: Optional[str] = None
+    nodamage_file: Union[str, Path] = None
     wss_curves_filter_settings_file: Optional[str] = None
     wss_config_file: Optional[str] = None
     settings_json_file: Optional[Path] = None
@@ -414,6 +430,7 @@ class AreaDamageCurves:
         data["nodata"] = self.nodata
         data["filter_settings"] = self.wss_curves_filter_settings
         data["log_file"] = self.timelog.log_file
+        data["nodamage_file"] = str(self.nodamage_file)
         return data
 
     def _check_nan(self, gdf) -> gpd.GeoDataFrame:
@@ -483,6 +500,7 @@ class AreaDamageCurves:
         multiprocessing: bool = True,
         processes: Union[int, Literal["max"]] = MAX_PROCESSES,
         nodamage_filter: bool = True,
+        depth_filter: bool = True,
     ):
         if run_1d:
             self.run_type = "run_1d"
@@ -505,7 +523,7 @@ class AreaDamageCurves:
 
         if multiprocessing:
             data = self.area_data
-            args = [[pid, data, run_1d, nodamage_filter] for pid in self]
+            args = [[pid, data, run_1d, nodamage_filter, depth_filter] for pid in self]
 
             with mp.Pool(processes=processes) as pool:
                 output = list(
@@ -529,7 +547,10 @@ class AreaDamageCurves:
         if not multiprocessing:
             for peil_id in tqdm(self, f"{NAME}: Damage {self.run_type}"):
                 area_stats = AreaDamageCurveMethods(
-                    peilgebied_id=peil_id, data=self.area_data, nodamage_filter=nodamage_filter
+                    peilgebied_id=peil_id,
+                    data=self.area_data,
+                    nodamage_filter=nodamage_filter,
+                    depth_filter=depth_filter,
                 )
                 curve, curve_vol = area_stats.run(run_1d)
                 self.curve[peil_id] = curve

@@ -25,6 +25,7 @@ RUN_CURVES_FILE = WSS_DATA / "run_wss_curves_2024.json"
 
 AREA_PATH = WSS_DATA / "wss_curve_area.gpkg"
 AREA_AGGREGATE_PATH = WSS_DATA / "wss_curve_area_aggregate.gpkg"
+NODAMAGE_PATH = WSS_DATA / "nodamage.gpkg"
 
 DEM_PATH = WSS_DATA / "wss_curve_area_dem.tif"
 LU_PATH = WSS_DATA / "wss_curve_area_lu.tif"
@@ -62,6 +63,7 @@ class TestWSSCurves:
             landuse_path_dir=LU_PATH,
             dem_path_dir=DEM_PATH,
             wss_settings_file=WSS_SETTINGS_FILE,
+            nodamage_file=NODAMAGE_PATH,
             area_id=AREA_ID,
             curve_max=CURVE_MAX,
             curve_step=CURVE_STEP,

@@ -190,6 +190,7 @@ class FDLADir(Folder):
         self.add_file("curve_vol", "curve_vol.csv")
         self.add_file("counts_lu", "counts_lu.csv")
         self.add_file("damage_lu", "damage_lu.csv")
+        self.add_file("depth_filter", "depth_filtered.gpkg")
         self.add_file("nodamage_filtered", "nodamage_filtered.gpkg")
 
         for ds in depth_steps:
