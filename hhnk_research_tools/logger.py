@@ -38,7 +38,10 @@ def get_logconfig_dict(level_root="WARNING", level_dict=None, log_filepath=None)
         "loggers": {
             "": {  # root logger
                 "level": level_root,
-                "handlers": ["debug_console_handler", "stderr"],  # , 'info_rotating_file_handler'],
+                "handlers": [
+                    "debug_console_handler",
+                    "stderr",
+                ],  # , 'info_rotating_file_handler'],
             },
         },
         "handlers": {
@@ -115,7 +118,9 @@ def set_default_logconfig(level_root="WARNING", level_dict=None, log_filepath=No
         },
     )
     """
-    log_config = get_logconfig_dict(level_root=level_root, level_dict=level_dict, log_filepath=log_filepath)
+    log_config = get_logconfig_dict(
+        level_root=level_root, level_dict=level_dict, log_filepath=log_filepath
+    )
 
     config.dictConfig(log_config)
 
@@ -151,14 +156,18 @@ def add_file_handler(
         if isinstance(handler, (logging.FileHandler, RotatingFileHandler)):
             if Path(handler.stream.name) == filepath:
                 logger.removeHandler(handler)
-                logger.debug("Removed existing FileHandler, logger probably imported multiple times")
+                logger.debug(
+                    "Removed existing FileHandler, logger probably imported multiple times"
+                )
 
     # TODO  add test that filemode is doing the correct thing
     if not rotate:
         file_handler = logging.FileHandler(str(filepath), mode=filemode)
     else:
         # TODO filemode 'w' doesnt seem to reset file on RotatingFileHandler
-        file_handler = RotatingFileHandler(str(filepath), mode=filemode, maxBytes=maxBytes, backupCount=backupCount)
+        file_handler = RotatingFileHandler(
+            str(filepath), mode=filemode, maxBytes=maxBytes, backupCount=backupCount
+        )
 
     # This formatter includes longdate.
     formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
@@ -213,7 +222,14 @@ def _add_or_update_streamhandler_format(logger, fmt, datefmt, propagate: bool = 
     logger.debug("Added new StreamHandler with formatter")
 
 
-def get_logger(name: str, level=None, fmt=LOGFORMAT, datefmt: str = DATEFMT_STREAM, propagate=True) -> logging.Logger:
+def get_logger(
+    name: str,
+    filepath=None,
+    level=None,
+    fmt=LOGFORMAT,
+    datefmt: str = DATEFMT_STREAM,
+    propagate=True,
+) -> logging.Logger:
     """
     Name should default to __name__, so the logger is linked to the correct file
 
@@ -254,7 +270,12 @@ def get_logger(name: str, level=None, fmt=LOGFORMAT, datefmt: str = DATEFMT_STRE
 
     # Change log format or datefmt
     if (fmt != LOGFORMAT) or (datefmt != DATEFMT_STREAM):
-        _add_or_update_streamhandler_format(logger, fmt=fmt, datefmt=datefmt, propagate=propagate)
+        _add_or_update_streamhandler_format(
+            logger, fmt=fmt, datefmt=datefmt, propagate=propagate
+        )
+
+    if filepath:
+        add_file_handler(logger=logger, filepath=filepath)
 
     return logger
 
