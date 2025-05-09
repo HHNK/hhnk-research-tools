@@ -3,7 +3,6 @@ name: hhnk_threedi
 
 channels:
   - conda-forge
-  - defaults
 
 dependencies:
   #QGIS preinstalled
