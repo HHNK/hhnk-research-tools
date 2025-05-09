@@ -12,7 +12,7 @@ from logging import config
 # from logging import *  # noqa: F401,F403 # type: ignore
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 LOGFORMAT = "%(asctime)s|%(levelname)-8s| %(name)s:%(lineno)-4d| %(message)s"  # default logformat
 DATEFMT_STREAM = "%H:%M:%S"  # default dateformat for console logger
@@ -38,7 +38,10 @@ def get_logconfig_dict(level_root="WARNING", level_dict=None, log_filepath=None)
         "loggers": {
             "": {  # root logger
                 "level": level_root,
-                "handlers": ["debug_console_handler", "stderr"],  # , 'info_rotating_file_handler'],
+                "handlers": [
+                    "debug_console_handler",
+                    # "stderr",
+                ],  # , 'info_rotating_file_handler'],
             },
         },
         "handlers": {
@@ -132,7 +135,7 @@ def add_file_handler(
     rotate=False,
     logfilter=None,
 ):
-    """Add a filehandler to the logger. Removes the a filehandler when it is already present
+    """Add a filehandler to the logger. Removes the filehandler when it is already present
 
     Parameters
     ----------
@@ -181,11 +184,11 @@ def _add_or_update_streamhandler_format(logger, fmt, datefmt, propagate: bool = 
     If the logger has no handlers, create a new one
 
     propagate : bool, default is True
-        If True, make formatting changes to the root logger.
-        Otherwise detach the logger from the root and add the handler to
-        that specific logger. If not detached (propagate=False), the logger
-        will still inherit the handlers from the root logger. Resulting in
-        multiple hanlders.
+        True: Make formatting changes to the root logger.
+        False: Detach the logger from the root and add the handler to
+            that specific logger. If not detached (propagate=False), the logger
+            will still inherit the handlers from the root logger. Resulting in
+            multiple handlers.
     """
 
     if propagate:
@@ -213,7 +216,15 @@ def _add_or_update_streamhandler_format(logger, fmt, datefmt, propagate: bool = 
     logger.debug("Added new StreamHandler with formatter")
 
 
-def get_logger(name: str, level=None, fmt=LOGFORMAT, datefmt: str = DATEFMT_STREAM, propagate=True) -> logging.Logger:
+def get_logger(
+    name: str,
+    level: Optional[str] = None,
+    fmt: str = LOGFORMAT,
+    datefmt: str = DATEFMT_STREAM,
+    propagate: bool = True,
+    filepath: Optional[Path] = None,
+    **kwargs,
+) -> logging.Logger:
     """
     Name should default to __name__, so the logger is linked to the correct file
 
@@ -231,11 +242,24 @@ def get_logger(name: str, level=None, fmt=LOGFORMAT, datefmt: str = DATEFMT_STRE
     name : str
         Default use
         name = __name__
-    level : str
+    level : Optional[str], default is None
         Only use this when debugging. Otherwise make the logger inherit the level from the config.
         When None it will use the default from get_logconfig_dict.
+    filepath : Optional[Path], default is None
+        Path to filehandler.
+        When None no filehandler will be used (unless inherited from parents)
+    fmt : str, default is "%(asctime)s|%(levelname)-8s| %(name)s:%(lineno)-4d| %(message)s"
+        Formatting of logmessage
     datefmt : str, default is "%H:%M:%S"
         Change the default dateformatter to e.g. "%Y-%m-%d %H:%M:%S"
+    propagate : bool, default is True
+        True: Make formatting changes to the root logger.
+        False: Detach the logger from the root and add the handler to
+            that specific logger. If not detached (propagate=False), the logger
+            will still inherit the handlers from the root logger. Resulting in
+            multiple handlers.
+    **kwargs
+        These arguments will be passed to add_file_handler
     """
     # Rename long names with shorter ones
     replacements = {
@@ -255,6 +279,9 @@ def get_logger(name: str, level=None, fmt=LOGFORMAT, datefmt: str = DATEFMT_STRE
     # Change log format or datefmt
     if (fmt != LOGFORMAT) or (datefmt != DATEFMT_STREAM):
         _add_or_update_streamhandler_format(logger, fmt=fmt, datefmt=datefmt, propagate=propagate)
+
+    if filepath:
+        add_file_handler(logger=logger, filepath=filepath, **kwargs)
 
     return logger
 
