@@ -40,7 +40,7 @@ def get_logconfig_dict(level_root="WARNING", level_dict=None, log_filepath=None)
                 "level": level_root,
                 "handlers": [
                     "debug_console_handler",
-                    "stderr",
+                    # "stderr",
                 ],  # , 'info_rotating_file_handler'],
             },
         },
@@ -218,7 +218,7 @@ def _add_or_update_streamhandler_format(logger, fmt, datefmt, propagate: bool = 
 
 def get_logger(
     name: str,
-    level=None,
+    level: Optional[str] = None,
     fmt: str = LOGFORMAT,
     datefmt: str = DATEFMT_STREAM,
     propagate: bool = True,
