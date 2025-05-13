@@ -5,9 +5,6 @@ Created on Fri Aug 23 15:50:56 2024
 
 @author: kerklaac5395
 
-#TODO:
-    - Geef input settings terug bij wegschrijven.
-
 Methodiek schade, volume en landgebruik
 1. Per waterlaag (bv 10 cm) wordt de waterdiepte uitgerekend obv hoogtemodel.
 2. Alle unieke waterdiepte en landgebruik pixels worden geteld.
@@ -43,6 +40,7 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     ID_FIELD,
     AreaDamageCurveFolders,
     WSSTimelog,
+    get_drainage_areas,
     pad_zeros,
     write_dict,
 )
@@ -52,8 +50,9 @@ logger = logging.get_logger(__name__)
 
 # Globals
 DAMAGE_DECIMALS = 2
-MAX_PROCESSES = mp.cpu_count() - 1  # still wanna do something on the computa use minus 2
+MAX_PROCESSES = mp.cpu_count() - 1  # still wanna do something on the computa use minus 1
 SHOW_LOG = 30  # seconds
+MP_AREA_LIMIT = 1000000  # m2 #10000000
 NAME = "WSS AreaDamageCurve"
 
 
@@ -160,7 +159,7 @@ class AreaDamageCurveMethods:
         ----------
         run_1d: bool, default is True
             True -> Runs the curves in 1d. All spatial sense is lost, but it is
-            quicker then 2D.
+            quicker and less costly then 2D.
             False -> Runs the curves in 2d, which retains all spatial info.
         depth_steps: list[float]
            List of depth steps on which the damage is calculated.
@@ -312,13 +311,13 @@ class AreaDamageCurves:
 
     """
 
-    output_dir: Path
-    area_path: Union[str, Path]
+    output_dir: Union[str, Path]
     landuse_path_dir: Union[str, Path]
     dem_path_dir: Union[str, Path]
-    wss_settings_file: Path
-    area_id: str = "id"
-    area_start_level_field: str = "streefpeil"
+    wss_settings_file: Union[str, Path]
+    area_path: Union[str, Path] = None
+    area_id: str = "code"
+    area_start_level_field: str = "streefpeil_winter"
     curve_step: float = 0.1
     curve_max: float = 3
     resolution: float = 0.5
@@ -328,6 +327,7 @@ class AreaDamageCurves:
     wss_curves_filter_settings_file: Optional[str] = None
     wss_config_file: Optional[str] = None
     settings_json_file: Optional[Path] = None
+    database_file: Optional[Path] = None
 
     def __post_init__(self):
         """Initialise needed things"""
@@ -366,7 +366,11 @@ class AreaDamageCurves:
 
     @cached_property
     def area_vector(self) -> gpd.GeoDataFrame:
-        vector = gpd.read_file(self.area_path, layer=self.area_layer_name, engine="pyogrio")
+        if self.area_path is not None:
+            vector = gpd.read_file(self.area_path, layer=self.area_layer_name, engine="pyogrio")
+        else:
+            vector = get_drainage_areas(self.database_file)
+
         keep_col = [self.area_id, "geometry", self.area_start_level_field]
         drop_col = [i for i in vector.columns if i not in keep_col]
         vector = vector.drop(columns=drop_col)
@@ -433,6 +437,20 @@ class AreaDamageCurves:
         data["nodamage_file"] = str(self.nodamage_file)
         return data
 
+    def areas_divide(self):
+        """Divide areas by size"""
+        logger.info(f"Divide areas by surface area {MP_AREA_LIMIT} squared meters.")
+        areas = {"small": [], "large": []}
+        for pid in self:
+            geometry = self.area_vector.loc[self.area_vector[ID_FIELD] == pid].iloc[0].geometry
+            if geometry.area > MP_AREA_LIMIT:
+                areas["large"].append(pid)
+            else:
+                areas["small"].append(pid)
+
+        logger.info(f"Found {len(areas['large'])} large areas over limit!")
+        return areas
+
     def _check_nan(self, gdf) -> gpd.GeoDataFrame:
         """Check for NaN"""
         if gdf[DRAINAGE_LEVEL_FIELD].isna().sum() > 0:
@@ -449,9 +467,9 @@ class AreaDamageCurves:
         else:
             logger.info("Unrecognized inputs")
 
-        return Raster.build_vrt(
-            vrt_out=vrt_path, input_files=vrt_input, bounds=self.metadata.bbox_gdal, overwrite=True
-        )
+        vrt = Raster.build_vrt(vrt_out=vrt_path, input_files=vrt_input, bounds=self.metadata.bbox_gdal, overwrite=True)
+
+        return vrt
 
     def write(self) -> None:
         logger.info("Start writing output")
@@ -493,8 +511,20 @@ class AreaDamageCurves:
 
         logger.info("End writing")
 
+    def run_mp_optimized(self, **kwargs):
+        """Optimized multiprocessing run: divides larger and smaller areas."""
+        logger.info("Start optimized multiprocessing run")
+        area_ids = self.areas_divide()
+
+        logger.info("Running small areas with mp.")
+        self.run(area_ids["small"], run_1d=True, multiprocessing=True, **kwargs)
+
+        logger.info("Running large areas alone.")
+        self.run(area_ids["large"], run_1d=True, multiprocessing=False, **kwargs)
+
     def run(
         self,
+        area_ids: list = None,
         run_1d: bool = False,
         run_2d: bool = False,
         multiprocessing: bool = True,
@@ -502,6 +532,9 @@ class AreaDamageCurves:
         nodamage_filter: bool = True,
         depth_filter: bool = True,
     ):
+        if area_ids is None:
+            area_ids = list(self)
+
         if run_1d:
             self.run_type = "run_1d"
         elif run_2d:
@@ -509,7 +542,7 @@ class AreaDamageCurves:
         else:
             raise ValueError("Expected one of [run_1d,run_2d] to be True")
 
-        for pid in self:
+        for pid in area_ids:
             self.dir.work[self.run_type].create_fdla_dir(str(pid), self.depth_steps)
 
         if processes == "max":
@@ -523,7 +556,7 @@ class AreaDamageCurves:
 
         if multiprocessing:
             data = self.area_data
-            args = [[pid, data, run_1d, nodamage_filter, depth_filter] for pid in self]
+            args = [[pid, data, run_1d, nodamage_filter, depth_filter] for pid in area_ids]
 
             with mp.Pool(processes=processes) as pool:
                 output = list(
@@ -545,7 +578,7 @@ class AreaDamageCurves:
                 self.curve_vol[run[0]] = run[2]
 
         if not multiprocessing:
-            for peil_id in tqdm(self, f"{NAME}: Damage {self.run_type}"):
+            for peil_id in tqdm(area_ids, f"{NAME}: Damage {self.run_type}"):
                 area_stats = AreaDamageCurveMethods(
                     peilgebied_id=peil_id,
                     data=self.area_data,
@@ -584,4 +617,6 @@ if __name__ == "__main__":
     import sys
 
     adc = hrt.AreaDamageCurves.from_settings_json(Path(str(sys.argv[1])))
-    adc.run(run_1d=True, multiprocessing=True, processes="max", nodamage_filter=True)
+    # adc.run(run_1d=True, multiprocessing=True, processes="max", nodamage_filter=True)
+
+    adc.run_mp_optimized(processes="max", nodamage_filter=True)

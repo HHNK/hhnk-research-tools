@@ -7,12 +7,14 @@ Created on Wed Oct 16 11:07:02 2024
 
 import datetime
 import json
+import json.tool
 import os
 
 import numpy as np
 
 from hhnk_research_tools import Folder
 from hhnk_research_tools.logger import add_file_handler, get_logger
+from hhnk_research_tools.sql_functions import database_to_gdf
 
 # GLOBALS
 ID_FIELD = "pid"
@@ -261,3 +263,13 @@ def pad_zeros(a: np.array, shape: tuple):
     z = np.zeros(shape)
     z[: a.shape[0], : a.shape[1]] = a
     return z
+
+
+def get_drainage_areas(settings_path):
+    with open(settings_path) as f:
+        data = json.load(f)
+
+    db_dict = data["csoprd_lezen"]
+    sql = "SELECT * FROM CS_OBJECTEN.COMBINATIEPEILGEBIED"
+    gdf, sql2 = database_to_gdf(db_dict=db_dict, sql=sql, columns=None)
+    return gdf

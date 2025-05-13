@@ -111,7 +111,7 @@ class TestWSSAggregation:
         aggregatie = AreaDamageCurvesAggregation(
             result_path=OUTPUT_DIR,
             aggregate_vector_path=AREA_AGGREGATE_PATH,
-            vector_field=VECTOR_FIELD,
+            aggregate_vector_id_field=VECTOR_FIELD,
             landuse_conversion_path=LANDUSE_CONVERSION_TABLE,
         )
 

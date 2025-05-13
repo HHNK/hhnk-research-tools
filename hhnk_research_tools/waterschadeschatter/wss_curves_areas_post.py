@@ -70,7 +70,8 @@ class AreaDamageCurvesAggregation:
 
     result_path: Union[str, Path]
     aggregate_vector_path: Union[str, Path, None] = None
-    vector_field: Optional[str] = None
+    aggregate_vector_id_field: Optional[str] = None
+    aggregate_vector_layer_name: Optional[str] = None
     landuse_conversion_path: Union[str, Path, None] = None
 
     def __post_init__(
@@ -87,8 +88,10 @@ class AreaDamageCurvesAggregation:
         self.drainage_areas = self.dir.input.area.load()
 
         if self.aggregate_vector_path:
-            self.vector = gpd.read_file(self.aggregate_vector_path, use_arrow=True)
-            self.field = self.vector_field
+            self.vector = gpd.read_file(
+                self.aggregate_vector_path, layer=self.aggregate_vector_layer_name, use_arrow=True
+            )
+            self.field = self.aggregate_vector_id_field
 
         if self.landuse_conversion_path:
             self.lu_conversion_table = pd.read_csv(self.landuse_conversion_path)
