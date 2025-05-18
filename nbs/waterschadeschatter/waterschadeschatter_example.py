@@ -155,8 +155,8 @@ def landuse_not_in_cfg():
 
 # %%
 
-%load_ext line_profiler
-%lprun -f calculate_damage calculate_damage(lu_block, depth_block, indices, dmg_table_landuse, dmg_table_general)
+# %load_ext line_profiler
+# %lprun -f calculate_damage calculate_damage(lu_block, depth_block, indices, dmg_table_landuse, dmg_table_general)
 
 
 #%%

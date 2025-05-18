@@ -12,7 +12,7 @@ lab = "jupyter lab"
 code = "code"
 code_insiders = "code-insiders"
 
-pre-commit-install = "pre-commit install --install-hooks -t=pre-push" #-t=pre-commit
+pre-commit-install = "pre-commit install --install-hooks -t=pre-push -t=pre-commit"
 postinstall = { depends-on = ["pre-commit-install"] }
 
 pre-commit-run = "pre-commit run --all-files"
