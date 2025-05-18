@@ -31,7 +31,7 @@ twine_upload = "twine upload --repository hhnk-research-tools  dist/*" #Upload t
 build = { depends-on = ["build_wheels", "twine_check"] }
 
 # FIXME set env to 'test' here once we switch to py312. Run tests with; pixi run -e py39 tests
-# FIXME change env in pytests_threedi_tools.yml as well
+# FIXME change env in pytests_research_tools.yml as well
 [feature.py39.tasks]
 tests = "pytest --cov-report term-missing --cov=hhnk_research_tools --cov-report=xml"
 
