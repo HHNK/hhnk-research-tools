@@ -2,7 +2,6 @@
 channels = ["conda-forge"]
 name = "hhnk-research-tools"
 platforms = ["win-64", "linux-64"]
-version = "2025.1"
 repository = "https://github.com/hhnk/hhnk-research-tools"
 
 
