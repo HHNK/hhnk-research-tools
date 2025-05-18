@@ -18,7 +18,7 @@ if __name__ == "__main__":  # check if python is configed correctly
 
 # TODO tests uitbreiden
 def test_file():
-    file_path = TEMP_DIR / f"test_{hrt.get_uuid()}.txt"
+    file_path = TEMP_DIR / f"testfile_{hrt.get_uuid()}.txt"
     file_path.write_text("test")
 
     file = fcl.File(file_path)
