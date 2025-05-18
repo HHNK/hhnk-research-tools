@@ -214,4 +214,4 @@ damage_raster["lizard"] = threedi_result.full_path("total_damage_res0_5m.tif")
 total = {}
 for key in damage_raster:
     total[key] = get_raster_total(damage_raster[key])
-    print(f"€{round(total[key],2)} - {key}")
+    print(f"€{round(total[key], 2)} - {key}")
