@@ -8,4 +8,4 @@ repos:
         language: system
         types_or: [python, pyi]
         require_serial: true
-        stages: [pre-push, manual]
+        stages: [pre-commit, pre-push, manual]
