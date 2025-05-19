@@ -47,7 +47,6 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
 # Globals
 DAMAGE_DECIMALS = 2
 MAX_PROCESSES = mp.cpu_count() - 1  # still wanna do something on the computa use minus 1
-SHOW_LOG = 30  # seconds
 MP_AREA_LIMIT = 1000000  # m2 #10000000
 NAME = "WSS AreaDamageCurve"
 
@@ -152,7 +151,7 @@ class AreaDamageCurveMethods:
         damage = None  # close raster
         self.time.log("end depth_damage_filter (ddf)")
         
-    def run(self, run_1d: bool = True, depth_steps: Optional[list[float]] = None) -> Tuple[dict, dict]:
+    def run(self, run_1d: bool = True, depth_steps: Optional[list[float]] = None, write_2d: bool = False) -> Tuple[dict, dict]:
         """
         Actually two functions in one, which is quite ugly.
         However, We try to keep 2d calculation as close
@@ -210,63 +209,45 @@ class AreaDamageCurveMethods:
             if run_1d:
                 depth = depth[~zero_depth_mask]
                 lu = lu[~zero_depth_mask]
-
                 data = pd.DataFrame(data={"depth": depth, "lu": lu})
-                unique_counts = data.groupby(["depth", "lu"]).size().reset_index().rename(columns={0: "count"})
-
-                volume = 0
-                damage = 0
-                damage_per_lu = {lu_id: 0 for lu_id in set(unique_counts.lu)}
-                for idx, row in unique_counts.iterrows():
-                    row_damage = self.lookup_table[row.depth][row.lu] * row["count"]
-                    damage += row_damage
-                    volume += self.pixel_width * self.pixel_width * row.depth * row["count"]
-                    damage_per_lu[row.lu] += row_damage
-                
+                data = data.groupby(["depth", "lu"]).size().reset_index().rename(columns={0: "count"})
+                data["lookup"] = data["lu"].astype(str) + "_"+data["depth"].astype(str)
+                data['damage'] = data['lookup'].map(self.lookup_table) * data['count']
+                data['volume'] = data['depth'] * self.pixel_width**2 * data['count']
+                damage_per_lu = dict(data.groupby("lu").damage.sum())
                 self.time.log("Finished depth step 1d")
 
             if run_2d:
                 depth[zero_depth_mask] = np.nan
                 lu[zero_depth_mask] = DEFAULT_NODATA_VALUES["uint8"]
 
-                # actual slow calc, but best to vis output.
-                stacked = np.vstack((depth.flatten(), lu.flatten()))
-                damage_1d = np.zeros(stacked.shape[1])
-                volume_1d = np.zeros(stacked.shape[1])
-                for i in range(stacked.shape[1]):
-                    d = stacked[0][i]
-                    l = stacked[1][i]
-                    if np.isnan(d):
-                        continue
-
-                    damage_1d[i] = self.lookup_table[d][l]
-                    volume_1d[i] = d * self.pixel_width**2
-
-
-                damage_2d = damage_1d.reshape(depth.shape)
-                damage = damage_2d.sum()
-
-                volume_2d = volume_1d.reshape(depth.shape)
-                volume = volume_2d.sum()
+                data = pd.DataFrame(data={"depth": depth.flatten(), "lu": lu.flatten()})
+                data["lookup"] = data["lu"].astype(str) + "_"+data["depth"].astype(str)
+                data['damage'] = data['lookup'].map(self.lookup_table)
+                data['volume'] = data['depth'] * self.pixel_width**2
+                damage_2d = data.damage.values.reshape(depth.shape)
                 self.time.log("run: 2D calculations finished")
-
-                damage_per_lu = {}
-                self.write_tif(path=self.fdla_dir["depth_" + str(ds)].path, array=depth)
-                self.write_tif(path=self.fdla_dir["lu_" + str(ds)].path, array=lu)
+                
                 self.write_tif(path=self.fdla_dir["damage_" + str(ds)].path, array=damage_2d)
-                self.write_tif(path=self.fdla_dir["level_" + str(ds)].path, array=depth + dem_array)
+                if write_2d:
+                    volume_2d = data.volume.values.reshape(depth.shape)
+                    self.write_tif(path=self.fdla_dir["volume_" + str(ds)].path, array=volume_2d)
+                    self.write_tif(path=self.fdla_dir["depth_" + str(ds)].path, array=depth)
+                    self.write_tif(path=self.fdla_dir["lu_" + str(ds)].path, array=lu)
+                    self.write_tif(path=self.fdla_dir["level_" + str(ds)].path, array=depth + dem_array)
+                    
+                damage_per_lu = {}
                 self.time.log("run: 2D writing finished")
 
-            curve[ds] = damage
-            curve_vol[ds] = volume
+            curve[ds] = data.damage.sum()
+            curve_vol[ds] = data.volume.sum()
             un, c = np.unique(lu, return_counts=True)
             counts_lu[ds] = dict(zip(un, c))
             damage_lu[ds] = damage_per_lu
 
         timedelta = self.time.time_since_start
-        if timedelta.total_seconds() > SHOW_LOG:
-            self.time.log(f"Area {self.peilgebied_id} calulation time is >30s: {str(timedelta)[:7]}")
-
+        self.time.log(f"Area {self.peilgebied_id} calulation time: {str(timedelta)[:7]}")
+        
         curve_df = pd.DataFrame(curve, index=range(0, len(curve)))
         curve_df.to_csv(self.fdla_dir.curve.path)
 
@@ -433,11 +414,11 @@ class AreaDamageCurves:
         step = 1 / 10**DAMAGE_DECIMALS
         depth_steps = np.arange(step, self.curve_max + step, step)
         depth_steps = [round(i, 2) for i in depth_steps]
-        _lookup = WaterSchadeSchatterLookUp(wss_settings=self.wss_settings, depth_steps=depth_steps)
-        _lookup.run()
-        _lookup.write_dict(path=self.dir.input.wss_lookup.path)
+        lookup = WaterSchadeSchatterLookUp(wss_settings=self.wss_settings, depth_steps=depth_steps)
+        lookup.run(flatten=True)
+        lookup.write_dict(path=self.dir.input.wss_lookup.path)
         self.time.log("Processing lookup table finished!")
-        return _lookup
+        return lookup
 
     @cached_property
     def metadata(self) -> hrt.RasterMetadataV2:

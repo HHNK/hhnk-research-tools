@@ -252,9 +252,6 @@ class WSSTimelog:
         df['duration'] = df['time'].diff().dt.total_seconds()
         df.to_csv(self.time_file)
         
-        
-        
-
 def write_dict(dictionary, path, overwrite=True):
     exists = os.path.exists(path)
     if not exists or overwrite:
@@ -300,8 +297,8 @@ def fdla_performance(fdla_file, fdla_time_dir):
             except Exception as e:
                 print("Skipping", e)
 
-    total_duration = duration.sum()
-    total_duration_per_message = duration.sum(axis=1)
+    total_duration = duration.sum().sort_values(ascending=False)
+    total_duration_per_message = duration.sum(axis=1).sort_values(ascending=False)
     percentage = (duration / duration.sum()).mean(axis=1)*100
     percentage = percentage.sort_values(ascending=False)
 

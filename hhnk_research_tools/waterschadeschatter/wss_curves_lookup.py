@@ -100,7 +100,7 @@ class WaterSchadeSchatterLookUp:
     def __getitem__(self, lu_depth):
         return self.output[lu_depth[0]][lu_depth[1]]
 
-    def run(self):
+    def run(self, flatten=True):
         self.time.log("Start generating table")
 
         for depth in tqdm(self.depth_steps, NAME):
@@ -124,6 +124,15 @@ class WaterSchadeSchatterLookUp:
             self.output[depth][255] = 0  # not in cfg
 
         self.time.log("Ended generating table")
+
+        if flatten:
+            self.time.log("Flatten lookup to increase speed to lu_depth_step." )
+            flattened = {}
+            for depth_step, lu_lookup in self.output.items():
+                for lu, damage in lu_lookup.items():
+                    flattened[f"{lu}_{depth_step}"] = damage
+            self.output = flattened
+
 
     def write_dict(self, path: Union[str, Path]):
         write_dict(self.output, path)
