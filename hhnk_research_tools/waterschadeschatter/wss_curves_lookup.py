@@ -80,7 +80,7 @@ class WaterSchadeSchatterLookUp:
         self.pixel_factor = pixel_factor
         self.caller = DummyCaller(nodata=nodata)
         self.depth_steps = depth_steps
-        self.timelog = WSSTimelog(subject=NAME)
+        self.time = WSSTimelog(name=NAME)
         self.output = {}
 
     # @cached_property
@@ -101,7 +101,7 @@ class WaterSchadeSchatterLookUp:
         return self.output[lu_depth[0]][lu_depth[1]]
 
     def run(self):
-        logger.info("Start generating table")
+        self.time.log("Start generating table")
 
         for depth in tqdm(self.depth_steps, NAME):
             depth = round(depth, 2)
@@ -123,7 +123,7 @@ class WaterSchadeSchatterLookUp:
             self.output[depth][DEFAULT_NODATA_VALUES["uint16"]] = 0
             self.output[depth][255] = 0  # not in cfg
 
-        logger.info("Ended generating table")
+        self.time.log("Ended generating table")
 
     def write_dict(self, path: Union[str, Path]):
         write_dict(self.output, path)

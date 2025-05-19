@@ -1,4 +1,3 @@
-# %%
 # -*- coding: utf-8 -*-
 """
 Created on Fri Aug 23 15:50:56 2024
@@ -12,8 +11,9 @@ Methodiek schade, volume en landgebruik
 4. Volume = Oppervlak pixel vermenigvuldigd met de diepte en aantal pixels.
 
 """
-
 import json
+import argparse
+import datetime
 import multiprocessing as mp
 import shutil
 import traceback
@@ -28,9 +28,6 @@ import pandas as pd
 from tqdm import tqdm
 
 import hhnk_research_tools as hrt
-
-# logging
-import hhnk_research_tools.logger as logging
 from hhnk_research_tools.rasters.raster_class import Raster
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter.wss_curves_lookup import (
@@ -44,10 +41,8 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     get_drainage_areas,
     pad_zeros,
     write_dict,
+    fdla_performance
 )
-
-# Logger
-logger = logging.get_logger(__name__)
 
 # Globals
 DAMAGE_DECIMALS = 2
@@ -68,7 +63,7 @@ class AreaDamageCurveMethods:
 
         self.lookup_table = data["lookup_table"]
         self.filter_settings = data["filter_settings"]
-        #self.log_file = data["log_file"]
+        self.log_file = data["log_file"]
         self.metadata = data["metadata"]
         self.depth_steps = data["depth_steps"]
         self.nodata = data["nodata"]
@@ -83,7 +78,8 @@ class AreaDamageCurveMethods:
         self.area_meta = hrt.RasterMetadataV2.from_gdf(gdf=self.area_gdf, res=self.metadata.pixel_width)
 
         self.pixel_width = self.metadata.pixel_width
-        self.time = WSSTimelog(subject=self.peilgebied_id, output_file=self.fdla_dir.time.path)
+        time_file = self.dir.work.log.fdla.joinpath(f"time_{self.peilgebied_id}.csv")
+        self.time = WSSTimelog(name=self.peilgebied_id, log_file=self.log_file, time_file=time_file)
         
         if depth_filter:
             self.depth_damage_filter(self.filter_settings)
@@ -269,7 +265,7 @@ class AreaDamageCurveMethods:
 
         timedelta = self.time.time_since_start
         if timedelta.total_seconds() > SHOW_LOG:
-            logger.info(f"Area {self.peilgebied_id} calulation time is >30s: {str(timedelta)[:7]}")
+            self.time.log(f"Area {self.peilgebied_id} calulation time is >30s: {str(timedelta)[:7]}")
 
         curve_df = pd.DataFrame(curve, index=range(0, len(curve)))
         curve_df.to_csv(self.fdla_dir.curve.path)
@@ -352,22 +348,28 @@ class AreaDamageCurves:
     def __post_init__(self):
         """Initialise needed things"""
         self.dir = AreaDamageCurveFolders(base=self.output_dir, create=True)
-        self.timelog = WSSTimelog(subject=NAME) #output_dir=self.dir.work.path)
+
+        time_now = datetime.datetime.now().strftime("%Y%m%d%H%M")
+        log_file = self.dir.work.log.joinpath(f"log_{time_now}.log")
+        time_file = self.dir.work.log.joinpath(f"time_{time_now}.csv")
+
+        self.time = WSSTimelog(name=NAME,log_file=log_file,time_file=time_file)
 
         # Write settings json
         if self.settings_json_file:
-            date = self.timelog.start_time.strftime("%Y%m%d%H%M")
-            shutil.copy(self.settings_json_file, self.dir.input.joinpath(f"settings_{date}.json"))
+            shutil.copy(self.settings_json_file, self.dir.input.joinpath(f"settings_{time_now}.json"))
 
         # Create vrts
-        logger.info("Start vrt conversion dem")
+        self.time.log("Start vrt conversion dem")
         self.dem = self._input_to_vrt(self.dem_path_dir, self.dir.input.dem.path)
-        logger.info("Start vrt conversion lu")
+        self.time.log("Start vrt conversion lu")
         self.lu = self._input_to_vrt(self.landuse_path_dir, self.dir.input.lu.path)
 
         # Copy used config to workdir
         if self.wss_config_file:
             shutil.copy(self.wss_config_file, self.dir.input.wss_cfg_settings.path)
+        
+        self.time.log("Initizalized AreaDamageCurves!")
 
     def __iter__(self):
         for id in self.area_vector[ID_FIELD]:
@@ -387,10 +389,13 @@ class AreaDamageCurves:
     @cached_property
     def area_vector(self) -> gpd.GeoDataFrame:
         if self.area_path is not None:
+            self.time.log(f"Reading vector from file: {self.area_path}.")
             vector = gpd.read_file(self.area_path, layer=self.area_layer_name, engine="pyogrio")
         else:
+            self.time.log(f"Reading vector from database: {self.database_file}")
             vector = get_drainage_areas(self.database_file)
-
+        
+        self.time.log("Processing drainage levels")
         keep_col = [self.area_id, "geometry", self.area_start_level_field]
         drop_col = [i for i in vector.columns if i not in keep_col]
         vector = vector.drop(columns=drop_col)
@@ -403,6 +408,7 @@ class AreaDamageCurves:
         )
         vector = self._check_nan(vector)
         vector.to_file(self.dir.input.area.path)
+        self.time.log("Processing drainage levels Finished")
         return vector
 
     @cached_property
@@ -423,12 +429,14 @@ class AreaDamageCurves:
 
     @cached_property
     def lookup(self):
+        self.time.log("Processing lookup table")
         step = 1 / 10**DAMAGE_DECIMALS
         depth_steps = np.arange(step, self.curve_max + step, step)
         depth_steps = [round(i, 2) for i in depth_steps]
         _lookup = WaterSchadeSchatterLookUp(wss_settings=self.wss_settings, depth_steps=depth_steps)
         _lookup.run()
         _lookup.write_dict(path=self.dir.input.wss_lookup.path)
+        self.time.log("Processing lookup table finished!")
         return _lookup
 
     @cached_property
@@ -453,30 +461,30 @@ class AreaDamageCurves:
         data["output_dir"] = str(self.dir.path)
         data["nodata"] = self.nodata
         data["filter_settings"] = self.wss_curves_filter_settings
-        #data["log_file"] = self.timelog.log_file
+        data["log_file"] = self.time.log_file
         data["nodamage_file"] = str(self.nodamage_file)
         return data
 
     def areas_divide(self):
         """Divide areas by size"""
-        logger.info(f"Divide areas by surface area {MP_AREA_LIMIT} squared meters.")
+        self.time.log(f"Divide areas by surface area {MP_AREA_LIMIT} squared meters.")
         areas = {"small": [], "large": []}
 
         vector = self.area_vector.copy()
         vector['area'] = vector.geometry.area
         
-        logger.info(f"Sort by area.")
+        self.time.log(f"Sort by area.")
         vector = vector.sort_values(by=['area'])
 
         areas['large'] = list(vector.loc[vector.area > MP_AREA_LIMIT][ID_FIELD])
         areas['small'] = list(vector.loc[vector.area <= MP_AREA_LIMIT][ID_FIELD])
-        logger.info(f"Found {len(areas['large'])} large areas over limit!")
+        self.time.log(f"Found {len(areas['large'])} large areas over limit!")
         return areas
 
     def _check_nan(self, gdf) -> gpd.GeoDataFrame:
         """Check for NaN"""
         if gdf[DRAINAGE_LEVEL_FIELD].isna().sum() > 0:
-            logger.info("Found drainage level NAN's, deleting from input.")
+            self.time.log("Found drainage level NAN's, deleting from input.")
             gdf = gdf[~gdf[DRAINAGE_LEVEL_FIELD].isna()]
         return gdf
 
@@ -487,22 +495,22 @@ class AreaDamageCurves:
         elif _input.is_file():
             vrt_input = [_input]
         else:
-            logger.info("Unrecognized inputs")
+            self.time.log("Unrecognized inputs")
 
         vrt = Raster.build_vrt(vrt_out=vrt_path, input_files=vrt_input, bounds=self.metadata.bbox_gdal, overwrite=True)
 
         return vrt
 
     def write(self) -> None:
-        logger.info("Start writing output")
-        logger.info("Writing damage and volume curves")
+        self.time.log("Start writing output")
+        self.time.log("Writing damage and volume curves")
         self.curve_df = pd.DataFrame.from_dict(self.curve)
         self.curve_df.to_csv(self.dir.output.result.path)
 
         self.curve_vol_df = pd.DataFrame.from_dict(self.curve_vol)
         self.curve_vol_df.to_csv(self.dir.output.result_vol.path)
 
-        logger.info("Writing combined land-use files")
+        self.time.log("Writing combined land-use files")
         lu_counts = []
         for fid in tqdm(self, "Land-use counts"):
             counts_lu_file = self.dir.work[self.run_type][f"fdla_{fid}"].counts_lu.path
@@ -531,17 +539,20 @@ class AreaDamageCurves:
         failures = self.area_vector[mask]
         failures.to_file(self.dir.output.failures.path)
 
-        logger.info("End writing")
+        fdla_performance(self.dir.input.area.path, self.dir.work.log.fdla.path)
+
+        self.time.log("End writing")
+        self.time.write()
 
     def run_mp_ordered(self, **kwargs):
         """Optimized multiprocessing run: divides larger and smaller areas."""
-        logger.info("Start optimized multiprocessing run")
+        self.time.log("Start optimized multiprocessing run")
         area_ids = self.areas_divide()
 
-        logger.info("Running small areas with mp.")
+        self.time.log("Running small areas with mp.")
         self.run(area_ids["small"], run_1d=True, multiprocessing=True, write=False, **kwargs)
 
-        logger.info("Running large areas alone.")
+        self.time.log("Running large areas alone.")
         self.run(area_ids["large"], run_1d=True, multiprocessing=False, write=True, **kwargs)
 
     def run(
@@ -571,7 +582,7 @@ class AreaDamageCurves:
         if processes == "max" or processes == -1:
             processes = MAX_PROCESSES
 
-        logger.info(f"Starting {self.run_type}!")
+        self.time.log(f"Starting {self.run_type}!")
 
         self.curve = {}
         self.curve_vol = {}
@@ -593,7 +604,7 @@ class AreaDamageCurves:
             for run in output:
                 run = list(run)
                 if len(run[1]) == 0:
-                    logger.info(f"{run[0]} failure! Traceback {run[2]}")
+                    self.time.log(f"{run[0]} failure! Traceback {run[2]}")
                     self.failures.append(run[0])
                     run[2] = {}
 
@@ -614,7 +625,7 @@ class AreaDamageCurves:
         if write:
             self.write()
 
-        logger.info(f"Ended {self.run_type}")
+        self.time.log(f"Ended {self.run_type}")
 
 
 def area_method_mp(args):
@@ -634,26 +645,24 @@ def area_method_mp(args):
     except Exception:
         return (peilgebied_id, {}, str(traceback.format_exc()))
 
-
-# %%
-if __name__ == "__main__":
-    import argparse
+def parse_run_cmd():
 
     parser = argparse.ArgumentParser(description="Command-line tool met subcommando's.")
     parser.add_argument("-settings", type=str, required=True, help="Settings json")
 
-    
-    parser.add_argument("--run_1d", type=bool, required=False, default=True, help="Run 1D. Default:True")
-    parser.add_argument("--run_2d", type=bool, required=False, default=False, help="Run 2D. Default:False")
-    parser.add_argument("--area_ids", type=list, required=False, default=None, help="Subset of area ids. Default: All")
-    parser.add_argument("--multiprocessing", type=bool, required=False, default=True, help="Do multiprocessing. Default: True")
+    parser.add_argument("--run_1d", action=argparse.BooleanOptionalAction, help="Run 1D. Default:True")
+    parser.add_argument("--run_2d", action=argparse.BooleanOptionalAction, help="Run 2D. Default:False")
+    parser.add_argument("--multiprocessing", action=argparse.BooleanOptionalAction, help="Do multiprocessing. Default: True")
+    parser.add_argument("--ordered_mp_run", action=argparse.BooleanOptionalAction, help="Do optimized multiprocessing run (areas are sorted). Default: True")
+    parser.add_argument("--dd_filter", action=argparse.BooleanOptionalAction, help="Do depth damage filter. Default: True")
+    parser.add_argument("--nd_filter", action=argparse.BooleanOptionalAction, help="Do no damage filter. Default: True")
     parser.add_argument("--processes", type=int, required=False, default=-1, help="Amount of processes. Default: -1 (max)")
-    parser.add_argument("--ordered_mp_run", type=bool, required=False, default=True, help="Do optimized multiprocessing run (areas are sorted). Default: True")
-    parser.add_argument("--dd_filter", type=bool, required=False, default=True, help="Do depth damage filter. Default: True")
-    parser.add_argument("--nd_filter", type=bool, required=False, default=True, help="Do no damage filter. Default: True")
-    
-    # Parse de argumenten
+    parser.add_argument("--area_ids", type=list, required=False, default=None, help="Subset of area ids. Default: All")
+
+    parser.set_defaults(run_1d=True, run_2d=False, area_ids=None, multiprocessing=True, processes=-1, ordered_mp_run=False, dd_filter=True, nd_filter=True)
+
     args = parser.parse_args()
+    print(' '.join(f'{k}={v}' for k, v in vars(args).items()))
 
     adc = hrt.AreaDamageCurves.from_settings_json(Path(str(args.settings)))
     if args.ordered_mp_run:
@@ -665,4 +674,7 @@ if __name__ == "__main__":
                 multiprocessing=args.multiprocessing,
                 processes=args.processes,
                 depth_filter=args.dd_filter,
-                nodamage_filte=args.nd_filter)
+                nodamage_filter=args.nd_filter)
+        
+if __name__ == "__main__":
+    parse_run_cmd()

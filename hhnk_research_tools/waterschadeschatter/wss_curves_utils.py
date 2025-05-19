@@ -5,12 +5,14 @@ Created on Wed Oct 16 11:07:02 2024
 @author: kerklaac5395
 """
 
+import pathlib
 import datetime
 import json
 import json.tool
 import os
 
 import numpy as np
+import geopandas as gp
 import pandas as pd
 from hhnk_research_tools import Folder
 from hhnk_research_tools.logger import add_file_handler, get_logger
@@ -148,7 +150,11 @@ class Run2D(Folder):
 class Log(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "log"), create)
+        self.fdla = FDLATime(self.base, create)
 
+class FDLATime(Folder):
+    def __init__(self, base, create):
+        super().__init__(os.path.join(base, "fdla_performance"), create)
 
 class Output(Folder):
     def __init__(self, base, create):
@@ -221,11 +227,13 @@ class WSSTimelog:
 
     """
 
-    def __init__(self, subject, output_file=None):
-        self.subject = str(subject)
-        self.output_file = output_file
+    def __init__(self, name, log_file=None, time_file=None):
+        self.name = str(name)
+        self.time_file = time_file
+        self.log_file = log_file
         self.start_time = datetime.datetime.now()
         self.data = {"time": [self.start_time], "message":["WSSTimelog initialized"]}
+        self.logger = get_logger(self.name, level="INFO", filepath=log_file, filemode="a")
 
     @property
     def time_since_start(self):
@@ -234,6 +242,7 @@ class WSSTimelog:
     def log(self, message):
         self.data['time'].append(datetime.datetime.now())
         self.data['message'].append(message)
+        self.logger.info(message)
     
     def write(self):
         df = pd.DataFrame(index=self.data['message'])
@@ -241,7 +250,7 @@ class WSSTimelog:
         df = df.sort_values(by="time")
 
         df['duration'] = df['time'].diff().dt.total_seconds()
-        df.to_csv(self.output_file)
+        df.to_csv(self.time_file)
         
         
         
@@ -269,30 +278,34 @@ def get_drainage_areas(settings_path):
     gdf, sql2 = database_to_gdf(db_dict=db_dict, sql=sql, columns=None)
     return gdf
 
-def check_performance():
+def fdla_performance(fdla_file, fdla_time_dir):
     
-    x = pathlib.Path(r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\output\heiloo\work\run_1d")
-    peilvakken = gp.read_file(r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\data\vectors\peilgebieden_heiloo2.shp")
-    peilvakken['area']= peilvakken.geometry.area 
-    areas = peilvakken[['area']]
+    folder = pathlib.Path(fdla_time_dir)
+    fdla = gp.read_file(fdla_file)
+    fdla['area']= fdla.geometry.area 
+    areas = fdla[['area']]
     areas.index = areas.index.astype(str)
 
-
     duration = None
-    for i, f in enumerate(x.glob("*")):
+    for i, f in enumerate(folder.glob("*.csv")):
         pid = f.stem 
 
-        time = pd.read_csv(f / "time.csv",index_col=0)
+        time = pd.read_csv(f,index_col=0)
         if duration is None:
             duration = time[['duration']]
             duration = duration.rename(columns={"duration":pid})
         else:
-            duration[pid] = time.duration.values
+            try:
+                duration[pid] = time.duration.values
+            except Exception as e:
+                print("Skipping", e)
 
     total_duration = duration.sum()
     total_duration_per_message = duration.sum(axis=1)
-
-    areas_in = areas[areas.index.isin(total_duration.index)]
-
     percentage = (duration / duration.sum()).mean(axis=1)*100
-    percentage.sort_values(ascending=False)
+    percentage = percentage.sort_values(ascending=False)
+
+    with pd.ExcelWriter(folder/'fdla_performance_analysis.xlsx') as writer:  
+        total_duration.to_excel(writer, sheet_name='total_duration')
+        total_duration_per_message.to_excel(writer, sheet_name='total_duration_per_message')
+        percentage.to_excel(writer, sheet_name='percentage')
