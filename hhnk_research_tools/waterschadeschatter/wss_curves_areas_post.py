@@ -33,7 +33,7 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     DRAINAGE_LEVEL_FIELD,
     ID_FIELD,
     AreaDamageCurveFolders,
-    WSSTimelog,
+    #WSSTimelog,
 )
 
 # Logger
@@ -97,7 +97,7 @@ class AreaDamageCurvesAggregation:
             self.lu_conversion_table = pd.read_csv(self.landuse_conversion_path)
 
         self.predicate = DEFAULT_PREDICATE
-        self.time = WSSTimelog(subject=NAME, output_dir=self.dir.post_processing.path)
+        #self.time = WSSTimelog(subject=NAME, output_dir=self.dir.post_processing.path)
 
     @classmethod
     def from_settings_json(cls, settings_json_file):

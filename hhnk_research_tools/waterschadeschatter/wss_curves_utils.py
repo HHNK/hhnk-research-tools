@@ -11,7 +11,7 @@ import json.tool
 import os
 
 import numpy as np
-
+import pandas as pd
 from hhnk_research_tools import Folder
 from hhnk_research_tools.logger import add_file_handler, get_logger
 from hhnk_research_tools.sql_functions import database_to_gdf
@@ -194,6 +194,7 @@ class FDLADir(Folder):
         self.add_file("damage_lu", "damage_lu.csv")
         self.add_file("depth_filter", "depth_filtered.gpkg")
         self.add_file("nodamage_filtered", "nodamage_filtered.gpkg")
+        self.add_file("time", "time.csv")
 
         for ds in depth_steps:
             self.add_file(f"depth_{ds}", f"depth_{ds}.tif")
@@ -216,40 +217,34 @@ class AggregateDir(Folder):
 
 class WSSTimelog:
     """
-    WSSTimeLog logs all message and writes them to a logfile.
-    It also print messages to your consolse and keeps track of time.
+    WSSTimeLog keep track of timings of functions.
 
     """
 
-    def __init__(self, subject, output_dir=None, log_file=None):
-        self.subject = subject
+    def __init__(self, subject, output_file=None):
+        self.subject = str(subject)
+        self.output_file = output_file
         self.start_time = datetime.datetime.now()
-        self.output_dir = output_dir
-        self.use_logging = output_dir is not None or log_file is not None
-
-        if self.use_logging:
-            self.log_file = log_file
-
-            if log_file is None:
-                now = datetime.datetime.now().strftime("%Y%m%d%H%M")
-                log_dir = self.output_dir / "log"
-                log_dir.mkdir(exist_ok=True, parents=True)
-                self.log_file = log_dir / f"{now} - {subject}.log"
-
-            self.logger = get_logger(self.subject)
-            add_file_handler(logger=self.logger, filepath=self.log_file)
+        self.data = {"time": [self.start_time], "message":["WSSTimelog initialized"]}
 
     @property
     def time_since_start(self):
         return datetime.datetime.now() - self.start_time
 
-    def close(self):
-        """Loggers have to be removed in handler"""
-        handlers = self.logger.handlers[:]
-        for handler in handlers:
-            self.logger.removeHandler(handler)
-            handler.close()
+    def log(self, message):
+        self.data['time'].append(datetime.datetime.now())
+        self.data['message'].append(message)
+    
+    def write(self):
+        df = pd.DataFrame(index=self.data['message'])
+        df['time'] = pd.to_datetime(self.data['time'])
+        df = df.sort_values(by="time")
 
+        df['duration'] = df['time'].diff().dt.total_seconds()
+        df.to_csv(self.output_file)
+        
+        
+        
 
 def write_dict(dictionary, path, overwrite=True):
     exists = os.path.exists(path)
@@ -273,3 +268,31 @@ def get_drainage_areas(settings_path):
     sql = "SELECT * FROM CS_OBJECTEN.COMBINATIEPEILGEBIED"
     gdf, sql2 = database_to_gdf(db_dict=db_dict, sql=sql, columns=None)
     return gdf
+
+def check_performance():
+    
+    x = pathlib.Path(r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\output\heiloo\work\run_1d")
+    peilvakken = gp.read_file(r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\data\vectors\peilgebieden_heiloo2.shp")
+    peilvakken['area']= peilvakken.geometry.area 
+    areas = peilvakken[['area']]
+    areas.index = areas.index.astype(str)
+
+
+    duration = None
+    for i, f in enumerate(x.glob("*")):
+        pid = f.stem 
+
+        time = pd.read_csv(f / "time.csv",index_col=0)
+        if duration is None:
+            duration = time[['duration']]
+            duration = duration.rename(columns={"duration":pid})
+        else:
+            duration[pid] = time.duration.values
+
+    total_duration = duration.sum()
+    total_duration_per_message = duration.sum(axis=1)
+
+    areas_in = areas[areas.index.isin(total_duration.index)]
+
+    percentage = (duration / duration.sum()).mean(axis=1)*100
+    percentage.sort_values(ascending=False)
