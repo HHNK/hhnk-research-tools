@@ -32,6 +32,7 @@ from hhnk_research_tools.rasters.raster_class import Raster
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter.wss_curves_lookup import (
     WaterSchadeSchatterLookUp,
+    LU_LOOKUP_FACTOR,
 )
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     DRAINAGE_LEVEL_FIELD,
@@ -100,6 +101,9 @@ class AreaDamageCurveMethods:
     @property
     def dem_array(self) -> np.ndarray:
         return self.dem.read_geometry(geometry=self.geometry)
+    
+    # Rasterize the difference between the filtered rasters and change internal arrays by these pixels.
+    # 
 
     def nodamage_filter(self) -> None:
         """Filter the input polygon based on a nodamage gdf"""
@@ -202,31 +206,42 @@ class AreaDamageCurveMethods:
         damage_lu = {}
 
         for ds in depth_steps:
+            self.time.log(f"run: depth-step: {ds}!")
             depth = ((self.area_start_level + ds) - dem_array).round(DAMAGE_DECIMALS)
             zero_depth_mask = depth <= 0
             lu = np.copy(lu_array)  # TODO is this really needed?
+            self.time.log(f"run: depth-step {ds} pre-processing finished!")
 
             if run_1d:
                 depth = depth[~zero_depth_mask]
                 lu = lu[~zero_depth_mask]
                 data = pd.DataFrame(data={"depth": depth, "lu": lu})
                 data = data.groupby(["depth", "lu"]).size().reset_index().rename(columns={0: "count"})
-                data["lookup"] = data["lu"].astype(str) + "_"+data["depth"].astype(str)
+                data['lookup'] = data.lu.array*LU_LOOKUP_FACTOR + data.depth.array
                 data['damage'] = data['lookup'].map(self.lookup_table) * data['count']
                 data['volume'] = data['depth'] * self.pixel_width**2 * data['count']
                 damage_per_lu = dict(data.groupby("lu").damage.sum())
-                self.time.log("Finished depth step 1d")
+                self.time.log(f"run: 1D depth step {ds} calculation finished!")
 
             if run_2d:
                 depth[zero_depth_mask] = np.nan
                 lu[zero_depth_mask] = DEFAULT_NODATA_VALUES["uint8"]
+                self.time.log("run: 2D set nodata finished!")
 
                 data = pd.DataFrame(data={"depth": depth.flatten(), "lu": lu.flatten()})
-                data["lookup"] = data["lu"].astype(str) + "_"+data["depth"].astype(str)
+                self.time.log("run: 2D flatten finished!")
+
+                data['lookup'] = data.lu.array*LU_LOOKUP_FACTOR + data.depth.array
+                self.time.log("run: 2D lookup mapping finished!")
+                
                 data['damage'] = data['lookup'].map(self.lookup_table)
+                self.time.log("run: 2D mappig finished!")
+
                 data['volume'] = data['depth'] * self.pixel_width**2
+                self.time.log("run: 2D volume calc finished!")
+
                 damage_2d = data.damage.values.reshape(depth.shape)
-                self.time.log("run: 2D calculations finished")
+                self.time.log("run: 2D calculations finished!")
                 
                 self.write_tif(path=self.fdla_dir["damage_" + str(ds)].path, array=damage_2d)
                 if write_2d:
@@ -237,8 +252,9 @@ class AreaDamageCurveMethods:
                     self.write_tif(path=self.fdla_dir["level_" + str(ds)].path, array=depth + dem_array)
                     
                 damage_per_lu = {}
-                self.time.log("run: 2D writing finished")
-
+                self.time.log("run: 2D writing finished!")
+                self.time.log(f"run: 2D depth step {ds} calculation finished!")
+                
             curve[ds] = data.damage.sum()
             curve_vol[ds] = data.volume.sum()
             un, c = np.unique(lu, return_counts=True)
@@ -327,7 +343,6 @@ class AreaDamageCurves:
     database_file: Optional[Path] = None
 
     def __post_init__(self):
-        """Initialise needed things"""
         self.dir = AreaDamageCurveFolders(base=self.output_dir, create=True)
 
         time_now = datetime.datetime.now().strftime("%Y%m%d%H%M")
@@ -350,7 +365,7 @@ class AreaDamageCurves:
         if self.wss_config_file:
             shutil.copy(self.wss_config_file, self.dir.input.wss_cfg_settings.path)
         
-        self.time.log("Initizalized AreaDamageCurves!")
+        self.time.log("Initialized AreaDamageCurves!")
 
     def __iter__(self):
         for id in self.area_vector[ID_FIELD]:
@@ -557,6 +572,7 @@ class AreaDamageCurves:
         else:
             raise ValueError("Expected one of [run_1d, run_2d] to be True")
 
+        self.time.log(f"Creating work directories.")
         for pid in area_ids:
             self.dir.work[self.run_type].create_fdla_dir(str(pid), self.depth_steps)
 
@@ -603,6 +619,9 @@ class AreaDamageCurves:
                 curve, curve_vol = area_stats.run(run_1d)
                 self.curve[peil_id] = curve
                 self.curve_vol[peil_id] = curve_vol
+        
+        self.time.log(f"{self.run_type} Finished!")
+
         if write:
             self.write()
 

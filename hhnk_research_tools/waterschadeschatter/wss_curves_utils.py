@@ -298,11 +298,11 @@ def fdla_performance(fdla_file, fdla_time_dir):
                 print("Skipping", e)
 
     total_duration = duration.sum().sort_values(ascending=False)
-    total_duration_per_message = duration.sum(axis=1).sort_values(ascending=False)
+    average_duration_per_message = (duration.sum(axis=1) / len(total_duration)).sort_values(ascending=False)
     percentage = (duration / duration.sum()).mean(axis=1)*100
     percentage = percentage.sort_values(ascending=False)
 
     with pd.ExcelWriter(folder/'fdla_performance_analysis.xlsx') as writer:  
         total_duration.to_excel(writer, sheet_name='total_duration')
-        total_duration_per_message.to_excel(writer, sheet_name='total_duration_per_message')
+        average_duration_per_message.to_excel(writer, sheet_name='average_duration_per_message')
         percentage.to_excel(writer, sheet_name='percentage')
