@@ -17,6 +17,8 @@ import datetime
 import multiprocessing as mp
 import shutil
 import traceback
+import rasterio
+from rasterio.features import rasterize
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
@@ -81,45 +83,58 @@ class AreaDamageCurveMethods:
         time_file = self.dir.work.log.fdla.joinpath(f"time_{self.peilgebied_id}.csv")
         self.time = WSSTimelog(name=self.peilgebied_id, log_file=self.log_file, time_file=time_file)
         
+        self.geometry = list(self.area_gdf.geometry)[0]
+        
+        self.lu_dtype = 'uint16'
+        self.dem_dtype = 'float64'
+        self._lu_array = self.lu.read_geometry(geometry=self.geometry).astype(self.lu_dtype)
+        self._dem_array = self.dem.read_geometry(geometry=self.geometry).astype(self.dem_dtype)
+        self.lu_nodata_value = DEFAULT_NODATA_VALUES[self.lu_dtype]
+        self.dem_nodata_value = DEFAULT_NODATA_VALUES[self.dem_dtype]
+        self.transform = self.lu.open_rio().transform
+        self.nodamage_gdf = gpd.read_file(self.nodamage_file)
+        
         if depth_filter:
             self.depth_damage_filter(self.filter_settings)
         if nodamage_filter:
             self.nodamage_filter()
 
-    @property
-    def geometry(self):
-        return list(self.area_gdf.geometry)[0]
+    def apply_filter(self, gdf):
+        """Use the gdf to mask nodata in _lu_array and _dem_array."""
+        shapes_lu = []
+        shapes_dem = []
+        for geom in gdf.geometry:
+            shapes_lu.append((geom, self.lu_nodata_value))    
+            shapes_dem.append((geom, self.dem_nodata_value))
+                
+        rasterize(
+            shapes=shapes_lu,
+            out=self._lu_array,
+            transform=self.transform,
+            dtype=self.lu_dtype,
+            merge_alg=rasterio.enums.MergeAlg.replace
+        )
 
-    @cached_property
-    def nodamage_gdf(self):
-        return gpd.read_file(self.nodamage_file)
-
-    @property
-    def lu_array(self) -> np.ndarray:
-        return self.lu.read_geometry(geometry=self.geometry)
-
-    @property
-    def dem_array(self) -> np.ndarray:
-        return self.dem.read_geometry(geometry=self.geometry)
-    
-    # Rasterize the difference between the filtered rasters and change internal arrays by these pixels.
-    # 
+        rasterize(
+            shapes=shapes_dem,
+            out=self._dem_array,
+            transform=self.transform,
+            dtype=self.dem_dtype,
+            merge_alg=rasterio.enums.MergeAlg.replace
+        )
 
     def nodamage_filter(self) -> None:
         """Filter the input polygon based on a nodamage gdf"""
         self.time.log("start nodamage_filter")
-        dif = gpd.overlay(self.area_gdf, self.nodamage_gdf, how="difference")
-        dif = dif.drop(columns=[i for i in dif.columns if i not in ["geometry"]])
-        dif.to_file(self.fdla_dir.nodamage_filtered.path)
-        self.area_gdf = dif
-        self.time.log("end nodamage_filter")
+        self.apply_filter(self.nodamage_gdf)
+        self.time.log("nodamage_filter finished!")
         
     def depth_damage_filter(self, settings: dict) -> None:
         """Filter the input polygon based on damage at a certain depth."""
 
         self.time.log("start depth_damage_filter (ddf)")
 
-        lu_select = np.isin(self.lu_array, settings["landuse"])
+        lu_select = np.isin(self._lu_array, settings["landuse"])
         self.time.log("ddf: filter specifc landuse finished")
 
         self.run(run_1d=False, depth_steps=[settings["depth"]])
@@ -149,10 +164,12 @@ class AreaDamageCurveMethods:
         dif = gpd.overlay(self.area_gdf, no_damage, how="difference")
         dif = dif.drop(columns=[i for i in dif.columns if i not in ["geometry"]])
         dif.to_file(self.fdla_dir.depth_filter.path)
-        self.time.log("ddf: extract from input finished")
+        self.time.log("ddf: extract from input finished!")
 
         self.area_gdf = dif
         damage = None  # close raster
+        self.time.log("ddf: apply filter!")
+        self.apply_filter(no_damage)
         self.time.log("end depth_damage_filter (ddf)")
         
     def run(self, run_1d: bool = True, depth_steps: Optional[list[float]] = None, write_2d: bool = False) -> Tuple[dict, dict]:
@@ -179,23 +196,19 @@ class AreaDamageCurveMethods:
 
         run_2d = not run_1d
 
-        lu_array = self.lu_array
-        dem_array = self.dem_array.astype(float)
-        self.time.log("run: reading rasters finished.")
+        lu_array = self._lu_array
+        dem_array = self._dem_array
+        self.time.log("run: reading rasters finished!")
 
         if run_1d:
             lu_array = lu_array.flatten()
             dem_array = dem_array.flatten()
-
-        nodata = dem_array == self.dem.nodata
-
-        if run_1d:
+            nodata = dem_array == self.dem.nodata
             lu_array = lu_array[~nodata]
             dem_array = dem_array[~nodata]
 
         if run_2d:
-            lu_array[nodata] = DEFAULT_NODATA_VALUES["uint8"]
-            dem_array[nodata] = np.nan
+            lu_array[dem_array == self.dem.nodata] = self.lu_nodata_value
 
         dem_array[dem_array < self.area_start_level] = self.area_start_level
         self.time.log("run: pre-processing rasters finished.")
@@ -224,18 +237,18 @@ class AreaDamageCurveMethods:
                 self.time.log(f"run: 1D depth step {ds} calculation finished!")
 
             if run_2d:
-                depth[zero_depth_mask] = np.nan
-                lu[zero_depth_mask] = DEFAULT_NODATA_VALUES["uint8"]
+                depth[zero_depth_mask] = self.dem_nodata_value
+                lu[zero_depth_mask] = self.lu_nodata_value
                 self.time.log("run: 2D set nodata finished!")
 
                 data = pd.DataFrame(data={"depth": depth.flatten(), "lu": lu.flatten()})
                 self.time.log("run: 2D flatten finished!")
 
-                data['lookup'] = data.lu.array*LU_LOOKUP_FACTOR + data.depth.array
+                data['lookup'] = data.lu*LU_LOOKUP_FACTOR + data.depth
                 self.time.log("run: 2D lookup mapping finished!")
                 
                 data['damage'] = data['lookup'].map(self.lookup_table)
-                self.time.log("run: 2D mappig finished!")
+                self.time.log("run: 2D mapping finished!")
 
                 data['volume'] = data['depth'] * self.pixel_width**2
                 self.time.log("run: 2D volume calc finished!")

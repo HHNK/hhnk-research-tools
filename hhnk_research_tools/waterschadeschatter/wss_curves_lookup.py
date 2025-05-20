@@ -25,7 +25,7 @@ logger = logging.get_logger(__name__)
 
 # Globals
 NAME = "WSS LookupTable"
-LU_LOOKUP_FACTOR = 10
+LU_LOOKUP_FACTOR = 100
 
 
 class DummyCaller:
@@ -83,20 +83,6 @@ class WaterSchadeSchatterLookUp:
         self.depth_steps = depth_steps
         self.time = WSSTimelog(name=NAME)
         self.output = {}
-
-    # @cached_property
-    # def mapping_arrays(self):
-
-    #     data = {}
-    #     for ds, luses in self.output.items():
-
-    #         k = np.array(list(luses.keys()))
-    #         v = np.array(list(luses.values()))
-
-    #         mapping_ar = np.zeros(k.max() + 1, dtype=v.dtype)
-    #         mapping_ar[k] = v
-    #         data[ds] = mapping_ar
-    #     return data
 
     def __getitem__(self, lu_depth):
         return self.output[lu_depth[0]][lu_depth[1]]
