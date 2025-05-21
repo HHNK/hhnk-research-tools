@@ -8,7 +8,7 @@ Created on Wed Oct 16 11:07:02 2024
 import pathlib
 import datetime
 import json
-import json.tool
+import logging  
 import os
 
 import numpy as np
@@ -134,7 +134,7 @@ class Run1D(Folder):
         for i in self.path.glob("*"):
             self.add_fdla_dir(depth_steps, i.stem)
     
-    def create_fdla_dir(self, name, depth_steps, overwrite, create=True):
+    def create_fdla_dir(self, name, depth_steps, overwrite):
         """Create fixed drainage level areas"""
         if (pathlib.Path(self.base) / f"fdla_{name}").exists() and not overwrite:
             self.add_fdla_dir(depth_steps, name)   
@@ -146,14 +146,21 @@ class Run2D(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "run_2d"), create)
 
-    def add_fdla_dirs(self, depth_steps):
-        for i in self.path.glob("*"):
-            setattr(self, f"fdla_{i.stem}", FDLADir(self.base, False, i.stem, depth_steps))
+    def add_fdla_dir(self, depth_steps, name):
+        """Add directory fixed drainage level areas"""
+        setattr(self, f"fdla_{name}", FDLADir(self.base, False, name, depth_steps))
 
-    def create_fdla_dir(self, name, depth_steps, overwrite, create=True):
+    def add_fdla_dirs(self, depth_steps):
+        """Add directory fixed drainage level areas"""
+        for i in self.path.glob("*"):
+            self.add_fdla_dir(depth_steps, i.stem)
+    
+    def create_fdla_dir(self, name, depth_steps, overwrite):
+        """Create fixed drainage level areas"""
         if (pathlib.Path(self.base) / f"fdla_{name}").exists() and not overwrite:
-            create = False 
-        setattr(self, f"fdla_{name}", FDLADir(self.base, create, name, depth_steps))
+            self.add_fdla_dir(depth_steps, name)   
+        else:
+            setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
 
 
 class Log(Folder):
@@ -236,13 +243,14 @@ class WSSTimelog:
 
     """
 
-    def __init__(self, name, log_file=None, time_file=None):
+    def __init__(self, name, log_file=None, time_file=None, quiet=False):
         self.name = str(name)
         self.time_file = time_file
         self.log_file = log_file
         self.start_time = datetime.datetime.now()
         self.data = {"time": [self.start_time], "message":["WSSTimelog initialized"]}
-        self.logger = get_logger(self.name, level="INFO", filepath=log_file, filemode="a")
+        self.logger = get_logger(self.name, level=logging.DEBUG, filepath=log_file, filemode="a")
+        self.quiet = quiet
 
     @property
     def time_since_start(self):
@@ -251,7 +259,8 @@ class WSSTimelog:
     def log(self, message):
         self.data['time'].append(datetime.datetime.now())
         self.data['message'].append(message)
-        self.logger.info(message)
+        if not self.quiet:
+            self.logger.info(message)
     
     def write(self):
         df = pd.DataFrame(index=self.data['message'])

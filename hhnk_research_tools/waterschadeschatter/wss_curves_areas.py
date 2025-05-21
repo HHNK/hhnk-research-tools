@@ -58,9 +58,14 @@ DEM_DTYPE = "float64"
 
 class AreaDamageCurveMethods:
     def __init__(self, peilgebied_id: int, data: dict, nodamage_filter: bool = True, depth_filter: bool = True):
-        self.peilgebied_id = peilgebied_id
         self.dir = AreaDamageCurveFolders(data["output_dir"], create=True)
-
+        time_file = self.dir.work.log.fdla.joinpath(f"time_{peilgebied_id}.csv")
+        self.time = WSSTimelog(name=peilgebied_id, log_file=data['log_file'], 
+                               time_file=time_file,
+                               quiet=True)
+        
+        self.time.log(f"Initializing AreaDamageCurveMethods for {peilgebied_id}!") 
+        self.peilgebied_id = peilgebied_id
         self.area_vector = gpd.read_file(self.dir.input.area.path)
         self.lu = hrt.Raster(self.dir.input.lu.path)
         self.dem = hrt.Raster(self.dir.input.dem.path)
@@ -73,19 +78,16 @@ class AreaDamageCurveMethods:
         self.nodata = data["nodata"]
         self.run_type = data["run_type"]
         self.nodamage_file = data["nodamage_file"]
+        self.overwrite = data["overwrite"]
 
         steps = self.depth_steps + [self.filter_settings["depth"]]
-        self.dir.work[self.run_type].add_fdla_dir(steps, str(peilgebied_id))
+        self.dir.work[self.run_type].create_fdla_dir(str(peilgebied_id), steps, self.overwrite)
         self.fdla_dir = self.dir.work[self.run_type][f"fdla_{peilgebied_id}"]
 
         self.area_gdf = self.area_vector.loc[self.area_vector[ID_FIELD] == peilgebied_id]
         self.area_start_level = self.area_gdf[DRAINAGE_LEVEL_FIELD].iloc[0]
         self.area_meta = hrt.RasterMetadataV2.from_gdf(gdf=self.area_gdf, res=self.metadata.pixel_width)
-
         self.pixel_width = self.metadata.pixel_width
-        time_file = self.dir.work.log.fdla.joinpath(f"time_{self.peilgebied_id}.csv")
-        self.time = WSSTimelog(name=self.peilgebied_id, log_file=self.log_file, time_file=time_file)
-        
         self.geometry = list(self.area_gdf.geometry)[0]
         
         self._lu_array = self.lu.read_geometry(geometry=self.geometry).astype(LU_DTYPE)
@@ -94,6 +96,8 @@ class AreaDamageCurveMethods:
         self.dem_nodata_value = DEFAULT_NODATA_VALUES[DEM_DTYPE]
         self.transform = self.lu.open_rio().transform
         self.nodamage_gdf = gpd.read_file(self.nodamage_file)
+
+        self.time.log(f"Initializing AreaDamageCurveMethods for {peilgebied_id} finished!") 
         
         if depth_filter:
             self.depth_damage_filter(self.filter_settings)
@@ -107,22 +111,23 @@ class AreaDamageCurveMethods:
         for geom in gdf.geometry:
             shapes_lu.append((geom, self.lu_nodata_value))    
             shapes_dem.append((geom, self.dem_nodata_value))
-                
-        rasterize(
-            shapes=shapes_lu,
-            out=self._lu_array,
-            transform=self.transform,
-            dtype=LU_DTYPE,
-            merge_alg=rasterio.enums.MergeAlg.replace
-        )
+        
+        
+            rasterize(
+                shapes=shapes_lu,
+                out=self._lu_array,
+                transform=self.transform,
+                dtype=LU_DTYPE,
+                merge_alg=rasterio.enums.MergeAlg.replace
+            )
 
-        rasterize(
-            shapes=shapes_dem,
-            out=self._dem_array,
-            transform=self.transform,
-            dtype=DEM_DTYPE,
-            merge_alg=rasterio.enums.MergeAlg.replace
-        )
+            rasterize(
+                shapes=shapes_dem,
+                out=self._dem_array,
+                transform=self.transform,
+                dtype=DEM_DTYPE,
+                merge_alg=rasterio.enums.MergeAlg.replace
+            )
 
     def nodamage_filter(self) -> None:
         """Filter the input polygon based on a nodamage gdf"""
@@ -355,7 +360,7 @@ class AreaDamageCurves:
     wss_config_file: Optional[str] = None
     settings_json_file: Optional[Path] = None
     database_file: Optional[Path] = None
-    overwrite_input: Optional[bool] = False
+    overwrite: Optional[bool] = False
 
     def __post_init__(self):
         self.dir = AreaDamageCurveFolders(base=self.output_dir, create=True)
@@ -441,7 +446,7 @@ class AreaDamageCurves:
     @cached_property
     def lookup(self):
         self.time.log("Processing lookup table")
-        if self.dir.input.wss_lookup.path.exists() and not self.overwrite_input:
+        if self.dir.input.wss_lookup.path.exists() and not self.overwrite:
             self.time.log(f"Lookup table {self.dir.input.wss_lookup.path} already exists, loading data.")
             with open(self.dir.input.wss_lookup.path) as f:
                 return json.load(f)
@@ -479,6 +484,7 @@ class AreaDamageCurves:
         data["filter_settings"] = self.wss_curves_filter_settings
         data["log_file"] = self.time.log_file
         data["nodamage_file"] = str(self.nodamage_file)
+        data['overwrite'] = self.overwrite
         return data
 
     def areas_divide(self):
@@ -506,7 +512,7 @@ class AreaDamageCurves:
 
     def _input_to_vrt(self, path_or_dir, vrt_path) -> Raster:
         """ Convert input to vrt. """
-        if vrt_path.exists() and not self.overwrite_input:
+        if vrt_path.exists() and not self.overwrite:
             self.time.log(f"VRT file {vrt_path} already exists, skipping conversion.")
             return Raster(vrt_path) 
 
@@ -532,6 +538,9 @@ class AreaDamageCurves:
 
         self.curve_vol_df = pd.DataFrame.from_dict(self.curve_vol)
         self.curve_vol_df.to_csv(self.dir.output.result_vol.path)
+
+        for fid in tqdm(self, "Adding fdla workdir's"):
+            self.dir.work[self.run_type].add_fdla_dir(self.depth_steps, str(fid))
 
         self.time.log("Writing combined land-use files")
         lu_counts = []
@@ -598,11 +607,7 @@ class AreaDamageCurves:
             self.run_type = "run_2d"
         else:
             raise ValueError("Expected one of [run_1d, run_2d] to be True")
-
-        self.time.log(f"Creating or adding work directories.")
-        for pid in tqdm(area_ids, "Creating or adding work directories"):
-           self.dir.work[self.run_type].create_fdla_dir(str(pid), self.depth_steps, overwrite=self.overwrite_input)
-
+        
         if processes == "max" or processes == -1:
             processes = MAX_PROCESSES
 
@@ -640,15 +645,17 @@ class AreaDamageCurves:
         if not multiprocessing:
             self.time.log(f"Starting {self.run_type} without multiprocessing!")
             for peil_id in tqdm(area_ids, f"{NAME}: Damage {self.run_type}"):
-                area_stats = AreaDamageCurveMethods(
-                    peilgebied_id=peil_id,
-                    data=area_data,
-                    nodamage_filter=nodamage_filter,
-                    depth_filter=depth_filter,
-                )
-                curve, curve_vol = area_stats.run(run_1d)
-                self.curve[peil_id] = curve
-                self.curve_vol[peil_id] = curve_vol
+                
+                with rasterio.Env(GDAL_USE_PROJ_DATA=False): # supress warnings
+                    area_stats = AreaDamageCurveMethods(
+                        peilgebied_id=peil_id,
+                        data=area_data,
+                        nodamage_filter=nodamage_filter,
+                        depth_filter=depth_filter,
+                    )
+                    curve, curve_vol = area_stats.run(run_1d)
+                    self.curve[peil_id] = curve
+                    self.curve_vol[peil_id] = curve_vol
         
         self.time.log(f"{self.run_type} Finished!")
 
@@ -663,15 +670,18 @@ def area_method_mp(args):
     data = args[1]
     run_1d = args[2]
     nodamage_filter = args[3]
+    depth_filter = args[4]
 
     try:
-        area_method_1d = AreaDamageCurveMethods(
-            peilgebied_id=peilgebied_id,
-            data=data,
-            nodamage_filter=nodamage_filter,
-        )
-        curve, curve_vol = area_method_1d.run(run_1d)
-        return (peilgebied_id, curve, curve_vol)
+        with rasterio.Env(GDAL_USE_PROJ_DATA=False): # supress warnings
+            area_method_1d = AreaDamageCurveMethods(
+                peilgebied_id=peilgebied_id,
+                data=data,
+                nodamage_filter=nodamage_filter,
+                depth_filter=depth_filter,
+            )
+            curve, curve_vol = area_method_1d.run(run_1d)
+            return (peilgebied_id, curve, curve_vol)
     except Exception:
         return (peilgebied_id, {}, str(traceback.format_exc()))
 
