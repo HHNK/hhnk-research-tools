@@ -18,6 +18,7 @@ import multiprocessing as mp
 import shutil
 import traceback
 import rasterio
+from concurrent.futures import ProcessPoolExecutor
 from rasterio.features import rasterize
 from dataclasses import dataclass
 from functools import cached_property
@@ -52,7 +53,8 @@ DAMAGE_DECIMALS = 2
 MAX_PROCESSES = mp.cpu_count() - 1  # still wanna do something on the computa use minus 1
 MP_AREA_LIMIT = 1000000  # m2 #10000000
 NAME = "WSS AreaDamageCurve"
-
+LU_DTYPE = "uint16"
+DEM_DTYPE = "float64"  
 
 class AreaDamageCurveMethods:
     def __init__(self, peilgebied_id: int, data: dict, nodamage_filter: bool = True, depth_filter: bool = True):
@@ -72,7 +74,8 @@ class AreaDamageCurveMethods:
         self.run_type = data["run_type"]
         self.nodamage_file = data["nodamage_file"]
 
-        self.dir.work[self.run_type].add_fdla_dirs(self.depth_steps + [self.filter_settings["depth"]])
+        steps = self.depth_steps + [self.filter_settings["depth"]]
+        self.dir.work[self.run_type].add_fdla_dir(steps, str(peilgebied_id))
         self.fdla_dir = self.dir.work[self.run_type][f"fdla_{peilgebied_id}"]
 
         self.area_gdf = self.area_vector.loc[self.area_vector[ID_FIELD] == peilgebied_id]
@@ -85,12 +88,10 @@ class AreaDamageCurveMethods:
         
         self.geometry = list(self.area_gdf.geometry)[0]
         
-        self.lu_dtype = 'uint16'
-        self.dem_dtype = 'float64'
-        self._lu_array = self.lu.read_geometry(geometry=self.geometry).astype(self.lu_dtype)
-        self._dem_array = self.dem.read_geometry(geometry=self.geometry).astype(self.dem_dtype)
-        self.lu_nodata_value = DEFAULT_NODATA_VALUES[self.lu_dtype]
-        self.dem_nodata_value = DEFAULT_NODATA_VALUES[self.dem_dtype]
+        self._lu_array = self.lu.read_geometry(geometry=self.geometry).astype(LU_DTYPE)
+        self._dem_array = self.dem.read_geometry(geometry=self.geometry).astype(DEM_DTYPE)
+        self.lu_nodata_value = DEFAULT_NODATA_VALUES[LU_DTYPE]
+        self.dem_nodata_value = DEFAULT_NODATA_VALUES[DEM_DTYPE]
         self.transform = self.lu.open_rio().transform
         self.nodamage_gdf = gpd.read_file(self.nodamage_file)
         
@@ -99,7 +100,7 @@ class AreaDamageCurveMethods:
         if nodamage_filter:
             self.nodamage_filter()
 
-    def apply_filter(self, gdf):
+    def apply_filter(self, gdf:gpd.GeoDataFrame) -> None:
         """Use the gdf to mask nodata in _lu_array and _dem_array."""
         shapes_lu = []
         shapes_dem = []
@@ -111,7 +112,7 @@ class AreaDamageCurveMethods:
             shapes=shapes_lu,
             out=self._lu_array,
             transform=self.transform,
-            dtype=self.lu_dtype,
+            dtype=LU_DTYPE,
             merge_alg=rasterio.enums.MergeAlg.replace
         )
 
@@ -119,7 +120,7 @@ class AreaDamageCurveMethods:
             shapes=shapes_dem,
             out=self._dem_array,
             transform=self.transform,
-            dtype=self.dem_dtype,
+            dtype=DEM_DTYPE,
             merge_alg=rasterio.enums.MergeAlg.replace
         )
 
@@ -354,6 +355,7 @@ class AreaDamageCurves:
     wss_config_file: Optional[str] = None
     settings_json_file: Optional[Path] = None
     database_file: Optional[Path] = None
+    overwrite_input: Optional[bool] = False
 
     def __post_init__(self):
         self.dir = AreaDamageCurveFolders(base=self.output_dir, create=True)
@@ -439,6 +441,11 @@ class AreaDamageCurves:
     @cached_property
     def lookup(self):
         self.time.log("Processing lookup table")
+        if self.dir.input.wss_lookup.path.exists() and not self.overwrite_input:
+            self.time.log(f"Lookup table {self.dir.input.wss_lookup.path} already exists, loading data.")
+            with open(self.dir.input.wss_lookup.path) as f:
+                return json.load(f)
+            
         step = 1 / 10**DAMAGE_DECIMALS
         depth_steps = np.arange(step, self.curve_max + step, step)
         depth_steps = [round(i, 2) for i in depth_steps]
@@ -446,7 +453,7 @@ class AreaDamageCurves:
         lookup.run(flatten=True)
         lookup.write_dict(path=self.dir.input.wss_lookup.path)
         self.time.log("Processing lookup table finished!")
-        return lookup
+        return lookup.output
 
     @cached_property
     def metadata(self) -> hrt.RasterMetadataV2:
@@ -464,7 +471,7 @@ class AreaDamageCurves:
         data["lu_vrt_path"] = self.dir.input.lu.path
         data["dem_vrt_path"] = self.dir.input.dem.path
         data["run_type"] = self.run_type
-        data["lookup_table"] = self.lookup.output
+        data["lookup_table"] = self.lookup
         data["metadata"] = self.metadata
         data["depth_steps"] = self.depth_steps
         data["output_dir"] = str(self.dir.path)
@@ -498,6 +505,11 @@ class AreaDamageCurves:
         return gdf
 
     def _input_to_vrt(self, path_or_dir, vrt_path) -> Raster:
+        """ Convert input to vrt. """
+        if vrt_path.exists() and not self.overwrite_input:
+            self.time.log(f"VRT file {vrt_path} already exists, skipping conversion.")
+            return Raster(vrt_path) 
+
         _input = Path(path_or_dir)
         if _input.is_dir():
             vrt_input = list(_input.rglob("*.tif"))
@@ -505,8 +517,10 @@ class AreaDamageCurves:
             vrt_input = [_input]
         else:
             self.time.log("Unrecognized inputs")
-
-        vrt = Raster.build_vrt(vrt_out=vrt_path, input_files=vrt_input, bounds=self.metadata.bbox_gdal, overwrite=True)
+        
+        with rasterio.Env(GDAL_USE_PROJ_DATA=False): # supress warnings
+            vrt = Raster.build_vrt(vrt_out=vrt_path, input_files=vrt_input, 
+                                   bounds=self.metadata.bbox_gdal, overwrite=True)
 
         return vrt
 
@@ -585,27 +599,29 @@ class AreaDamageCurves:
         else:
             raise ValueError("Expected one of [run_1d, run_2d] to be True")
 
-        self.time.log(f"Creating work directories.")
-        for pid in area_ids:
-            self.dir.work[self.run_type].create_fdla_dir(str(pid), self.depth_steps)
+        self.time.log(f"Creating or adding work directories.")
+        for pid in tqdm(area_ids, "Creating or adding work directories"):
+           self.dir.work[self.run_type].create_fdla_dir(str(pid), self.depth_steps, overwrite=self.overwrite_input)
 
         if processes == "max" or processes == -1:
             processes = MAX_PROCESSES
 
-        self.time.log(f"Starting {self.run_type}!")
+        area_data = self.area_data
 
         self.curve = {}
         self.curve_vol = {}
         self.failures = []
 
         if multiprocessing:
-            data = self.area_data
-            args = [[pid, data, run_1d, nodamage_filter, depth_filter] for pid in area_ids]
+            args = [[pid, area_data, run_1d, nodamage_filter, depth_filter] 
+                    for pid in tqdm(area_ids,"Fetching multiprocessing arguments")]
+            self.time.log(f"Fetching arguments finished {self.run_type}!")
 
+            self.time.log(f"Start multiprocessing {self.run_type}!")
             with mp.Pool(processes=processes) as pool:
                 output = list(
                     tqdm(
-                        pool.imap(area_method_mp, args),
+                        pool.imap_unordered(area_method_mp, args),
                         total=len(args),
                         desc=f"{NAME}: (MP{processes}) {self.run_type}",
                     )
@@ -622,10 +638,11 @@ class AreaDamageCurves:
                 self.curve_vol[run[0]] = run[2]
 
         if not multiprocessing:
+            self.time.log(f"Starting {self.run_type} without multiprocessing!")
             for peil_id in tqdm(area_ids, f"{NAME}: Damage {self.run_type}"):
                 area_stats = AreaDamageCurveMethods(
                     peilgebied_id=peil_id,
-                    data=self.area_data,
+                    data=area_data,
                     nodamage_filter=nodamage_filter,
                     depth_filter=depth_filter,
                 )
