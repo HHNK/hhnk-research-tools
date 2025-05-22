@@ -42,21 +42,32 @@ def sql_create_update_case_statement(
 
     """
     if show_proposed and show_prev:
-        raise Exception("sql_create_update_case_statement: Only one of show_prev and show_proposed can be True")
+        raise Exception(
+            "sql_create_update_case_statement: Only one of show_prev and show_proposed can be True"
+        )
     try:
         query = None
         if not show_prev and not show_proposed:
-            vals_list = [(idx, val) for idx, val in zip(df[df_id_col], df[new_val_col]) if idx not in excluded_ids]
-            statement_list = [f"WHEN {idx} THEN {val if not val is None else 'null'}" for idx, val in vals_list]
+            vals_list = [
+                (idx, val)
+                for idx, val in zip(df[df_id_col], df[new_val_col])
+                if idx not in excluded_ids
+            ]
+            statement_list = [
+                f"WHEN {idx} THEN {val if val is not None else 'null'}"
+                for idx, val in vals_list
+            ]
         else:
             comment = "Previous:" if show_prev else "Proposed"
             vals_list = [
                 (old_val, new_val, cur_id)
-                for old_val, new_val, cur_id in zip(df[old_val_col], df[new_val_col], df[df_id_col])
+                for old_val, new_val, cur_id in zip(
+                    df[old_val_col], df[new_val_col], df[df_id_col]
+                )
                 if cur_id not in excluded_ids
             ]
             statement_list = [
-                f"WHEN {cur_id} THEN {new_val if not new_val is None else 'null'} -- {comment} {old_val}"
+                f"WHEN {cur_id} THEN {new_val if new_val is not None else 'null'} -- {comment} {old_val}"
                 for old_val, new_val, cur_id in vals_list
             ]
         if statement_list:
@@ -93,7 +104,9 @@ def sql_construct_select_query(table_name, columns=None) -> str:
                         selection_lst.append(key)
             elif type(columns) == list:
                 selection_lst = columns
-            query = base_query.format(columns=",\n".join(selection_lst), table_name=table_name)
+            query = base_query.format(
+                columns=",\n".join(selection_lst), table_name=table_name
+            )
         else:
             query = base_query.format(columns="*", table_name=table_name)
         return query
@@ -146,7 +159,9 @@ def sql_table_exists(database_path, table_name):
 
 
 # TODO REMOVE
-def execute_sql_selection(query, conn=None, database_path=None, **kwargs) -> pd.DataFrame:
+def execute_sql_selection(
+    query, conn=None, database_path=None, **kwargs
+) -> pd.DataFrame:
     """
     Execute sql query. Creates own connection if database path is given.
     Returns pandas dataframe
@@ -207,7 +222,10 @@ def _sql_get_creation_statement_from_table(src_table_name, dst_table_name, curso
 
         create_statement = cursor.execute(creation_sql).fetchone()[0]
         to_list = create_statement.split()
-        all_but_name = [item if index != 2 else f'"{dst_table_name}"' for index, item in enumerate(to_list)]
+        all_but_name = [
+            item if index != 2 else f'"{dst_table_name}"'
+            for index, item in enumerate(to_list)
+        ]
         creation_statement = " ".join(all_but_name)
         return creation_statement
     except Exception as e:
@@ -215,7 +233,9 @@ def _sql_get_creation_statement_from_table(src_table_name, dst_table_name, curso
 
 
 # TODO was: replace_or_add_table
-def sqlite_replace_or_add_table(db, dst_table_name, src_table_name, select_statement=None):
+def sqlite_replace_or_add_table(
+    db, dst_table_name, src_table_name, select_statement=None
+):
     """
     Maintain the backup tables.
     Tables are created if they do not exist yet.
@@ -276,7 +296,9 @@ def sqlite_table_to_df(database_path, table_name, columns=None) -> pd.DataFrame:
 
 # TODO REMOVE
 # TODO was: gdf_from_sql
-def sqlite_table_to_gdf(query, id_col, to_gdf=True, conn=None, database_path=None) -> gpd.GeoDataFrame:
+def sqlite_table_to_gdf(
+    query, id_col, to_gdf=True, conn=None, database_path=None
+) -> gpd.GeoDataFrame:
     """
     sqlite_table_to_gdf
 
@@ -292,7 +314,9 @@ def sqlite_table_to_gdf(query, id_col, to_gdf=True, conn=None, database_path=Non
                 Supply either conn or database path.
                 )
     """
-    if (conn is None and database_path is None) or (conn is not None and database_path is not None):
+    if (conn is None and database_path is None) or (
+        conn is not None and database_path is not None
+    ):
         raise Exception("Provide exactly one of conn or database_path")
 
     kill_conn = conn is None
@@ -357,7 +381,9 @@ def sql_builder_select_by_location(
     # Round coordinates to integers
     if simplify:
         polygon_wkt = polygon_wkt.buffer(2).simplify(tolerance=1)
-        polygon_wkt = re.sub(r"\d*\.\d+", lambda m: format(float(m.group(0)), ".0f"), str(polygon_wkt))
+        polygon_wkt = re.sub(
+            r"\d*\.\d+", lambda m: format(float(m.group(0)), ".0f"), str(polygon_wkt)
+        )
     sql = f"""
         SELECT *
         FROM {schema}.{table_name}
@@ -366,6 +392,58 @@ def sql_builder_select_by_location(
             SDO_GEOMETRY('{polygon_wkt}',{epsg_code}),
             'mask=ANYINTERACT'
         ) = 'TRUE'
+        """
+
+    return sql
+
+
+def sql_builder_select_by_id_list_statement(
+    id_list_sql: str,
+    schema: str,
+    table_name: str,
+    id_column: str,
+    polygon_wkt: Polygon,
+    geomcolumn: str = None,
+    epsg_code="28992",
+    simplify=False,
+    include_todays_mutations=False,
+):
+    """Create Oracle 12 SQL using extra statement that list id's from another table.
+    Created for 'Profielen' and other table from DAMO_W database.
+
+    Parameters
+    ----------
+    id_list_sql: str
+        sql to extract id list
+    schema : str
+        database schema options are now ['DAMO_W', 'BGT']
+    table_name : str
+        table name in schema
+    id_column : str
+        Name of id column in target table
+    polygon_wkt : str
+        Selection polygon. All data that intersects with this polygon will be selected
+        Must be 1 geometry, so pass the geometry of a row, or gdf.dissolve() it first.
+    simplify : bool
+        Buffer by 2m
+        Simplify the geometry with 1m tolerance
+        Turn coordinates in ints to reduce sql size.
+    include_todays_mutations : bool
+        Choose whether to use todays mutations in data, normally mutations are available
+        overnight.
+        Not sure if this works for BGT or OGS
+    """
+
+    # modify table_name to include today's mutations
+    if include_todays_mutations and "_EVW" not in table_name:
+        table_name = f"{table_name}_EVW"
+
+    sql = f"""
+        SELECT *
+        FROM {schema}.{table_name}
+        WHERE {id_column} IN (
+            {id_list_sql} SELECT PRO_ID FROM schema. GW_PRO intersects
+        )
         """
 
     return sql
@@ -470,7 +548,9 @@ def database_to_gdf(
 
         # Modify sql to efficiently fetch description only
         sql = sql.replace(";", "")
-        sql = sql.replace("select ", "SELECT ")  # Voor de mensen die geen caps gebruiken
+        sql = sql.replace(
+            "select ", "SELECT "
+        )  # Voor de mensen die geen caps gebruiken
         sql = sql.replace("where ", "WHERE ")  # Voor de mensen die geen caps gebruiken
         sql = sql.replace("from ", "FROM ")  # Voor de mensen die geen caps gebruiken
         pattern = r"FETCH FIRST \d+ ROWS ONLY"
@@ -487,7 +567,9 @@ def database_to_gdf(
         # Retrieve column names
         select_search_str = "SELECT *"
         if columns is None:
-            cur.execute(sql_desc)  # TODO hier kan nog een WHERE staan met spatial select
+            cur.execute(
+                sql_desc
+            )  # TODO hier kan nog een WHERE staan met spatial select
             columns_out = [i[0] for i in cur.description]
 
             if "SELECT *" in sql:
@@ -496,7 +578,9 @@ def database_to_gdf(
                 # When columns are passed, use those for the sql
                 select_search_str = sql.split("FROM")[0]
 
-                cols_sql = select_search_str.split("SELECT")[1].replace("\n", "").split(",")
+                cols_sql = (
+                    select_search_str.split("SELECT")[1].replace("\n", "").split(",")
+                )
                 cols_sql = [c.lstrip().rstrip() for c in cols_sql]
                 cols_dict = dict(zip(columns_out, cols_sql))
 
@@ -512,7 +596,9 @@ def database_to_gdf(
                 if col.lower() == geomcol:
                     cols_dict[key] = f"sdo_util.to_wktgeometry({col}) as geometry"
                 # Find pattern e.g.: a.shape
-                if re.search(pattern=rf"(^|\w+\.){geomcol.lower()}$", string=col.lower()):
+                if re.search(
+                    pattern=rf"(^|\w+\.){geomcol.lower()}$", string=col.lower()
+                ):
                     cols_dict[key] = f"sdo_util.to_wktgeometry({col}) as geometry"
 
         col_select = ", ".join(cols_dict.values())
@@ -541,10 +627,55 @@ def database_to_gdf(
 
         # make geodataframe and convert curve geometry to linear
         if "geometry" in df.columns:
-            df = df.set_geometry(gpd.GeoSeries(df["geometry"].apply(_oracle_curve_polygon_to_linear)), crs=crs)
+            df = df.set_geometry(
+                gpd.GeoSeries(df["geometry"].apply(_oracle_curve_polygon_to_linear)),
+                crs=crs,
+            )
 
         # remove blob columns from oracle
         if remove_blob_cols:
             df = _remove_blob_columns(df)
 
         return df, sql2
+
+
+def get_database_columns(
+    db_dict: dict,
+    schema: str,
+    table_name: str,
+):
+    """
+    Connect to (oracle) databaseand retrieve table columns
+
+    Parameters
+    ----------
+    db_dict: dict
+        connection dict. e.g.:
+        {'service_name': 'ODSPRD',
+        'user': '',
+        'password': '',
+        'host': 'srvxx.corp.hhnk.nl',
+        'port': '1521'}
+    schema: str
+        schema name
+    table: str
+        table name
+
+    Returns
+    -------
+    columns_out : List of column names
+    """
+    sql = f"""
+        SELECT *
+        FROM {schema}.{table_name}
+        FETCH FIRST 0 ROWS ONLY
+        """
+    with oracledb.connect(**db_dict) as con:
+        try:
+            cur = oracledb.Cursor(con)
+            cur.execute(sql)
+            columns_out = [i[0] for i in cur.description]
+        except Exception as e:
+            logger.error(e)
+
+    return columns_out
