@@ -23,9 +23,13 @@ from hhnk_research_tools.dataframe_functions import (
 from hhnk_research_tools.folder_file_classes.file_class import File
 from hhnk_research_tools.folder_file_classes.folder_file_classes import (
     File,
-    FileGDB,
-    FileGDBLayer,
     Folder,
+)
+from hhnk_research_tools.folder_file_classes.spatial_database_class import (
+    SpatialDatabase,
+    SpatialDatabaseLayer,
+    FileGDB,  # TODO pending deprecation
+    FileGDBLayer,  # TODO pending deprecation
 )
 from hhnk_research_tools.folder_file_classes.sqlite_class import (
     Sqlite,
@@ -77,7 +81,13 @@ from hhnk_research_tools.sql_functions import (
 )
 from hhnk_research_tools.threedi.call_api import call_threedi_api
 from hhnk_research_tools.threedi.read_api_file import read_api_file
+
+# waterschadeschatter
 from hhnk_research_tools.waterschadeschatter.wss_main import Waterschadeschatter
+
+# curves
+from hhnk_research_tools.waterschadeschatter.wss_curves_areas import AreaDamageCurves
+from hhnk_research_tools.waterschadeschatter.wss_curves_areas_post import AreaDamageCurvesAggregation
 
 # Set default logging to console
 logging.set_default_logconfig(

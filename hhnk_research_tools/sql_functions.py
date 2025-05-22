@@ -2,7 +2,7 @@
 import os
 import re
 import sqlite3
-from typing import Union
+from typing import Optional, Tuple, Union
 
 import geopandas as gpd
 import oracledb
@@ -21,16 +21,16 @@ logger = logging.get_logger(name=__name__)
 
 # TODO was: create_update_case_statement
 def sql_create_update_case_statement(
-    df,
-    layer,
-    df_id_col,
-    db_id_col,
-    new_val_col,
-    excluded_ids=[],
-    old_val_col=None,
-    old_col_name=None,
-    show_prev=False,
-    show_proposed=False,
+    df: pd.DataFrame,
+    layer: str,
+    df_id_col: str,
+    db_id_col: str,
+    new_val_col: str,
+    excluded_ids: Optional[list] = None,
+    old_val_col: Optional[str] = None,
+    old_col_name: Optional[str] = None,
+    show_prev: bool = False,
+    show_proposed: bool = False,
 ) -> str:
     """
     Create an sql statement with the following structure:
@@ -40,7 +40,12 @@ def sql_create_update_case_statement(
 
     Initialization:
 
+    Returns
+    -------
+    query : str
     """
+    if excluded_ids is None:
+        excluded_ids = []
     if show_proposed and show_prev:
         raise Exception(
             "sql_create_update_case_statement: Only one of show_prev and show_proposed can be True"
@@ -96,13 +101,13 @@ def sql_construct_select_query(table_name, columns=None) -> str:
     try:
         if columns is not None:
             selection_lst = []
-            if type(columns) == dict:
+            if isinstance(columns, dict):
                 for key, value in columns.items():
                     if value is not None:
                         selection_lst.append(f"{key} AS {value}")
                     else:
                         selection_lst.append(key)
-            elif type(columns) == list:
+            elif isinstance(columns, list):
                 selection_lst = columns
             query = base_query.format(
                 columns=",\n".join(selection_lst), table_name=table_name
@@ -148,7 +153,7 @@ def create_sqlite_connection(database_path):
 
 
 # TODO REMOVE
-def sql_table_exists(database_path, table_name):
+def sql_table_exists(database_path, table_name: str):
     """Check if a table name exists in the specified database"""
     try:
         query = f"""PRAGMA table_info({table_name})"""
@@ -210,7 +215,7 @@ def execute_sql_changes(query, database=None, conn=None):
 
 
 # TODO was: get_creation_statement_from_table
-def _sql_get_creation_statement_from_table(src_table_name, dst_table_name, cursor):
+def _sql_get_creation_statement_from_table(src_table_name: str, dst_table_name: str, cursor) -> str:
     """Replace the original table name with the new name to make the creation statement"""
     try:
         creation_sql = f"""
@@ -502,10 +507,10 @@ def database_to_gdf(
     db_dict: dict,
     sql: str,
     columns: list[str] = None,
-    lower_cols=True,
-    remove_blob_cols=True,
+    lower_cols: bool = True,
+    remove_blob_cols: bool = True,
     crs="EPSG:28992",
-) -> Union[gpd.GeoDataFrame, str]:
+) -> Tuple[gpd.GeoDataFrame, str]:
     """
     Connect to (oracle) database, create a cursor and execute sql
 
@@ -533,8 +538,10 @@ def database_to_gdf(
 
     Returns
     -------
-    gdf : Geodataframe with data and (linear) geometry, colum names in lowercase.
-    sql : str with the used sql in the request.
+    gdf : gpd.GeoDataFrame
+        gdf with data and (linear) geometry, colum names in lowercase.
+    sql : str
+        The used sql in the request.
 
     """
 

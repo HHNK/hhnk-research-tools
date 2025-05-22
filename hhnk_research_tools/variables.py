@@ -85,19 +85,4 @@ DEFAULT_NODATA_VALUES = {
 }  # TODO the gdal datatypes to numpy name conversion is found here; rasterio.dtypes.dtype_fwd
 GDAL_DTYPES = rio.dtypes.dtype_fwd  # dict with keys=gdal int, value=str dtype
 
-
-class ThreediInformation:
-    """
-    Initialization:
-    ThreediInformation(result, scenario_df)
-
-    Members:
-        result  (GridH5ResultAdmin object)
-        scenario_df  (dataframe containing indexes of important timesteps
-                        in rain scenario)
-    return value: object
-    """
-
-    def __init__(self, result, df):
-        self.result = result
-        self.scenario_df = df
+DEFAULT_NODATA_GENERAL = -9999

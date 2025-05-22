@@ -1,6 +1,7 @@
 # %%
 import inspect
 from pathlib import Path
+from typing import Optional, Union
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -333,7 +334,7 @@ class RasterOld(File):
         """
         if hrt.check_create_new_file(output_file=self.path, overwrite=overwrite):
             # Set inputfiles to list of strings.
-            if type(input_files) != list:
+            if not isinstance(input_files, list):
                 input_files = [str(input_files)]
             else:
                 input_files = [str(i) for i in input_files]
@@ -383,7 +384,7 @@ class RasterOld(File):
 
     #     tifs_list = [str(i) for i in raster_folder.find_ext(["tif", "tiff"])]
 
-    def write_array(self, array, window, band=None):
+    def write_array(self, array, window: list, band=None):
         """Note that providing the band may be faster.
 
         array (np.array([])): block or raster array
@@ -435,7 +436,15 @@ functions: {get_functions(self)}
 variables: {get_variables(self)}
 """
 
-    def create(self, metadata, nodata, datatype=None, create_options=None, verbose=False, overwrite=False):
+    def create(
+        self,
+        metadata,
+        nodata: float,
+        datatype: Optional[int] = None,  # e.g. gdal.GDT_Float32
+        create_options=None,
+        verbose: bool = False,
+        overwrite: bool = False,
+    ):
         """Create empty raster
 
         metadata (RasterMetadata): metadata
@@ -583,7 +592,7 @@ class RasterMetadata:
         georef_new[5] = res_str(georef_new[5])
         return tuple(georef_new)
 
-    def update_resolution(self, resolution_new):
+    def update_resolution(self, resolution_new: Union[float, int]):
         """Create new resolution metdata, only works for refining now."""
         resolution_current = self.pixel_width
         if (resolution_current / resolution_new).is_integer():

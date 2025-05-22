@@ -1,14 +1,13 @@
 # %%
 
-import inspect
 from dataclasses import dataclass
 
 import geopandas as gpd
 import numpy as np
 from affine import Affine
+from rasterio.coords import BoundingBox
 
 from hhnk_research_tools.general_functions import get_functions, get_variables
-from hhnk_research_tools.variables import DEF_TRGT_CRS, GDAL_DATATYPE, GEOTIFF
 
 
 @dataclass
@@ -41,7 +40,9 @@ class RasterMetadataV2:
 
     @classmethod
     def from_bounds(cls, bounds_dict, res: float, projection="EPSG:28992"):
-        """_summary_
+        """Get metadata from bounds and resolution.
+
+        Bounds can be accessed with hrt.Raster.metadata.bounds_dict
 
         Parameters
         ----------

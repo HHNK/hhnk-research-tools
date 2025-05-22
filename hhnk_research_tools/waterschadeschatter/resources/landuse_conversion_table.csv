@@ -1,0 +1,156 @@
+﻿LU_class,functie,direct gem,nieuwe_klasse,beschrijving,kleur,waarde /m2
+2,woon,260,201,woon,firebrick,260
+3,cel,54,202,cel,teal,54
+4,industrie,260,203,industrie,grey,260
+5,kantoor,260,204,kantoor,indianred,260
+6,winkel,260,205,winkel,mediumslateblue,260
+7,kas,473839,206,kas,darkslateblue,47.3839
+8,logies,260,207,logies,chocolate,260
+9,bijeenkomst,260,208,bijeenkomst,sandybrown,260
+10,sport,54,209,sport,violet,260
+11,onderwijs,260,210,onderwijs,lightblue,260
+12,gezondheidszorg,260,211,gezondheidszorg,dodgerblue,260
+13,overig gebruik,0,212,overig gebruik,lightgray,0
+14,niet ingevuld,0,213,overig,pink,0
+15,woongebied,800,214,stedelijk gebied,maroon,0
+16,bedrijventerrein,800,214,stedelijk gebied,maroon,0
+17,dagrecreatief terrein,869,214,stedelijk gebied,maroon,0
+18,vervlijfsrecreatief,869,214,stedelijk gebied,maroon,0
+19,sport,800,214,stedelijk gebied,maroon,0
+20,begraafplaats,869,214,stedelijk gebied,maroon,0
+21,volkstuinen,869,214,stedelijk gebied,maroon,0
+22,glastuinbouw,800,214,stedelijk gebied,maroon,800
+24,overig gebruik,0,213,overig,pink,800
+25,snelweg,800,215,infrastructuur,lightcoral,800
+26,regionale weg,800,215,infrastructuur,lightcoral,800
+27,verkeerseiland,800,215,infrastructuur,lightcoral,800
+28,lokale weg,800,215,infrastructuur,lightcoral,800
+29,overige wegdelen,800,215,infrastructuur,lightcoral,800
+30,vliegveld,0,213,overig,pink,800
+31,spoor,800,215,infrastructuur,lightcoral,800
+32,transformatorstation,0,213,overig,pink,800
+33,opslagtank,0,213,overig,pink,800
+34,bezinkbak,0,213,overig,pink,800
+35,bassins,0,213,overig,pink,800
+39,bos,0,216,natuur,forestgreen,800
+40,groenvoorziening,0,216,natuur,forestgreen,800
+41,overig gras/groen,0,216,natuur,forestgreen,800
+42,gras,0,216,natuur,forestgreen,0
+43,bos/natuur,0,216,natuur,forestgreen,0
+44,berm,0,216,natuur,forestgreen,0
+45,spoorberm,0,216,natuur,forestgreen,0
+50,water,0,217,water,deepskyblue,0
+51,binnenwater,0,217,water,deepskyblue,0
+52,buitenwater,0,217,water,deepskyblue,0
+55,aardbeien op stelling,38385,223,Fruitteelt,blueviolet,0
+56,aardbeien open grond,19000,223,Fruitteelt,blueviolet,0
+57,aardperen,3660,218,Groente in open grond,navajowhite,0
+58,agrarisch gras en veevoeders,1209,220,Agrarisch gras en veevoeders,palegreen,0
+59,akkerbouw,3660,218,Groente in open grond,navajowhite,0
+60,andijvie,3660,218,Groente in open grond,navajowhite,0
+61,appelen,22489,223,Fruitteelt,blueviolet,0.366
+62,asperges,3660,218,Groente in open grond,navajowhite,0.366
+63,augurk,3660,218,Groente in open grond,navajowhite,0.366
+64,blasrammenas,3660,218,Groente in open grond,navajowhite,0.366
+65,blauwe bes,22489,223,Fruitteelt,blueviolet,0.366
+66,bloembollen,24692,224,Bloembollen en sierteelt,orange,0.366
+67,bloembollen en sierteelt,24692,224,Bloembollen en sierteelt,orange,0.366
+68,bloemkool,13123,222,Akkerbouw,yellowgreen,0.366
+69,boerenkool,3660,218,Groente in open grond,navajowhite,0.366
+70,boom en heesterkweek,63175,225,Boom en heesterkweek,darkgreen,0.366
+71,bos en haagplanten,63175,225,Boom en heesterkweek,darkgreen,0.366
+72,bospeen,11603,222,Akkerbouw,yellowgreen,0.366
+73,braak,0,213,overig,pink,0.366
+74,broccoli,14440,222,Akkerbouw,yellowgreen,0.366
+75,bruine bonen,2345,218,Groente in open grond,navajowhite,0.366
+76,buxus,63175,225,Boom en heesterkweek,darkgreen,0.366
+77,cinese kool,63175,222,Akkerbouw,yellowgreen,0.366
+78,cichorei,3471,220,Agrarisch gras en veevoeders,palegreen,0.366
+79,consumptieaardappelen,8568,219,Groente op stellingen,turquoise,0.366
+80,courgette,3660,218,Groente in open grond,navajowhite,0.366
+81,cranberry,22489,223,Fruitteelt,blueviolet,0.366
+82,engels raaigras,2736,220,Agrarisch gras en veevoeders,palegreen,0.366
+83,erwten,2438,218,Groente in open grond,navajowhite,0.366
+84,frambozen,22489,223,Fruitteelt,blueviolet,0.366
+85,fruitteelt,22489,223,Fruitteelt,blueviolet,0.366
+86,gerst,1573,220,Agrarisch gras en veevoeders,palegreen,0.366
+87,granen,2201,221,Granen,lemonchiffon,0.366
+88,grasland_natuurlijk,1094,220,Agrarisch gras en veevoeders,palegreen,0.366
+89,graszoden,1094,220,Agrarisch gras en veevoeders,palegreen,0.366
+90,groente_in_open_grond,3660,218,Groente in open grond,navajowhite,0.366
+91,haver,1200,220,Agrarisch gras en veevoeders,palegreen,0.366
+92,hennep,1011,220,Agrarisch gras en veevoeders,palegreen,0.366
+93,ijsbergsla,11200,222,Akkerbouw,yellowgreen,0.366
+94,kapucijners,3660,218,Groente in open grond,navajowhite,0.366
+95,kersen,22489,223,Fruitteelt,blueviolet,0.366
+96,kersen_zuur,22489,223,Fruitteelt,blueviolet,0.366
+97,kerstbomen,76165,225,Boom en heesterkweek,darkgreen,0.366
+98,klaver,3660,218,Groente in open grond,navajowhite,0.366
+99,knoflook,3660,218,Groente in open grond,navajowhite,0.366
+100,knolselderij,9400,219,Groente op stellingen,turquoise,0.366
+101,knolvenkel,3660,218,Groente in open grond,navajowhite,0.7
+102,komkommer,3660,218,Groente in open grond,navajowhite,0.7
+103,koolraap,3660,218,Groente in open grond,navajowhite,0.7
+104,koolrabi,3660,218,Groente in open grond,navajowhite,0.7
+105,koolzaad,1691,220,Agrarisch gras en veevoeders,palegreen,0.7
+106,kruiden,3660,218,Groente in open grond,navajowhite,0.7
+107,laanbomen,76165,225,Boom en heesterkweek,darkgreen,0.7
+108,luzerne,1094,220,Agrarisch gras en veevoeders,palegreen,0.7
+109,mais_corncob,1885,220,Agrarisch gras en veevoeders,palegreen,0.11
+110,mais_energie,3660,218,Groente in open grond,navajowhite,0.11
+111,mais_korrel,1094,220,Agrarisch gras en veevoeders,palegreen,0.11
+112,mais_snij,2926,221,Granen,lemonchiffon,0.11
+113,mais_suiker,3660,218,Groente in open grond,navajowhite,0.11
+114,miscanthus,28411,222,Akkerbouw,yellowgreen,0.11
+115,natuur,0,216,natuur,forestgreen,0.11
+116,notenbomen,22489,223,Fruitteelt,blueviolet,0.11
+117,paksoi,3660,218,Groente in open grond,navajowhite,0.11
+118,pastinaak,3660,218,Groente in open grond,navajowhite,0.11
+119,peren,22489,223,Fruitteelt,blueviolet,0.11
+120,peulen,3660,218,Groente in open grond,navajowhite,0.11
+121,pompoen,3660,218,Groente in open grond,navajowhite,0.11
+122,pootaardappelen,12956,222,Akkerbouw,yellowgreen,0.11
+123,prei,24083,222,Akkerbouw,yellowgreen,0.11
+124,pronkbonen,3660,218,Groente in open grond,navajowhite,0.11
+125,pruimen,22489,223,Fruitteelt,blueviolet,0.22
+126,rabarber,3660,218,Groente in open grond,navajowhite,0.22
+127,radijs,3660,218,Groente in open grond,navajowhite,0.22
+128,rietzwenkgras,2470,220,Agrarisch gras en veevoeders,palegreen,0.22
+129,rode_bieten,3660,218,Groente in open grond,navajowhite,1.2
+130,rodebessen,22489,223,Fruitteelt,blueviolet,1.2
+131,rodekool,27250,222,Akkerbouw,yellowgreen,1.2
+132,rogge,719,221,Granen,lemonchiffon,1.2
+133,rozen,28411,222,Akkerbouw,yellowgreen,1.2
+134,schorseneren,5875,219,Groente op stellingen,turquoise,1.2
+135,selderij,3660,218,Groente in open grond,navajowhite,1.2
+136,sierconiferen,76165,225,Boom en heesterkweek,darkgreen,1.2
+137,sierheesters_en_klimplanten,76165,225,Boom en heesterkweek,darkgreen,1.2
+138,sla,3660,218,Groente in open grond,navajowhite,1.2
+139,sojabonen,3660,218,Groente in open grond,navajowhite,1.2
+140,sperziebonen,2126,218,Groente in open grond,navajowhite,1.2
+141,spinazie,6333,219,Groente op stellingen,turquoise,1.2
+142,spitskool,3660,218,Groente in open grond,navajowhite,2.25
+144,spruitjes,3660,218,Groente in open grond,navajowhite,2.25
+145,suikerbieten,4848,219,Groente op stellingen,turquoise,2.25
+146,tarwe,2201,221,Granen,lemonchiffon,2.25
+147,trek_en_besheesters,76165,225,Boom en heesterkweek,darkgreen,2.25
+148,triticale,1144,220,Agrarisch gras en veevoeders,palegreen,2.25
+149,tuinbonen,3660,218,Groente in open grond,navajowhite,2.25
+150,uien,8525,219,Groente op stellingen,turquoise,2.25
+151,valeriaan,3660,218,Groente in open grond,navajowhite,2.25
+152,vaste_planten,28411,222,Akkerbouw,yellowgreen,2.25
+153,vlas,3192,220,Agrarisch gras en veevoeders,palegreen,2.25
+154,voederbieten,4473,219,Groente op stellingen,turquoise,2.25
+155,waspeen,3660,218,Groente in open grond,navajowhite,2.25
+156,water,0,217,water,deepskyblue,2.25
+157,weidehooi,1209,220,Agrarisch gras en veevoeders,palegreen,2.25
+158,wijndruiven,22489,223,Fruitteelt,blueviolet,2.4692
+159,winterpeen,10200,222,Akkerbouw,yellowgreen,2.4692
+160,witlof,7625,219,Groente op stellingen,turquoise,7.5
+161,wittekool,15333,222,Akkerbouw,yellowgreen,7.5
+162,wortelpeterselie,3660,218,Groente in open grond,navajowhite,7.5
+163,zetmeelaardappelen,3485,218,Groente in open grond,navajowhite,7.5
+164,zwartebessen,22489,223,Fruitteelt,blueviolet,7.5
+165,Voetpad,800,215,infrastructuur,lightcoral,7.5
+166,Fietspad,800,215,infrastructuur,lightcoral,7.5
+254,water,0,217,water,deepskyblue,7.5

@@ -8,7 +8,7 @@ Date: 24 - 01 - 2025
 
 # %%
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 import branca.colormap as cm
 import folium
@@ -26,11 +26,11 @@ def create_interactive_map(
     output_path: Union[Path, str, None] = None,
     title: str = "Title",
     legend_label: str = "Label",
-    tooltip_columns: list[str] = None,
-    tooltip_aliases: list[str] = None,
+    tooltip_columns: Optional[list[str]] = None,
+    tooltip_aliases: Optional[list[str]] = None,
     colormap_name: str = "plasma",
-    colormap_steps: int = None,
-    quantiles: list = None,
+    colormap_steps: Optional[int] = None,
+    quantiles: Optional[list[float]] = None,
 ):
     """Create basic interactive map based on one numeric column in a geodataframe.
 
