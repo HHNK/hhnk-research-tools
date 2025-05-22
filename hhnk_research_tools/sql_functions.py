@@ -2,7 +2,7 @@
 import os
 import re
 import sqlite3
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import geopandas as gpd
 import oracledb
@@ -215,7 +215,9 @@ def execute_sql_changes(query, database=None, conn=None):
 
 
 # TODO was: get_creation_statement_from_table
-def _sql_get_creation_statement_from_table(src_table_name: str, dst_table_name: str, cursor) -> str:
+def _sql_get_creation_statement_from_table(
+    src_table_name: str, dst_table_name: str, cursor
+) -> str:
     """Replace the original table name with the new name to make the creation statement"""
     try:
         creation_sql = f"""
@@ -403,14 +405,10 @@ def sql_builder_select_by_location(
 
 
 def sql_builder_select_by_id_list_statement(
-    id_list_sql: str,
+    sub_id_list_sql: str,
     schema: str,
-    table_name: str,
-    id_column: str,
-    polygon_wkt: Polygon,
-    geomcolumn: str = None,
-    epsg_code="28992",
-    simplify=False,
+    sub_table: str,
+    sub_id_column: str,
     include_todays_mutations=False,
 ):
     """Create Oracle 12 SQL using extra statement that list id's from another table.
@@ -418,21 +416,14 @@ def sql_builder_select_by_id_list_statement(
 
     Parameters
     ----------
-    id_list_sql: str
+    sub_id_list_sql: str
         sql to extract id list
     schema : str
         database schema options are now ['DAMO_W', 'BGT']
-    table_name : str
+    sub_table : str
         table name in schema
-    id_column : str
+    sub_id_column : str
         Name of id column in target table
-    polygon_wkt : str
-        Selection polygon. All data that intersects with this polygon will be selected
-        Must be 1 geometry, so pass the geometry of a row, or gdf.dissolve() it first.
-    simplify : bool
-        Buffer by 2m
-        Simplify the geometry with 1m tolerance
-        Turn coordinates in ints to reduce sql size.
     include_todays_mutations : bool
         Choose whether to use todays mutations in data, normally mutations are available
         overnight.
@@ -440,14 +431,14 @@ def sql_builder_select_by_id_list_statement(
     """
 
     # modify table_name to include today's mutations
-    if include_todays_mutations and "_EVW" not in table_name:
-        table_name = f"{table_name}_EVW"
+    if include_todays_mutations and "_EVW" not in sub_table:
+        sub_table = f"{sub_table}_EVW"
 
     sql = f"""
         SELECT *
-        FROM {schema}.{table_name}
-        WHERE {id_column} IN (
-            {id_list_sql} SELECT PRO_ID FROM schema. GW_PRO intersects
+        FROM {schema}.{sub_table}
+        WHERE {sub_id_column} IN (
+            {sub_id_list_sql} 
         )
         """
 
