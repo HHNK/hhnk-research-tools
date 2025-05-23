@@ -138,7 +138,7 @@ class AreaDamageCurveMethods:
             In the case of 2 damage decimals, it'll be cm's.
         """
         self.time.log(f"Reading dem and converting with factor!") 
-        array = self.dem.read_geometry(geometry=geometry) * self.convert_factor        
+        array = self.dem.read_geometry(geometry=geometry, set_nan=True) * self.convert_factor        
         with warnings.catch_warnings(): # gets a infinity runtime warning because of the nodata
             warnings.filterwarnings("ignore", category=RuntimeWarning)
             array_dtype = array.astype(DEM_DTYPE)
