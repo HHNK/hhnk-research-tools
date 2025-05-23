@@ -298,20 +298,22 @@ def fdla_performance(fdla_file, fdla_time_dir):
     folder = pathlib.Path(fdla_time_dir)
     fdla = gp.read_file(fdla_file)
     fdla['area']= fdla.geometry.area 
-    areas = fdla[['area']]
-    areas.index = areas.index.astype(str)
+    fdla.index = fdla.pid
 
     duration = None
+    areas = []
     for i, f in enumerate(folder.glob("*.csv")):
-        pid = f.stem 
+        pid = int(f.stem.split("_")[-1])
 
         time = pd.read_csv(f,index_col=0)
         if duration is None:
             duration = time[['duration']]
             duration = duration.rename(columns={"duration":pid})
+            areas.append(fdla.loc[pid].area)
         else:
             try:
                 duration[pid] = time.duration.values
+                areas.append(fdla.loc[pid].area)
             except Exception as e:
                 print("Skipping", e)
 
@@ -319,8 +321,11 @@ def fdla_performance(fdla_file, fdla_time_dir):
     average_duration_per_message = (duration.sum(axis=1) / len(total_duration)).sort_values(ascending=False)
     percentage = (duration / duration.sum()).mean(axis=1)*100
     percentage = percentage.sort_values(ascending=False)
-
+    duration_per_area = pd.DataFrame(data={"duration":duration.sum(), "area":areas})
+    
     with pd.ExcelWriter(folder/'fdla_performance_analysis.xlsx') as writer:  
+        pd.DataFrame(duration).to_excel(writer, sheet_name='duration_per_message')
         total_duration.to_excel(writer, sheet_name='total_duration')
         average_duration_per_message.to_excel(writer, sheet_name='average_duration_per_message')
         percentage.to_excel(writer, sheet_name='percentage')
+        duration_per_area.to_excel(writer, sheet_name='duration_per_area')

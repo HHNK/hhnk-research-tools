@@ -311,7 +311,7 @@ class Raster(File):
         bounds=None,
         overwrite: bool = False,
         resolution="highest",
-        bandlist=[1],
+        bandlist=[1]
     ):
         """Build vrt from input files.
         overwrite (bool)
@@ -449,7 +449,7 @@ class Raster(File):
     def round_nearest(self, x, a):
         return round(round(x / a) * a, -int(math.floor(math.log10(a))))
 
-    def read_geometry(self, geometry: shapely.geometry.Polygon) -> np.array:
+    def read_geometry(self, geometry: shapely.geometry.Polygon, set_nan=True) -> np.array:
         """
         Read data within geometry. Outside geometry is set to NaN.
 
@@ -473,16 +473,21 @@ class Raster(File):
         else:
             geometry_list = [geometry]
 
-        array = features.rasterize(
+        mask = features.rasterize(
             geometry_list,
             out_shape=(int(height), int(width)),
             transform=transform,
+            dtype='uint8',
         )
 
         raster = self.open_rio()
         window = raster.window(*bounds)
         data = raster.read(window=window)[0]
-        data[array == 0] = raster.nodata  # shape = 1, outside shape = 0
+        if set_nan:
+            data[mask==0] = np.nan  
+        else:
+            data[mask==0] = raster.nodata
+
         raster.close()
         return data
 

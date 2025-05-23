@@ -18,7 +18,8 @@ import multiprocessing as mp
 import shutil
 import traceback
 import rasterio
-from concurrent.futures import ProcessPoolExecutor
+import warnings
+import shapely
 from rasterio.features import rasterize
 from dataclasses import dataclass
 from functools import cached_property
@@ -54,28 +55,49 @@ MAX_PROCESSES = mp.cpu_count() - 1  # still wanna do something on the computa us
 MP_AREA_LIMIT = 1000000  # m2 #10000000
 NAME = "WSS AreaDamageCurve"
 LU_DTYPE = "uint16"
-DEM_DTYPE = "float64"  
+DEM_DTYPE = "int16"  
 
 class AreaDamageCurveMethods:
     def __init__(self, peilgebied_id: int, data: dict, nodamage_filter: bool = True, depth_filter: bool = True):
+        """
+        Method which calculates the damage curves for a given fixed level drainage areas.
+        Speed is upgraded by:
+            - Using a damage lookup table.
+            - Using vectorized operations.
+        Memory if efficient because:
+            - Height model is processed as int16 by using DAMAGE_DECIMALS.
+            - Lu and height model area only loaded once. 
+
+        Parameters
+        ----------
+        peilgebied_id : int
+            id of fixed level drainage area.
+        data : dict
+            Data for processing given by AreaDamageCurves as .area_data
+        nodamage_filter : bool, default is True
+            If True, the nodamage filter is applied.
+
+        depth_filter : bool, default is True
+            If True, the depth filter is applied.
+        """
         self.dir = AreaDamageCurveFolders(data["output_dir"], create=True)
         time_file = self.dir.work.log.fdla.joinpath(f"time_{peilgebied_id}.csv")
         self.time = WSSTimelog(name=peilgebied_id, log_file=data['log_file'], 
                                time_file=time_file,
                                quiet=True)
         
-        self.time.log(f"Initializing AreaDamageCurveMethods for {peilgebied_id}!") 
+        self.time.log(f"Initializing AreaDamageCurveMethods!") 
         self.peilgebied_id = peilgebied_id
         self.area_vector = gpd.read_file(self.dir.input.area.path)
         self.lu = hrt.Raster(self.dir.input.lu.path)
         self.dem = hrt.Raster(self.dir.input.dem.path)
+        self.convert_factor = 10**DAMAGE_DECIMALS
 
         self.lookup_table = data["lookup_table"]
         self.filter_settings = data["filter_settings"]
         self.log_file = data["log_file"]
         self.metadata = data["metadata"]
         self.depth_steps = data["depth_steps"]
-        self.nodata = data["nodata"]
         self.run_type = data["run_type"]
         self.nodamage_file = data["nodamage_file"]
         self.overwrite = data["overwrite"]
@@ -90,19 +112,54 @@ class AreaDamageCurveMethods:
         self.pixel_width = self.metadata.pixel_width
         self.geometry = list(self.area_gdf.geometry)[0]
         
-        self._lu_array = self.lu.read_geometry(geometry=self.geometry).astype(LU_DTYPE)
-        self._dem_array = self.dem.read_geometry(geometry=self.geometry).astype(DEM_DTYPE)
+        self.time.log(f"Reading landuse.") 
+        self._lu_array = self.lu.read_geometry(geometry=self.geometry, set_nan=False).astype(LU_DTYPE)
+        self.time.log(f"Reading landuse finished!") 
+        
+        self.time.log(f"Reading scaled dem.") 
+        self._dem_array = self.read_scaled_dem(geometry=self.geometry)
+        self.time.log(f"Reading scaled dem finished!")  
+
         self.lu_nodata_value = DEFAULT_NODATA_VALUES[LU_DTYPE]
         self.dem_nodata_value = DEFAULT_NODATA_VALUES[DEM_DTYPE]
+        
         self.transform = self.lu.open_rio().transform
         self.nodamage_gdf = gpd.read_file(self.nodamage_file)
-
-        self.time.log(f"Initializing AreaDamageCurveMethods for {peilgebied_id} finished!") 
+        self.time.log(f"Initializing AreaDamageCurveMethods finished!") 
         
         if depth_filter:
             self.depth_damage_filter(self.filter_settings)
         if nodamage_filter:
             self.nodamage_filter()
+
+    def read_scaled_dem(self, geometry:shapely.geometry):    
+        """ Due to large data of dem, the dem is retyped to int16 from float32. 
+            This means that calculation are done in dependent DAMAGE_DECIMALS.
+            In the case of 2 damage decimals, it'll be cm's.
+        """
+        self.time.log(f"Reading dem and converting with factor!") 
+        array = self.dem.read_geometry(geometry=geometry) * self.convert_factor        
+        with warnings.catch_warnings(): # gets a infinity runtime warning because of the nodata
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
+            array_dtype = array.astype(DEM_DTYPE)
+        array_dtype[np.isnan(array)] = DEFAULT_NODATA_VALUES[DEM_DTYPE]
+
+        return array_dtype
+
+    def dem_retype(self):
+        """ Due to large data of dem, the dem is retyped to int16 from float32. 
+            This means that calculation are done in dependent DAMAGE_DECIMALS.
+            In the case of 2 damage decimals, it'll be cm's.
+        """
+        self.time.log("Start dem retype")   
+        nodata_mask = self._dem_array == self.dem.nodata
+        
+        with warnings.catch_warnings(): # gets a infinity runtime warning because of the nodata
+            warnings.filterwarnings("ignore", category=RuntimeWarning)
+            self._dem_array = (self._dem_array * self.convert_factor).astype(DEM_DTYPE)
+
+        self._dem_array[nodata_mask] = self.dem_nodata_value
+        self.time.log("Finished dem retype!")   
 
     def apply_filter(self, gdf:gpd.GeoDataFrame) -> None:
         """Use the gdf to mask nodata in _lu_array and _dem_array."""
@@ -111,7 +168,6 @@ class AreaDamageCurveMethods:
         for geom in gdf.geometry:
             shapes_lu.append((geom, self.lu_nodata_value))    
             shapes_dem.append((geom, self.dem_nodata_value))
-        
         
             rasterize(
                 shapes=shapes_lu,
@@ -200,24 +256,28 @@ class AreaDamageCurveMethods:
         if depth_steps is None:
             depth_steps = self.depth_steps
 
+        depth_steps = [int(ds * 10**DAMAGE_DECIMALS) for ds in depth_steps]
+        area_start_level = int(self.area_start_level * 10**DAMAGE_DECIMALS)
+
         run_2d = not run_1d
 
-        lu_array = self._lu_array
-        dem_array = self._dem_array
-        self.time.log("run: reading rasters finished!")
+        lu_array = np.copy(self._lu_array)
+        dem_array = np.copy(self._dem_array)
 
-        if run_1d:
+        if run_1d: # removes nodata values
             lu_array = lu_array.flatten()
             dem_array = dem_array.flatten()
-            nodata = dem_array == self.dem.nodata
-            lu_array = lu_array[~nodata]
-            dem_array = dem_array[~nodata]
+            nodata_mask_1d = dem_array == self.dem_nodata_value
+            lu_array = lu_array[~nodata_mask_1d]
+            dem_array = dem_array[~nodata_mask_1d]
+            dem_array[dem_array < area_start_level] = area_start_level
 
-        if run_2d:
-            lu_array[dem_array == self.dem.nodata] = self.lu_nodata_value
-
-        dem_array[dem_array < self.area_start_level] = self.area_start_level
-        self.time.log("run: pre-processing rasters finished.")
+        if run_2d: # retains nodata values
+            nodata_mask_2d = dem_array == self.dem_nodata_value
+            lu_array[nodata_mask_2d] = self.lu_nodata_value
+            dem_array[(dem_array < area_start_level) & ~nodata_mask_2d] = area_start_level
+        
+        self.time.log("run: pre-processing rasters finished!")
 
         curve = {}
         curve_vol = {}
@@ -226,31 +286,35 @@ class AreaDamageCurveMethods:
 
         for ds in depth_steps:
             self.time.log(f"run: depth-step: {ds}!")
-            depth = ((self.area_start_level + ds) - dem_array).round(DAMAGE_DECIMALS)
-            zero_depth_mask = depth <= 0
-            lu = np.copy(lu_array)  # TODO is this really needed?
+            depth_ds = ((area_start_level + ds) - dem_array)
+            zero_depth_mask = depth_ds <= 0
+            lu_ds = np.copy(lu_array)
+
             self.time.log(f"run: depth-step {ds} pre-processing finished!")
 
             if run_1d:
-                depth = depth[~zero_depth_mask]
-                lu = lu[~zero_depth_mask]
-                data = pd.DataFrame(data={"depth": depth, "lu": lu})
+                self.time.log(f"run: {ds} 1D vectorized calculations.")
+                depth_ds = depth_ds[~zero_depth_mask]
+                lu_ds = lu_ds[~zero_depth_mask]
+                data = pd.DataFrame(data={"depth": depth_ds, "lu": lu_ds})
                 data = data.groupby(["depth", "lu"]).size().reset_index().rename(columns={0: "count"})
-                data['lookup'] = data.lu.array*LU_LOOKUP_FACTOR + data.depth.array
+                data['lookup'] = data.lu.array.astype(LU_DTYPE)*LU_LOOKUP_FACTOR + data.depth.array/self.convert_factor
                 data['damage'] = data['lookup'].map(self.lookup_table) * data['count']
                 data['volume'] = data['depth'] * self.pixel_width**2 * data['count']
                 damage_per_lu = dict(data.groupby("lu").damage.sum())
-                self.time.log(f"run: 1D depth step {ds} calculation finished!")
+                self.time.log(f"run: {ds} 1D vectorized calculations finished!")
 
             if run_2d:
-                depth[zero_depth_mask] = self.dem_nodata_value
-                lu[zero_depth_mask] = self.lu_nodata_value
+                self.time.log(f"run: {ds} 2D calculations.")
+                mask_2d_ds = zero_depth_mask | nodata_mask_2d 
+                depth_ds[mask_2d_ds] = self.dem_nodata_value
+                lu_ds[mask_2d_ds] = self.lu_nodata_value
                 self.time.log("run: 2D set nodata finished!")
 
-                data = pd.DataFrame(data={"depth": depth.flatten(), "lu": lu.flatten()})
+                data = pd.DataFrame(data={"depth": depth_ds.flatten(), "lu": lu_ds.flatten()})
                 self.time.log("run: 2D flatten finished!")
 
-                data['lookup'] = data.lu*LU_LOOKUP_FACTOR + data.depth
+                data['lookup'] = data.lu.astype(LU_DTYPE)*LU_LOOKUP_FACTOR + data.depth/self.convert_factor
                 self.time.log("run: 2D lookup mapping finished!")
                 
                 data['damage'] = data['lookup'].map(self.lookup_table)
@@ -259,26 +323,27 @@ class AreaDamageCurveMethods:
                 data['volume'] = data['depth'] * self.pixel_width**2
                 self.time.log("run: 2D volume calc finished!")
 
-                damage_2d = data.damage.values.reshape(depth.shape)
+                damage_2d = data.damage.values.reshape(depth_ds.shape)
                 self.time.log("run: 2D calculations finished!")
                 
-                self.write_tif(path=self.fdla_dir["damage_" + str(ds)].path, array=damage_2d)
+                ds_name = str(ds/self.convert_factor)
+                self.write_tif(path=self.fdla_dir[f"damage_{ds_name}"].path, array=damage_2d)
                 if write_2d:
-                    volume_2d = data.volume.values.reshape(depth.shape)
-                    self.write_tif(path=self.fdla_dir["volume_" + str(ds)].path, array=volume_2d)
-                    self.write_tif(path=self.fdla_dir["depth_" + str(ds)].path, array=depth)
-                    self.write_tif(path=self.fdla_dir["lu_" + str(ds)].path, array=lu)
-                    self.write_tif(path=self.fdla_dir["level_" + str(ds)].path, array=depth + dem_array)
+                    volume_2d = data.volume.values.reshape(depth_ds.shape)
+                    self.write_tif(path=self.fdla_dir[f"volume_{ds_name}"].path, array=volume_2d)
+                    self.write_tif(path=self.fdla_dir[f"depth_{ds_name}"].path, array=depth_ds)
+                    self.write_tif(path=self.fdla_dir[f"lu_{ds_name}"].path, array=lu_ds)
+                    self.write_tif(path=self.fdla_dir[f"level_{ds_name}"].path, array=depth_ds + dem_array)
                     
                 damage_per_lu = {}
                 self.time.log("run: 2D writing finished!")
                 self.time.log(f"run: 2D depth step {ds} calculation finished!")
-                
-            curve[ds] = data.damage.sum()
-            curve_vol[ds] = data.volume.sum()
-            un, c = np.unique(lu, return_counts=True)
-            counts_lu[ds] = dict(zip(un, c))
-            damage_lu[ds] = damage_per_lu
+
+            ds_key = ds / self.convert_factor
+            curve[ds_key] = data.damage.sum()
+            curve_vol[ds_key] = data.volume.sum()
+            counts_lu[ds_key] = dict(zip(*np.unique(lu_ds, return_counts=True)))
+            damage_lu[ds_key] = damage_per_lu
 
         timedelta = self.time.time_since_start
         self.time.log(f"Area {self.peilgebied_id} calulation time: {str(timedelta)[:7]}")
@@ -304,7 +369,7 @@ class AreaDamageCurveMethods:
         hrt.save_raster_array_to_tiff(
             output_file=path,
             raster_array=array,
-            nodata=self.nodata,
+            nodata= self.dem_nodata_value,
             metadata=self.area_meta,
             overwrite=True,
         )
@@ -353,7 +418,6 @@ class AreaDamageCurves:
     curve_step: float = 0.1
     curve_max: float = 3
     resolution: float = 0.5
-    nodata: int = -9999  # TODO @Ckerklaan1 gebruik DEFAULT_NODATA_VALUES
     area_layer_name: Optional[str] = None
     nodamage_file: Union[str, Path] = None
     wss_curves_filter_settings_file: Optional[str] = None
@@ -385,6 +449,8 @@ class AreaDamageCurves:
         if self.wss_config_file:
             shutil.copy(self.wss_config_file, self.dir.input.wss_cfg_settings.path)
         
+        self.overwrite = self.overwrite == "True"
+
         self.time.log("Initialized AreaDamageCurves!")
 
     def __iter__(self):
@@ -480,7 +546,6 @@ class AreaDamageCurves:
         data["metadata"] = self.metadata
         data["depth_steps"] = self.depth_steps
         data["output_dir"] = str(self.dir.path)
-        data["nodata"] = self.nodata
         data["filter_settings"] = self.wss_curves_filter_settings
         data["log_file"] = self.time.log_file
         data["nodamage_file"] = str(self.nodamage_file)
