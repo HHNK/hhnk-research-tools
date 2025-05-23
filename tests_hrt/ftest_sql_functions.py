@@ -126,14 +126,18 @@ def test_get_table_domains_from_oracle():
     # %%
     db_dict = DATABASES.get("aquaprd_lezen", None)
     schema = "DAMO_W"
-    table_name = "HYDROOBJECT"
-    column_name = "CATEGORIEOPPWATERLICHAAM"
+    table_name = "GEMAAL"
+    column_list = ["functieGemaal", "WS_CATEGORIE"]
 
     domains = get_table_domains_from_oracle(
         db_dict=db_dict,
         schema=schema,
         table_name=table_name,
-        column_name=column_name,
+        column_list=column_list,
     )
+    assert domains[domains["naamdomeinwaarde"] == "afvoeren"]["codedomeinwaarde"].values[0] == "2"
 
     # %%
+
+
+# NOTE remove

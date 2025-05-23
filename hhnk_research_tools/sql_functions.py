@@ -666,3 +666,95 @@ def get_tables_from_oracle_db(db_dict: dict):
         tables_df = execute_sql_selection("SELECT owner, table_name FROM all_tables", conn=con)
 
     return tables_df
+
+
+def get_table_domains_from_oracle(
+    db_dict: dict,
+    schema: str,
+    table_name: str,
+    column_list: list[str] = None,
+):
+    """
+    Get domain for DAMO_W tables.
+
+    Parameters
+    ----------
+    db_dict : dict
+        connection dict. e.g.:
+        {'service_name': '',
+        'user': '',
+        'password': '',
+        'host': '',
+        'port': ''}
+    schema : str
+        schema name
+    table_name : str
+        Table name
+    column_list : str
+        List of column names for which to retrieve the doamins.
+    """
+
+    if schema == "DAMO_W":
+        if column_list is None:
+            column_list = get_table_columns(db_dict=db_dict, schema=schema, table_name=table_name)
+
+        # make all items list columnlist lowercase
+        column_list = [c.lower() for c in column_list]
+
+        # standard queries
+        map_query = f"""
+                SELECT *
+                FROM DAMO_W.DAMOKOLOM
+                WHERE LOWER(DAMOTABELNAAM) = '{table_name.lower()}'
+                AND DAMODOMEINNAAM IS NOT NULL
+                """
+        domain_query = """
+                SELECT *
+                FROM DAMO_W.DAMODOMEINWAARDE
+                """
+        # Query database
+        with oracledb.connect(**db_dict) as con:
+            cur = oracledb.Cursor(con)
+            map_df = execute_sql_selection(map_query, conn=con)
+            map_df.columns = map_df.columns.str.lower()
+            map_df = map_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+            # select relevant domains for columns
+            map_df = map_df[map_df["damokolomnaam"].isin(column_list)]
+
+            # List domains from DAMO
+            domain_df = execute_sql_selection(domain_query, conn=con)
+            domain_df.columns = domain_df.columns.str.lower()
+            domain_df = domain_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+
+        domains = pd.DataFrame()
+        for i in map_df["damodomeinnaam"].unique():
+            # Select relevant domains
+            domain_rules = domain_df[domain_df["damodomeinnaam"] == i]
+            domain_rules = domain_rules[
+                [
+                    "damodomeinnaam",
+                    "codedomeinwaarde",
+                    "naamdomeinwaarde",
+                    "fieldtype",
+                ]
+            ]
+            # select relevant mapping columns
+            mapping = map_df[map_df["damodomeinnaam"] == i]
+            mapping = mapping[
+                [
+                    "damotabelnaam",
+                    "damokolomnaam",
+                    "damodomeinnaam",
+                    "definitie",
+                ]
+            ]
+
+            # join mapping and domain
+            df = mapping.merge(domain_rules, on="damodomeinnaam", how="left")
+
+            domains = pd.concat([domains, df], ignore_index=True)
+
+    else:
+        logger.warning("Schema not supported, only DAMO W contains domains.")
+
+    return domains
