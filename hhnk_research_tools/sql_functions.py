@@ -481,11 +481,11 @@ def database_to_gdf(
     ----------
     db_dict: dict
         connection dict. e.g.:
-        {'service_name': 'ODSPRD',
+        {'service_name': '',
         'user': '',
         'password': '',
-        'host': 'srvxx.corp.hhnk.nl',
-        'port': '1521'}
+        'host': '',
+        'port': ''}
     sql: str
         oracledb 12 sql to execute
         Takes only one sql statement at a time, ';' is removed
@@ -613,11 +613,11 @@ def get_table_columns(
     ----------
     db_dict: dict
         connection dict. e.g.:
-        {'service_name': 'ODSPRD',
+        {'service_name': '',
         'user': '',
         'password': '',
-        'host': 'srvxx.corp.hhnk.nl',
-        'port': '1521'}
+        'host': '',
+        'port': ''}
     schema: str
         schema name
     table_name: str
@@ -643,3 +643,26 @@ def get_table_columns(
             logger.error(e)
 
     return columns_out
+
+
+def get_tables_from_oracle_db(db_dict: dict):
+    """
+    Get list of all tables in database.
+
+    Outputs OWNER (SCHEMA), TABLE_NAME
+
+    Parameters
+    ----------
+    db_dict : dict
+        connection dict. e.g.:
+        {'service_name': '',
+        'user': '',
+        'password': '',
+        'host': '',
+        'port': ''}
+    """
+    with oracledb.connect(**db_dict) as con:
+        cur = oracledb.Cursor(con)
+        tables_df = execute_sql_selection("SELECT owner, table_name FROM all_tables", conn=con)
+
+    return tables_df

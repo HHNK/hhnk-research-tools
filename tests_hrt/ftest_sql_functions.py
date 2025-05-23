@@ -12,6 +12,7 @@ from hhnk_research_tools.sql_functions import (
     database_to_gdf,
     execute_sql_selection,
     get_table_columns,
+    get_table_domains_from_oracle,
     sql_builder_select_by_location,
 )
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
@@ -116,5 +117,23 @@ def test_get_table_columns():
     assert "CODE" in list
     assert "NAAM" in list
     assert "SHAPE" in list
+
+    # %%
+
+
+def test_get_table_domains_from_oracle():
+    """Test to get domaintable from DAMO_W."""
+    # %%
+    db_dict = DATABASES.get("aquaprd_lezen", None)
+    schema = "DAMO_W"
+    table_name = "HYDROOBJECT"
+    column_name = "CATEGORIEOPPWATERLICHAAM"
+
+    domains = get_table_domains_from_oracle(
+        db_dict=db_dict,
+        schema=schema,
+        table_name=table_name,
+        column_name=column_name,
+    )
 
     # %%
