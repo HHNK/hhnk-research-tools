@@ -11,7 +11,7 @@ from hhnk_research_tools.sql_functions import (
     _remove_blob_columns,
     database_to_gdf,
     execute_sql_selection,
-    get_database_columns,
+    get_table_columns,
     sql_builder_select_by_location,
 )
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
@@ -97,7 +97,7 @@ def test_remove_blob_cols():
     # %%
 
 
-def test_get_database_columns():
+def test_get_table_columns():
     """
     Test with database connection.
     Difficult to test without this connection as sqlite and
@@ -108,7 +108,7 @@ def test_get_database_columns():
     db_dict = DATABASES.get("aquaprd_lezen", None)
 
     with pytest.raises(TypeError):
-        list = get_database_columns(
+        list = get_table_columns(
             db_dict=db_dict,
             schema="DAMO_W",
             table_name="HYDROOBJECT",

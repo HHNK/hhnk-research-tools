@@ -601,7 +601,7 @@ def database_to_gdf(
         return df, sql2
 
 
-def get_database_columns(
+def get_table_columns(
     db_dict: dict,
     schema: str,
     table_name: str,
