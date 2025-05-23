@@ -620,18 +620,20 @@ def get_database_columns(
         'port': '1521'}
     schema: str
         schema name
-    table: str
+    table_name: str
         table name
 
     Returns
     -------
     columns_out : List of column names
     """
+    columns_out = None
     sql = f"""
         SELECT *
         FROM {schema}.{table_name}
         FETCH FIRST 0 ROWS ONLY
         """
+
     with oracledb.connect(**db_dict) as con:
         try:
             cur = oracledb.Cursor(con)

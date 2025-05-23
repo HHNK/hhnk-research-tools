@@ -11,6 +11,7 @@ from hhnk_research_tools.sql_functions import (
     _remove_blob_columns,
     database_to_gdf,
     execute_sql_selection,
+    get_database_columns,
     sql_builder_select_by_location,
 )
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
@@ -93,4 +94,27 @@ def test_remove_blob_cols():
     gdf2 = _remove_blob_columns(gdf)
 
     display(gdf)
+    # %%
+
+
+def test_get_database_columns():
+    """
+    Test with database connection.
+    Difficult to test without this connection as sqlite and
+    postges syntax for 'FETCH FIRST 0 ROWS ONLY' is different
+    from Oracle.
+    """
+    # %%
+    db_dict = DATABASES.get("aquaprd_lezen", None)
+
+    with pytest.raises(TypeError):
+        list = get_database_columns(
+            db_dict=db_dict,
+            schema="DAMO_W",
+            table_name="HYDROOBJECT",
+        )
+    assert "CODE" in list
+    assert "NAAM" in list
+    assert "SHAPE" in list
+
     # %%
