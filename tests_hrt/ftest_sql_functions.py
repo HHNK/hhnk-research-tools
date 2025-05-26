@@ -109,14 +109,14 @@ def test_get_table_columns():
     db_dict = DATABASES.get("aquaprd_lezen", None)
 
     with pytest.raises(TypeError):
-        list = get_table_columns(
+        columns = get_table_columns(
             db_dict=db_dict,
             schema="DAMO_W",
             table_name="HYDROOBJECT",
         )
-    assert "CODE" in list
-    assert "NAAM" in list
-    assert "SHAPE" in list
+    assert "CODE" in columns
+    assert "NAAM" in columns
+    assert "SHAPE" in columns
 
     # %%
 

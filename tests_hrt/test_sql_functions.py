@@ -1,12 +1,9 @@
-import re
-
-import pytest
-
+# %%
 from hhnk_research_tools.sql_functions import sql_builder_select_by_id_list_statement
 
 
 def test_sql_builder_select_by_id_list_statement():
-    sub_id_list_sql = """SELECT SUB_ID FROM SCHEMA.SUPTABLE"""
+    sub_id_list_sql = """SELECT SUB_ID FROM SCHEMA.SUBTABLE"""
     schema = "SCHEMA"
     sub_table = "SUBTABLE"
     sub_id_column = "ID"
@@ -17,10 +14,7 @@ def test_sql_builder_select_by_id_list_statement():
         sub_table=sub_table,
         sub_id_column=sub_id_column,
     )
-    assert (
-        re.sub(r"\n", "", sql)
-        == "        SELECT *        FROM SCHEMA.SUBTABLE        WHERE ID IN (            SELECT SUB_ID FROM SCHEMA.SUPTABLE         )        "
-    )
+    assert sql == "SELECT *\nFROM SCHEMA.SUBTABLE\nWHERE ID IN (\n    SELECT SUB_ID FROM SCHEMA.SUBTABLE \n)"
 
 
 if __name__ == "__main__":

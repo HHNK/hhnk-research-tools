@@ -406,13 +406,11 @@ def sql_builder_select_by_id_list_statement(
     if include_todays_mutations and "_EVW" not in sub_table:
         sub_table = f"{sub_table}_EVW"
 
-    sql = f"""
-        SELECT *
-        FROM {schema}.{sub_table}
-        WHERE {sub_id_column} IN (
-            {sub_id_list_sql} 
-        )
-        """
+    sql = f"""SELECT *
+FROM {schema}.{sub_table}
+WHERE {sub_id_column} IN (
+    {sub_id_list_sql} 
+)"""
 
     return sql
 
@@ -691,7 +689,7 @@ def get_table_domains_from_oracle(
     table_name : str
         Table name
     column_list : str
-        List of column names for which to retrieve the doamins.
+        List of column names for which to retrieve the domains.
     """
 
     if schema == "DAMO_W":
@@ -755,6 +753,6 @@ def get_table_domains_from_oracle(
             domains = pd.concat([domains, df], ignore_index=True)
 
     else:
-        logger.warning("Schema not supported, only DAMO W contains domains.")
+        logger.warning("Schema not supported, only DAMO_W contains domains.")
 
     return domains
