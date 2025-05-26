@@ -14,7 +14,7 @@ def test_sql_builder_select_by_id_list_statement():
         sub_table=sub_table,
         sub_id_column=sub_id_column,
     )
-    assert sql == "SELECT *\nFROM SCHEMA.SUBTABLE\nWHERE ID IN (\n    SELECT SUPER_ID FROM SCHEMA.SUBTABLE \n)"
+    assert sql == "SELECT *\nFROM SCHEMA.SUBTABLE\nWHERE ID IN (\n    SELECT SUB_ID FROM SCHEMA.SUPERTABLE \n)"
 
 
 if __name__ == "__main__":
