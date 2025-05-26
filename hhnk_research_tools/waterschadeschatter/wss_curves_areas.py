@@ -12,6 +12,7 @@ Methodiek schade, volume en landgebruik
 
 """
 import json
+from functools import reduce
 import argparse
 import datetime
 import multiprocessing as mp
@@ -55,6 +56,7 @@ DAMAGE_DECIMALS = 2
 MAX_PROCESSES = mp.cpu_count() - 1  # still wanna do something on the computa use minus 1
 MP_ENVELOPE_AREA_LIMIT = 1000000000 # m2 #1.000.000.000 kwart van HHNK
 TILE_SIZE = 5000
+BUFFER_OVERLAP = 0.25
 NAME = "WSS AreaDamageCurve"
 LU_DTYPE = "uint16"
 DEM_DTYPE = "int16"  
@@ -586,75 +588,6 @@ class AreaDamageCurves:
 
         return vrt
 
-    def write(self, fid_list=None) -> None:
-        """ writes all data of self"""
-        if fid_list is None:
-            fid_list = list(self)
-
-        self.time.log("Start writing output")
-        for fid in tqdm(fid_list, "Adding fdla workdir's"):
-            self.dir.work[self.run_type].add_fdla_dir(self.depth_steps, str(fid))
-
-        self.time.log("Writing damage curves")
-        dmg_counts = []
-        for fid in tqdm(fid_list, "damage curves"):
-            dmg_file = self.dir.work[self.run_type][f"fdla_{fid}"].curve.path
-            if not dmg_file.exists():
-                continue
-            curve_dmg = pd.read_csv(dmg_file, index_col=0).T[0]
-            curve_dmg.name = str(fid)
-            dmg_counts.append(curve_dmg)
-        
-        dmg = pd.concat(dmg_counts,axis=1)
-        dmg.to_csv(self.dir.output.result.path)
-
-        self.time.log("Writing volume curves")
-        vol_counts = []
-        for fid in tqdm(fid_list, "volume curves"):
-            vol_file = self.dir.work[self.run_type][f"fdla_{fid}"].curve_vol.path
-            if not vol_file.exists():
-                continue
-            curve_vol = pd.read_csv(vol_file, index_col=0).T[0]
-            curve_vol.name = str(fid)
-            vol_counts.append(curve_vol)
-        
-        vol = pd.concat(vol_counts,axis=1)
-        vol.to_csv(self.dir.output.result_vol.path)
-
-        self.time.log("Writing combined land-use files")
-        lu_counts = []
-        for fid in tqdm(fid_list, "Land-use counts"):
-            counts_lu_file = self.dir.work[self.run_type][f"fdla_{fid}"].counts_lu.path
-            if not counts_lu_file.exists():
-                continue
-            curve_lu = pd.read_csv(counts_lu_file, index_col=0)
-            curve_lu = curve_lu.fillna(0) * self.resolution**2
-            curve_lu["fid"] = str(fid)
-            lu_counts.append(curve_lu)
-        lu_areas = pd.concat(lu_counts)
-        lu_areas.to_csv(self.dir.output.result_lu_areas.path)
-
-        lu_damage: list[pd.DataFrame] = []
-        for fid in tqdm(fid_list, "Land-use damage"):
-            damage_lu_file = self.dir.work[self.run_type][f"fdla_{fid}"].damage_lu.path
-            if not damage_lu_file.exists():
-                continue
-            damage_lu = pd.read_csv(damage_lu_file, index_col=0)
-            damage_lu = damage_lu.fillna(0)
-            damage_lu["fid"] = str(fid)
-            lu_damage.append(damage_lu)
-        lu_damage_df = pd.concat(lu_damage)
-        lu_damage_df.to_csv(self.dir.output.result_lu_damage.path)
-
-        mask = self.area_vector[ID_FIELD].isin(self.failures)
-        failures = self.area_vector[mask]
-        failures.to_file(self.dir.output.failures.path)
-
-        #fdla_performance(self.dir.input.area.path, self.dir.work.log.fdla.path)
-
-        self.time.log("End writing")
-        self.time.write()
-
     def run_area_tiled(self, area_id: int, tile_size=TILE_SIZE, **kwargs) -> tuple[dict, dict]:
         """Process a large area by splitting it into smaller chunks."""
         self.time.log(f"Processing large area {area_id} by splitting into chunks")
@@ -666,8 +599,10 @@ class AreaDamageCurves:
         # Split into squares
         squares = split_geometry_in_tiles(area_geom, envelope_tile_size=tile_size)
         self.time.log(f"Split area {area_id} into {len(squares)} chunks")
+
+        squares.geometry = squares.geometry.buffer(-BUFFER_OVERLAP)  # buffer to avoid overlaps
         
-        # Create temporary GeoDataFrame for each square
+        # Create temporary GeoDataFrame for squares
         squares[ID_FIELD] = [f"t{i}_{area_id}"for i in squares.index ]
         squares[DRAINAGE_LEVEL_FIELD] = area[DRAINAGE_LEVEL_FIELD].iloc[0]
         squares_area_path = self.dir.input.tiles.joinpath(f"tiles_{area_id}.gpkg")
@@ -682,7 +617,6 @@ class AreaDamageCurves:
 
         return list(squares[ID_FIELD])
 
-    
     def run_mp_optimized(self, limit=MP_ENVELOPE_AREA_LIMIT, tile_size=TILE_SIZE, **kwargs):
         """Optimized multiprocessing run: divides larger and smaller areas."""
         self.time.log("Start optimized multiprocessing run")
@@ -692,11 +626,11 @@ class AreaDamageCurves:
         self.run(area_ids["small"], run_1d=True, multiprocessing=True, write=False, **kwargs)
 
         self.time.log("Running large areas tiled with mp.")
-        tile_ids = []
+        tile_ids = {}
         for area_id in area_ids["large"]:
-            tile_ids+= self.run_area_tiled(area_id, tile_size, **kwargs)
+            tile_ids[area_id] = self.run_area_tiled(area_id, tile_size, **kwargs)
 
-        self.write(list(self)+tile_ids)
+        self.write(tile_output=tile_ids)
 
     def run(
         self,
@@ -777,7 +711,116 @@ class AreaDamageCurves:
             self.write()
 
         self.time.log(f"Ended {self.run_type}")
+    
+    def read_dmg_vol_output(self, fid, volume=False):
+        if volume == True:
+            file = self.dir.work[self.run_type][f"fdla_{fid}"].curve_vol.path
+        else:
+            file = self.dir.work[self.run_type][f"fdla_{fid}"].curve.path
+        
+        if not file.exists():
+            return 
+        curve_dmg = pd.read_csv(file, index_col=0).T[0]
+        curve_dmg.name = str(fid)
+        return curve_dmg
+    
+    def read_lu_output(self, fid, counts: bool = False):        
+        if counts == True:
+            file = self.dir.work[self.run_type][f"fdla_{fid}"].counts_lu.path
+        else:
+            file = self.dir.work[self.run_type][f"fdla_{fid}"].damage_lu.path
+        
+        if not file.exists():
+            return
+        curve_lu = pd.read_csv(file, index_col=0)
+        curve_lu = curve_lu.fillna(0) * self.resolution**2
+        curve_lu['fid'] = str(fid)
+        curve_lu.index= self.depth_steps
+        return curve_lu
+     
+    def write(self, tile_output=None) -> None:
+        """ writes all data of self"""
+        fid_list = list(self)
+        
+        self.time.log("Start writing output")
+        for fid in tqdm(fid_list, "Adding fdla workdir's"):
+            self.dir.work[self.run_type].add_fdla_dir(self.depth_steps, str(fid))
 
+        if tile_output is not None:
+            for k,tiles in tile_output.items():
+                for tile_id in tiles:
+                  self.dir.work[self.run_type].add_fdla_dir(self.depth_steps, str(tile_id))
+
+        self.time.log("Writing damage curves")
+        dmg_total = []
+        for fid in tqdm(fid_list, "damage curves"):
+            if fid in tile_output:
+                dmg_tiles = [self.read_dmg_vol_output(tid) for tid in tile_output[fid]] 
+                dmg_tiles = [d for d in dmg_tiles if d is not None] 
+                tiled_output = pd.concat(dmg_tiles,axis=1).sum(axis=1)
+                tiled_output.name = str(fid)
+                dmg_total.append(tiled_output)
+            else:
+                dmg_total.append(self.read_dmg_vol_output(fid))
+        
+        dmg = pd.concat(dmg_total,axis=1)
+        dmg.index= self.depth_steps
+        dmg.to_csv(self.dir.output.result.path)
+
+        self.time.log("Writing volume curves")
+        vol_total = []
+        for fid in tqdm(fid_list, "volume curves"):
+            if fid in tile_output:
+                vol_tiles = [self.read_dmg_vol_output(tid, volume=True) for tid in tile_output[fid]] 
+                vol_tiles = [d for d in vol_tiles if d is not None] 
+                tiled_output = pd.concat(vol_tiles,axis=1).sum(axis=1)
+                tiled_output.name = str(fid)
+                vol_total.append(tiled_output)
+            else:
+                vol_total.append(self.read_dmg_vol_output(fid, volume=True))
+        
+        vol = pd.concat(vol_total,axis=1)
+        vol.index= self.depth_steps
+        vol.to_csv(self.dir.output.result_vol.path)
+
+        self.time.log("Writing combined land-use files")
+        luc_total = []
+        for fid in tqdm(fid_list, "Land-use counts"):
+            if fid in tile_output:
+                luc_tiles = [self.read_lu_output(tid, counts=True) for tid in tile_output[fid]] 
+                luc_tiles = [d for d in luc_tiles if d is not None] 
+                tiled_output = reduce(lambda a, b: a.add(b, fill_value=0), luc_tiles)
+                tiled_output['fid'] = str(fid)
+                luc_total.append(tiled_output)
+            else:
+                luc_total.append(self.read_lu_output(fid,counts=True))
+        
+        lu_areas = pd.concat(luc_total)
+        lu_areas.to_csv(self.dir.output.result_lu_areas.path)
+
+        self.time.log("Writing damage land-use files")
+        luc_total = []
+        for fid in tqdm(fid_list, "Land-use damage"):
+            if fid in tile_output:
+                luc_tiles = [self.read_lu_output(tid) for tid in tile_output[fid]] 
+                luc_tiles = [d for d in luc_tiles if d is not None] 
+                tiled_output = reduce(lambda a, b: a.add(b, fill_value=0), luc_tiles)
+                tiled_output['fid'] = str(fid)
+                luc_total.append(tiled_output)
+            else:
+                luc_total.append(self.result_lu_damage(fid))
+        
+        lu_areas = pd.concat(luc_total)
+        lu_areas.to_csv(self.dir.output.result_lu_areas.path)
+
+        mask = self.area_vector[ID_FIELD].isin(self.failures)
+        failures = self.area_vector[mask]
+        failures.to_file(self.dir.output.failures.path)
+
+        #fdla_performance(self.dir.input.area.path, self.dir.work.log.fdla.path)
+
+        self.time.log("End writing")
+        self.time.write()
 
 def area_method_mp(args):
     peilgebied_id = args[0]
