@@ -738,7 +738,7 @@ class AreaDamageCurves:
         curve_lu.index= self.depth_steps
         return curve_lu
      
-    def write(self, tile_output=None) -> None:
+    def write(self, tile_output={}) -> None:
         """ writes all data of self"""
         fid_list = list(self)
         
@@ -746,7 +746,7 @@ class AreaDamageCurves:
         for fid in tqdm(fid_list, "Adding fdla workdir's"):
             self.dir.work[self.run_type].add_fdla_dir(self.depth_steps, str(fid))
 
-        if tile_output is not None:
+        if len(tile_output) > 0:
             for k,tiles in tile_output.items():
                 for tile_id in tiles:
                   self.dir.work[self.run_type].add_fdla_dir(self.depth_steps, str(tile_id))
@@ -808,7 +808,7 @@ class AreaDamageCurves:
                 tiled_output['fid'] = str(fid)
                 luc_total.append(tiled_output)
             else:
-                luc_total.append(self.result_lu_damage(fid))
+                luc_total.append(self.read_lu_output(fid))
         
         lu_areas = pd.concat(luc_total)
         lu_areas.to_csv(self.dir.output.result_lu_areas.path)
