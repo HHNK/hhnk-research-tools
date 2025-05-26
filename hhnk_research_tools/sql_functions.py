@@ -633,12 +633,9 @@ def get_table_columns(
         """
 
     with oracledb.connect(**db_dict) as con:
-        try:
-            cur = oracledb.Cursor(con)
-            cur.execute(sql)
-            columns_out = [i[0] for i in cur.description]
-        except Exception as e:
-            logger.error(e)
+        cur = oracledb.Cursor(con)
+        cur.execute(sql)
+        columns_out = [i[0] for i in cur.description]
 
     return columns_out
 
