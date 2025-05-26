@@ -18,6 +18,7 @@ from hhnk_research_tools.sql_functions import (
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
 
 logger = logging.get_logger(name=__name__)
+# %%
 
 
 def test_database_to_gdf():
@@ -108,12 +109,11 @@ def test_get_table_columns():
     # %%
     db_dict = DATABASES.get("aquaprd_lezen", None)
 
-    with pytest.raises(TypeError):
-        columns = get_table_columns(
-            db_dict=db_dict,
-            schema="DAMO_W",
-            table_name="HYDROOBJECT",
-        )
+    columns = get_table_columns(
+        db_dict=db_dict,
+        schema="DAMO_W",
+        table_name="HYDROOBJECT",
+    )
     assert "CODE" in columns
     assert "NAAM" in columns
     assert "SHAPE" in columns
