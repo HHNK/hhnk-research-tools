@@ -11,6 +11,8 @@ import json
 import logging  
 import os
 
+import math
+import shapely
 import numpy as np
 import geopandas as gp
 import pandas as pd
@@ -110,7 +112,11 @@ class Input(Folder):
         self.add_file("wss_curves_filter_settings", "wss_curves_filter_settings.json")
         self.add_file("settings_json_file", "settings_json_file.json")
         self.add_file("wss_lookup", "wss_lookup.json")
+        self.tiles = Tiles(self.base, create)
 
+class Tiles(Folder):
+    def __init__(self, base, create):
+        super().__init__(os.path.join(base, "tiles"), create)
 
 class Work(Folder):
     def __init__(self, base, create):
@@ -134,12 +140,13 @@ class Run1D(Folder):
         for i in self.path.glob("*"):
             self.add_fdla_dir(depth_steps, i.stem)
     
-    def create_fdla_dir(self, name, depth_steps, overwrite):
+    def create_fdla_dir(self, name, depth_steps, overwrite, tiled=False):
         """Create fixed drainage level areas"""
         if (pathlib.Path(self.base) / f"fdla_{name}").exists() and not overwrite:
             self.add_fdla_dir(depth_steps, name)   
         else:
             setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
+
 
 
 class Run2D(Folder):
@@ -311,6 +318,8 @@ def fdla_performance(fdla_file, fdla_time_dir):
             duration = duration.rename(columns={"duration":pid})
             areas.append(fdla.loc[pid].area)
         else:
+            duration[pid] = time.duration.values
+            areas.append(fdla.loc[pid].area)
             try:
                 duration[pid] = time.duration.values
                 areas.append(fdla.loc[pid].area)
@@ -321,11 +330,50 @@ def fdla_performance(fdla_file, fdla_time_dir):
     average_duration_per_message = (duration.sum(axis=1) / len(total_duration)).sort_values(ascending=False)
     percentage = (duration / duration.sum()).mean(axis=1)*100
     percentage = percentage.sort_values(ascending=False)
-    duration_per_area = pd.DataFrame(data={"duration":duration.sum(), "area":areas})
     
     with pd.ExcelWriter(folder/'fdla_performance_analysis.xlsx') as writer:  
         pd.DataFrame(duration).to_excel(writer, sheet_name='duration_per_message')
         total_duration.to_excel(writer, sheet_name='total_duration')
         average_duration_per_message.to_excel(writer, sheet_name='average_duration_per_message')
         percentage.to_excel(writer, sheet_name='percentage')
-        duration_per_area.to_excel(writer, sheet_name='duration_per_area')
+        try:
+           duration_per_area = pd.DataFrame(data={"duration":duration.sum(), "area":areas})
+           duration_per_area.to_excel(writer, sheet_name='duration_per_area')
+        except Exception as e:
+            print("Error writing duration per area:", e)
+        
+def split_geometry_in_tiles(geometry: shapely.geometry, envelope_tile_size=250) -> gp.GeoDataFrame:
+    """Split geometry into squares of maximum area size.
+    This function takes a geometry and splits it into smaller square tiles of a specified size.
+        params:
+            geometry (shapely.geometry): The geometry to be split into tiles.
+            envelope_tile_size (float): The size one length of each square tile in the same units as the geometry's CRS.
+    """
+    bounds = geometry.bounds
+    width = bounds[2] - bounds[0]
+    height = bounds[3] - bounds[1]
+    
+    # Calculate square size (use sqrt since we want squares)
+    square_size = envelope_tile_size
+    
+    # Calculate number of squares needed in each direction
+    nx = math.ceil(width / square_size)
+    ny = math.ceil(height / square_size)
+    
+    squares = []
+    for i in range(nx):
+        for j in range(ny):
+            # Create square bounds
+            x0 = bounds[0] + i * square_size
+            y0 = bounds[1] + j * square_size
+            x1 = min(x0 + square_size, bounds[2])
+            y1 = min(y0 + square_size, bounds[3])
+            
+            # Create square and intersect with original geometry
+            square = shapely.geometry.box(x0, y0, x1, y1)
+            intersection = geometry.intersection(square)
+            
+            if not intersection.is_empty:
+                squares.append(intersection)
+    
+    return gp.GeoDataFrame(geometry=squares, crs="EPSG:28992")
