@@ -5,17 +5,18 @@ Created on Wed Oct 16 11:07:02 2024
 @author: kerklaac5395
 """
 
-import pathlib
 import datetime
 import json
-import logging  
-import os
-
+import logging
 import math
-import shapely
-import numpy as np
+import os
+import pathlib
+
 import geopandas as gp
+import numpy as np
 import pandas as pd
+import shapely
+
 from hhnk_research_tools import Folder
 from hhnk_research_tools.logger import add_file_handler, get_logger
 from hhnk_research_tools.sql_functions import database_to_gdf
@@ -114,9 +115,11 @@ class Input(Folder):
         self.add_file("wss_lookup", "wss_lookup.json")
         self.tiles = Tiles(self.base, create)
 
+
 class Tiles(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "tiles"), create)
+
 
 class Work(Folder):
     def __init__(self, base, create):
@@ -139,14 +142,13 @@ class Run1D(Folder):
         """Add directory fixed drainage level areas"""
         for i in self.path.glob("*"):
             self.add_fdla_dir(depth_steps, i.stem)
-    
+
     def create_fdla_dir(self, name, depth_steps, overwrite, tiled=False):
         """Create fixed drainage level areas"""
         if (pathlib.Path(self.base) / f"fdla_{name}").exists() and not overwrite:
-            self.add_fdla_dir(depth_steps, name)   
+            self.add_fdla_dir(depth_steps, name)
         else:
             setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
-
 
 
 class Run2D(Folder):
@@ -161,11 +163,11 @@ class Run2D(Folder):
         """Add directory fixed drainage level areas"""
         for i in self.path.glob("*"):
             self.add_fdla_dir(depth_steps, i.stem)
-    
+
     def create_fdla_dir(self, name, depth_steps, overwrite):
         """Create fixed drainage level areas"""
         if (pathlib.Path(self.base) / f"fdla_{name}").exists() and not overwrite:
-            self.add_fdla_dir(depth_steps, name)   
+            self.add_fdla_dir(depth_steps, name)
         else:
             setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
 
@@ -175,9 +177,11 @@ class Log(Folder):
         super().__init__(os.path.join(base, "log"), create)
         self.fdla = FDLATime(self.base, create)
 
+
 class FDLATime(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "fdla_performance"), create)
+
 
 class Output(Folder):
     def __init__(self, base, create):
@@ -226,11 +230,11 @@ class FDLADir(Folder):
         self.add_file("time", "time.csv")
 
         for ds in depth_steps:
-             self.add_file(f"damage_{ds}", f"damage_{ds}.tif")
+            self.add_file(f"damage_{ds}", f"damage_{ds}.tif")
         #    self.add_file(f"depth_{ds}", f"depth_{ds}.tif")
         #    self.add_file(f"level_{ds}", f"level_{ds}.tif")
         #    self.add_file(f"lu_{ds}", f"lu_{ds}.tif")
-            
+
 
 class AggregateDir(Folder):
     def __init__(self, base, create, name):
@@ -255,7 +259,7 @@ class WSSTimelog:
         self.time_file = time_file
         self.log_file = log_file
         self.start_time = datetime.datetime.now()
-        self.data = {"time": [self.start_time], "message":["WSSTimelog initialized"]}
+        self.data = {"time": [self.start_time], "message": ["WSSTimelog initialized"]}
         self.logger = get_logger(self.name, level=logging.DEBUG, filepath=log_file, filemode="a")
         self.quiet = quiet
 
@@ -264,19 +268,20 @@ class WSSTimelog:
         return datetime.datetime.now() - self.start_time
 
     def log(self, message):
-        self.data['time'].append(datetime.datetime.now())
-        self.data['message'].append(message)
+        self.data["time"].append(datetime.datetime.now())
+        self.data["message"].append(message)
         if not self.quiet:
             self.logger.info(message)
-    
+
     def write(self):
-        df = pd.DataFrame(index=self.data['message'])
-        df['time'] = pd.to_datetime(self.data['time'])
+        df = pd.DataFrame(index=self.data["message"])
+        df["time"] = pd.to_datetime(self.data["time"])
         df = df.sort_values(by="time")
 
-        df['duration'] = df['time'].diff().dt.total_seconds()
+        df["duration"] = df["time"].diff().dt.total_seconds()
         df.to_csv(self.time_file)
-        
+
+
 def write_dict(dictionary, path, overwrite=True):
     exists = os.path.exists(path)
     if not exists or overwrite:
@@ -300,48 +305,52 @@ def get_drainage_areas(settings_path):
     gdf, sql2 = database_to_gdf(db_dict=db_dict, sql=sql, columns=None)
     return gdf
 
-def fdla_performance(fdla_file, fdla_time_dir):
-    
-    folder = pathlib.Path(fdla_time_dir)
-    fdla = gp.read_file(fdla_file)
-    fdla['area']= fdla.geometry.area 
-    fdla.index = fdla.pid
 
-    duration = None
-    areas = []
-    for i, f in enumerate(folder.glob("*.csv")):
-        pid = int(f.stem.split("_")[-1])
+def fdla_performance(fdla_gdf, tile_gdf, fdla_time_dir, folder):
+    """
+    Analyze the performance of fixed drainage level areas (FDLA) by calculating the duration of processing for each area.
+    """
+    # Combine the tile_gdf with fdla_gdf, ensuring no duplicates based on 'pid'
+    if len(tile_gdf) > 0:
+        fdla_gdf = fdla_gdf[~fdla_gdf["pid"].isin(tile_gdf["ori_pid"])]
+        fdla_gdf = gp.GeoDataFrame(
+            pd.concat([fdla_gdf, tile_gdf]).reset_index(), geometry="geometry", crs=fdla_gdf.crs
+        )
 
-        time = pd.read_csv(f,index_col=0)
-        if duration is None:
-            duration = time[['duration']]
-            duration = duration.rename(columns={"duration":pid})
-            areas.append(fdla.loc[pid].area)
+    fdla_gdf["area"] = fdla_gdf.geometry.area
+    fdla_gdf.index = fdla_gdf.pid
+
+    for i, (_, data) in enumerate(fdla_gdf.iterrows()):
+        path = fdla_time_dir / f"time_{data.pid}.csv"
+        if not path.exists():
+            print(f"File {path} does not exist, skipping.")
+            continue
+
+        time = pd.read_csv(path, index_col=0)
+        if i == 0:
+            duration = time[["duration"]]
+            duration = duration.rename(columns={"duration": data.pid})
+            areas = [data.area]
         else:
-            duration[pid] = time.duration.values
-            areas.append(fdla.loc[pid].area)
-            try:
-                duration[pid] = time.duration.values
-                areas.append(fdla.loc[pid].area)
-            except Exception as e:
-                print("Skipping", e)
+            values = time.duration.values
+            if len(values) == len(duration):
+                duration[data.pid] = time.duration.values
+                areas.append(data.area)
 
     total_duration = duration.sum().sort_values(ascending=False)
     average_duration_per_message = (duration.sum(axis=1) / len(total_duration)).sort_values(ascending=False)
-    percentage = (duration / duration.sum()).mean(axis=1)*100
+    percentage = (duration / duration.sum()).mean(axis=1) * 100
     percentage = percentage.sort_values(ascending=False)
-    
-    with pd.ExcelWriter(folder/'fdla_performance_analysis.xlsx') as writer:  
-        pd.DataFrame(duration).to_excel(writer, sheet_name='duration_per_message')
-        total_duration.to_excel(writer, sheet_name='total_duration')
-        average_duration_per_message.to_excel(writer, sheet_name='average_duration_per_message')
-        percentage.to_excel(writer, sheet_name='percentage')
-        try:
-           duration_per_area = pd.DataFrame(data={"duration":duration.sum(), "area":areas})
-           duration_per_area.to_excel(writer, sheet_name='duration_per_area')
-        except Exception as e:
-            print("Error writing duration per area:", e)
-        
+
+    with pd.ExcelWriter(folder / "fdla_performance_analysis.xlsx") as writer:
+        pd.DataFrame(duration).to_excel(writer, sheet_name="duration_per_message")
+        total_duration.to_excel(writer, sheet_name="total_duration")
+        average_duration_per_message.to_excel(writer, sheet_name="average_duration_per_message")
+        percentage.to_excel(writer, sheet_name="percentage")
+        # duration_per_area = pd.DataFrame(data={"duration": duration.sum(), "area": areas})
+        # duration_per_area.to_excel(writer, sheet_name="duration_per_area")
+
+
 def split_geometry_in_tiles(geometry: shapely.geometry, envelope_tile_size=250) -> gp.GeoDataFrame:
     """Split geometry into squares of maximum area size.
     This function takes a geometry and splits it into smaller square tiles of a specified size.
@@ -352,14 +361,14 @@ def split_geometry_in_tiles(geometry: shapely.geometry, envelope_tile_size=250) 
     bounds = geometry.bounds
     width = bounds[2] - bounds[0]
     height = bounds[3] - bounds[1]
-    
+
     # Calculate square size (use sqrt since we want squares)
     square_size = envelope_tile_size
-    
+
     # Calculate number of squares needed in each direction
     nx = math.ceil(width / square_size)
     ny = math.ceil(height / square_size)
-    
+
     squares = []
     for i in range(nx):
         for j in range(ny):
@@ -368,12 +377,12 @@ def split_geometry_in_tiles(geometry: shapely.geometry, envelope_tile_size=250) 
             y0 = bounds[1] + j * square_size
             x1 = min(x0 + square_size, bounds[2])
             y1 = min(y0 + square_size, bounds[3])
-            
+
             # Create square and intersect with original geometry
             square = shapely.geometry.box(x0, y0, x1, y1)
             intersection = geometry.intersection(square)
-            
+
             if not intersection.is_empty:
                 squares.append(intersection)
-    
+
     return gp.GeoDataFrame(geometry=squares, crs="EPSG:28992")

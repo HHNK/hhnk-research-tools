@@ -79,7 +79,7 @@ class TestWSSCurves:
     def output(self):
         output = pd.read_csv(EXPECTED_RESULT)
         return output
-    
+
     @pytest.fixture(scope="class")
     def output_optimized(self):
         output = pd.read_csv(EXPECTED_RESULT_OPTIMIZED)
@@ -113,6 +113,7 @@ class TestWSSCurves:
         schadecurves.run_mp_optimized(limit=500, tile_size=100)
         test_output = pd.read_csv(schadecurves.dir.output.result.path)
         pd.testing.assert_frame_equal(output_optimized, test_output)
+
 
 class TestWSSAggregation:
     @pytest.fixture(scope="class")

@@ -27,6 +27,7 @@ logger = logging.get_logger(__name__)
 NAME = "WSS LookupTable"
 LU_LOOKUP_FACTOR = 100
 
+
 class DummyCaller:
     """TODO"""
 
@@ -112,13 +113,12 @@ class WaterSchadeSchatterLookUp:
         self.time.log("Ended generating table")
 
         if flatten:
-            self.time.log("Flatten lookup to increase speed using (lu*LU_LOOKUP_FACTOR)+depth_step." )
+            self.time.log("Flatten lookup to increase speed using (lu*LU_LOOKUP_FACTOR)+depth_step.")
             flattened = {}
             for depth_step, lu_lookup in self.output.items():
                 for lu, damage in lu_lookup.items():
-                    flattened[(lu*LU_LOOKUP_FACTOR)+depth_step] = damage
+                    flattened[(lu * LU_LOOKUP_FACTOR) + depth_step] = damage
             self.output = flattened
-
 
     def write_dict(self, path: Union[str, Path]):
         write_dict(self.output, path)
