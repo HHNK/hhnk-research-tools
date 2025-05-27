@@ -327,7 +327,7 @@ class AreaDamageCurvesAggregation:
 
         return agg_series
 
-    def agg_rain_own_area_retention(self, areas_within, mm_rain=DEFAULT_RAIN) -> pd.Series:
+    def agg_rain_own_area_retention(self, areas_within, mm_rain=DEFAULT_RAIN, int_round=1000) -> pd.Series:
         """Compute the rain per drainage level area, retains it in its own
         place.
         1. Get volume damage curves per area
@@ -336,20 +336,16 @@ class AreaDamageCurvesAggregation:
         """
 
         # interpolated volume damage curves
-        data = []
-        for idx, area in areas_within.iterrows():
-            vol_curve = self.vol_curve[area[ID_FIELD]]
-            dam_curve = self.damage_curve[area[ID_FIELD]]
-
-            vol_curve = self._curve_linear_interpolate(vol_curve, 0.01)
-            dam_curve = self._curve_linear_interpolate(dam_curve, 0.01)
-
-            curve = pd.DataFrame(index=vol_curve.values, data={area[ID_FIELD]: dam_curve.values})
+        area_curve = []
+        for idx, area in tqdm(areas_within.iterrows(), total=len(areas_within)):
+            vol_curve = self.vol_interpolated_curve[area[ID_FIELD]].values.astype(int)
+            dam_curve = self.damage_interpolated_curve[area[ID_FIELD]].values.astype(int)
+            curve = pd.DataFrame(index=vol_curve, data={area[ID_FIELD]: dam_curve})
             curve = curve[~curve.index.duplicated(keep="first")]
-            curve_interpolated = self._curve_linear_interpolate(curve, 10)
-            data.append(curve_interpolated.astype(int))
+            curve_interpolated = self._curve_linear_interpolate(curve, int_round).astype(int)
+            area_curve.append(curve_interpolated)
 
-        area_curve = pd.concat(data, axis=1, sort=True)
+        area_curve = pd.concat(area_curve, axis=1, sort=True)
         area_curve = area_curve.ffill()  # all last values need to be nan
 
         area_curve.index = area_curve.index.astype(int)
@@ -366,7 +362,7 @@ class AreaDamageCurvesAggregation:
                 if volume > area_vol_dam.index[-1]:
                     damage = area_vol_dam.values[-1]
                 else:
-                    damage = area_vol_dam[round(volume, -1)]
+                    damage = area_vol_dam[round(volume, -3)]  # depends on the int_round value (-3 = 1000, -1= 10)
 
                 if np.isnan(damage):
                     damage = 0
