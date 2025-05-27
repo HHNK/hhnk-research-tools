@@ -11,11 +11,14 @@ from hhnk_research_tools.sql_functions import (
     _remove_blob_columns,
     database_to_gdf,
     execute_sql_selection,
+    get_table_columns,
+    get_table_domains_from_oracle,
     sql_builder_select_by_location,
 )
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
 
 logger = logging.get_logger(name=__name__)
+# %%
 
 
 def test_database_to_gdf():
@@ -94,3 +97,47 @@ def test_remove_blob_cols():
 
     display(gdf)
     # %%
+
+
+def test_get_table_columns():
+    """
+    Test with database connection.
+    Difficult to test without this connection as sqlite and
+    postges syntax for 'FETCH FIRST 0 ROWS ONLY' is different
+    from Oracle.
+    """
+    # %%
+    db_dict = DATABASES.get("aquaprd_lezen", None)
+
+    columns = get_table_columns(
+        db_dict=db_dict,
+        schema="DAMO_W",
+        table_name="HYDROOBJECT",
+    )
+    assert "CODE" in columns
+    assert "NAAM" in columns
+    assert "SHAPE" in columns
+
+    # %%
+
+
+def test_get_table_domains_from_oracle():
+    """Test to get domaintable from DAMO_W."""
+    # %%
+    db_dict = DATABASES.get("aquaprd_lezen", None)
+    schema = "DAMO_W"
+    table_name = "GEMAAL"
+    column_list = ["functieGemaal", "WS_CATEGORIE"]
+
+    domains = get_table_domains_from_oracle(
+        db_dict=db_dict,
+        schema=schema,
+        table_name=table_name,
+        column_list=column_list,
+    )
+    assert domains[domains["naamdomeinwaarde"] == "afvoeren"]["codedomeinwaarde"].values[0] == "2"
+
+    # %%
+
+
+# NOTE remove
