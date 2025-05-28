@@ -60,6 +60,19 @@ class Figuur:
         plt.savefig(path, dpi=dpi)
         plt.close()
 
+class CurveFiguur(Figuur):
+    def __init__(self, damage_df):
+        super().__init__()
+        self.df_damages = damage_df
+        self.xlabel_dsc = "Peilverhoging boven streefpeil (m)"
+        self.ylabel_dsc = "Schadebedrag (Euro's)"
+
+    def run(self, output_path, name, title, dpi=DPI):
+        self.create()
+        self.plot(self.df_damages)
+        self.set_x_y_label()
+        self.title(f"{title} voor {name}")
+        self.write(output_path, dpi=dpi)
 
 class BergingsCurveFiguur(Figuur):
     def __init__(self, path, feature):
@@ -80,7 +93,7 @@ class BergingsCurveFiguur(Figuur):
         self.ax_mm.set_ylim(self.volume2mm(y1), self.volume2mm(y2))
         self.ax_mm.figure.canvas.draw()
 
-    def run(self, output_dir, name, dpi=DPI):
+    def run(self, output_path, name, dpi=DPI):
         for col in self.df_vol_level.columns:
             valid_data = self.df_vol_level[col].dropna()
             self.create()
@@ -91,8 +104,7 @@ class BergingsCurveFiguur(Figuur):
             self.set_x_y_label()
             self.ax_mm.set_ylabel(self.ylabel_mm)
             self.title(f"bergingscurve voor {name}")
-            plotpng = output_dir.path / f"bergingscurve_{name}.png"
-            self.write(plotpng, dpi=dpi)
+            self.write(output_path, dpi=dpi)
 
 
 class PercentageFiguur(Figuur):
@@ -177,7 +189,7 @@ class LandgebruikCurveFiguur(PercentageFiguur):
     def __init__(self, path, agg_dir):
         super().__init__(path, agg_dir)
 
-    def run(self, lu_omzetting, name, schadecurve_totaal=False, dpi=DPI):
+    def run(self, lu_omzetting, output_path, name, schadecurve_totaal=False, dpi=DPI):
         ids = np.array(self.df_lu_opp_schade["fid"].unique())
         for id in ids:
             self.lu_verdeling_peilgebied(id)
@@ -200,15 +212,14 @@ class LandgebruikCurveFiguur(PercentageFiguur):
                 handles=self.handels, labels=self.labels, bbox_to_anchor=(0.05, -0.05), loc="upper left", ncols=8
             )
 
-            plotpng = self.agg_dir.path / f"landgebruikcurve_{name}.png"
-            self.write(plotpng, dpi=dpi)
+            self.write(output_path, dpi=dpi)
 
 
 class DamagesLuCurveFiguur(PercentageFiguur):
     def __init__(self, path, agg_dir):
         super().__init__(path, agg_dir)
 
-    def run(self, lu_omzetting, name, schadecurve_totaal=False, dpi=DPI):
+    def run(self, lu_omzetting, output_path, name, schadecurve_totaal=False, dpi=DPI):
         ids = np.array(self.df_lu_opp_schade["fid"].unique())
         for id in ids:
             self.lu_verdeling_peilgebied(id)
@@ -232,8 +243,7 @@ class DamagesLuCurveFiguur(PercentageFiguur):
                 handles=self.handels, labels=self.labels, bbox_to_anchor=(0.05, -0.05), loc="upper left", ncols=8
             )
 
-            plotpng = self.agg_dir.path / f"schadecurve_{name}.png"
-            self.write(plotpng, dpi=dpi)
+            self.write(output_path, dpi=dpi)
 
 
 if __name__ == "__main__":

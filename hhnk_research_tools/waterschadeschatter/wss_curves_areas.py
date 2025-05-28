@@ -485,6 +485,8 @@ class AreaDamageCurves:
             inplace=True,
         )
         vector = self._check_nan(vector)
+        vector = self._check_double_id(vector)
+        
         vector.to_file(self.dir.input.area.path)
         self.time.log("Processing drainage levels Finished")
         return vector
@@ -582,6 +584,13 @@ class AreaDamageCurves:
         if gdf[DRAINAGE_LEVEL_FIELD].isna().sum() > 0:
             self.time.log("Found drainage level NAN's, deleting from input.")
             gdf = gdf[~gdf[DRAINAGE_LEVEL_FIELD].isna()]
+        return gdf
+    
+    def _check_double_id(self, gdf) -> gpd.GeoDataFrame:
+        """Check for double ID's"""
+        if gdf[ID_FIELD].duplicated().any():
+            self.time.log(f"Found double {ID_FIELD}'s, deleting from input.")
+            gdf = gdf[~gdf[ID_FIELD].duplicated(keep="first")]
         return gdf
 
     def _input_to_vrt(self, path_or_dir, vrt_path) -> Raster:

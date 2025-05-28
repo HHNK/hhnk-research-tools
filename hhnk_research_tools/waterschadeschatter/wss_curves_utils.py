@@ -204,6 +204,8 @@ class PostProcessing(Folder):
         self.add_file("vol_level_curve", "vol_level_curve.csv")
         self.add_file("damage_per_m3", "damage_per_m3.csv")
         self.add_file("damage_level_per_ha", "damage_level_per_ha.csv")
+        self.add_file("fdla_figures", "figures.gpkg")
+        self.create_readme()
 
     def add_aggregate_dirs(self):
         for i in self.path.glob("*"):
@@ -213,6 +215,23 @@ class PostProcessing(Folder):
         directory = AggregateDir(self.base, create=True, name=name)
         setattr(self, name, directory)
         return directory
+    
+    def create_figure_dir(self, fdla_ids):
+        """Create a directory for figures for fdla's."""
+        setattr(self, "figures", Figures(self.base, create=True, fdla_ids=fdla_ids))
+        
+    def create_readme(self):
+        readme_txt = """ 
+De figures.gpkg kan gebruikt worden om grafieken te tonen in qgis.
+De volgende stappen moeten daarvoor worden uitgevoerd:
+1. Voeg de figures.gpkg toe aan QGIS.
+2. Ga naar eigenschappen de laag schadecurve, voeg hieraan het volgende toe:
+    <img src="[% schadecurve %]" width=600 height=600 >
+3. Herhaal dit voor de andere lagen.
+4. Zet onder view je maptips aan.
+5. Hoover over de geomtriee om de grafieken te bekijken.
+"""
+        self.joinpath("read_me_qgis_grafiek_lezen.txt").write_text(readme_txt)
 
 
 class FDLADir(Folder):
@@ -244,9 +263,33 @@ class AggregateDir(Folder):
         self.add_file("agg_landuse", "agg_landuse_area.csv")
         self.add_file("agg_landuse_dmg", "agg_landuse_damage.csv")
         self.add_file("agg_volume", "agg_volume.csv")
+        self.add_file("agg_damage_ha", "agg_damage_ha.csv")
+        self.add_file("agg_damage_m3", "agg_damage_m3.csv")
         self.add_file("aggregate", "aggregate.csv")
+        self.add_file("result_lu_areas_classes", "result_lu_areas_classes.csv")
+        self.add_file("result_lu_damages_classes", "result_lu_damages_classes.csv")
         self.add_file("selection", "selection.gpkg")
 
+    def create_figure_dir(self, name):
+        directory = AggregationFigures(self.base, create=True, name=name)
+        setattr(self, "figures", directory)
+        return directory
+    
+class AggregationFigures(Folder):
+    def __init__(self, base, create, name):
+        super().__init__(os.path.join(base, "figures"), create)
+
+        self.add_file("landgebruikcurve", f"landgebruikcurve_{name}.png")
+        self.add_file("bergingscurve", f"bergingscurve_{name}.png")
+        self.add_file("schadecurve", f"schadecurve_{name}.png")
+
+class Figures(Folder):
+    def __init__(self, base, create, fdla_ids):
+        super().__init__(os.path.join(base, "figures"), create)
+        for name in fdla_ids:
+            self.add_file(f"landgebruikcurve_{name}", f"landgebruikcurve_{name}.png")
+            self.add_file(f"bergingscurve_{name}", f"bergingscurve_{name}.png")
+            self.add_file(f"schadecurve_{name}", f"schadecurve_{name}.png")
 
 class WSSTimelog:
     """
