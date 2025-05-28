@@ -51,6 +51,11 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     write_dict,
 )
 
+from hhnk_research_tools.waterschadeschatter.wss_curves_areas_pre import (
+    DCCustomLanduse,
+    PREFIX as CUSTOM_LU_PREFIX
+)
+
 # Globals
 DAMAGE_DECIMALS = 2
 MAX_PROCESSES = mp.cpu_count() - 1  # still wanna do something on the computa use minus 1
@@ -405,6 +410,7 @@ class AreaDamageCurves:
     output_dir: Union[str, Path]
     landuse_path_dir: Union[str, Path]
     dem_path_dir: Union[str, Path]
+    panden_path: Path
     wss_settings_file: Union[str, Path]
     area_path: Union[str, Path] = None
     area_id: str = "code"
@@ -436,8 +442,7 @@ class AreaDamageCurves:
         # Create vrts
         self.time.log("Start vrt conversion dem")
         self.dem = self._input_to_vrt(self.dem_path_dir, self.dir.input.dem.path)
-        self.time.log("Start vrt conversion lu")
-        self.lu = self._input_to_vrt(self.landuse_path_dir, self.dir.input.lu.path)
+        self.load_landuse(self.landuse_path_dir)
 
         # Copy used config to workdir
         if self.wss_config_file:
@@ -592,27 +597,61 @@ class AreaDamageCurves:
             self.time.log(f"Found double {ID_FIELD}'s, deleting from input.")
             gdf = gdf[~gdf[ID_FIELD].duplicated(keep="first")]
         return gdf
+    
+    def _path_dir_to_list(self, path_or_dir:Union[Path, list]) -> list:
+        """Convert path to list"""
+        _input = Path(path_or_dir)
+        if _input.is_dir():
+            pd_list = list(_input.rglob("*.tif"))
+        elif _input.is_file():
+            pd_list = [_input]
+        else:
+            self.time.log("Unrecognized inputs")
+        return pd_list
 
-    def _input_to_vrt(self, path_or_dir, vrt_path) -> Raster:
+    def _input_to_vrt(self, path_or_dir:Union[Path, list], vrt_path:Path) -> Raster:
         """Convert input to vrt."""
         if vrt_path.exists() and not self.overwrite:
             self.time.log(f"VRT file {vrt_path} already exists, skipping conversion.")
             return Raster(vrt_path)
-
-        _input = Path(path_or_dir)
-        if _input.is_dir():
-            vrt_input = list(_input.rglob("*.tif"))
-        elif _input.is_file():
-            vrt_input = [_input]
-        else:
-            self.time.log("Unrecognized inputs")
-
+        vrt_input = self._path_dir_to_list(path_or_dir)
         with rasterio.Env(GDAL_USE_PROJ_DATA=False):  # supress warnings
             vrt = Raster.build_vrt(
                 vrt_out=vrt_path, input_files=vrt_input, bounds=self.metadata.bbox_gdal, overwrite=True
             )
 
         return vrt
+    
+    def load_landuse(self, path_or_dir:Union[Path, list], tile_size=1000):
+        self.time.log("Loading landuse vrt")
+        tiles = self._path_dir_to_list(path_or_dir)
+
+        local_tiles = list(self.dir.input.custom_landuse_tiles.path.glob("*.tif"))
+
+        has_local_custom_lu = all([CUSTOM_LU_PREFIX in t.stem for t in local_tiles]) and len(local_tiles) > 0
+        input_is_custom_lu = all([CUSTOM_LU_PREFIX in t.stem for t in tiles])
+        
+        if has_local_custom_lu:
+            self.time.log("Found local custom landuse.")
+            path_or_dir = self.dir.input.custom_landuse_tiles.path
+        elif not input_is_custom_lu:
+            self.time.log("Did not find local custom landuse or customized input landuse.")
+
+            if len(tiles) > 1:
+                self._input_to_vrt(path_or_dir, self.dir.input.lu_input.path)
+                lu_input = self.dir.input.lu_input.path
+            else:
+                lu_input = tiles[0]
+
+            self.time.log("Creating custom landuse tiles.")
+            custom_lu = DCCustomLanduse(self.panden_path, lu_input, tile_size=tile_size)
+            custom_lu.run(self.dir.input.custom_landuse_tiles.path)
+            self.time.log("Creating custom landuse tiles finished!")
+
+            path_or_dir = self.dir.input.custom_landuse_tiles.path
+
+        self.lu = self._input_to_vrt(path_or_dir, self.dir.input.lu.path)
+        self.time.log("Loading landuse vrt finished!")
 
     def run_area_tiled(self, area_id: int, tile_size=TILE_SIZE, **kwargs) -> list:
         """Process a large area by splitting it into smaller chunks."""

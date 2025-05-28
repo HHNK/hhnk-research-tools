@@ -36,6 +36,7 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     AreaDamageCurveFolders,
     # WSSTimelog,
 )
+from hhnk_research_tools.waterschadeschatter.wss_curves_folium import WSSCurvesFolium
 
 # Logger
 logger = logging.get_logger(__name__)
@@ -392,6 +393,29 @@ class AreaDamageCurvesAggregation:
         agg_series = pd.Series(aggregate_curve, name="damage_own_area_retention")
         return agg_series
     
+    def create_folium_html(self):
+
+
+        fol = WSSCurvesFolium()
+        fol.add_colormap(0, 5)
+        fol.add_water_layer()
+
+        fdla_schade = gpd.read_file(self.dir.post_processing.fdla_figures.path, layer="schadecurve")
+        fdla_berging = gpd.read_file(self.dir.post_processing.fdla_figures.path, layer="bergingscurve")
+
+        fol.add_layer("Schadescurves", fdla_schade, datacolumn="drainage_level", tooltip_fields=['pid'])
+        fol.add_graphs("Schadecurvegrafieken",fdla_schade, 'png_path')
+
+        fol.add_layer("Bergingcurves", fdla_berging, datacolumn="drainage_level", tooltip_fields=['pid'])
+        fol.add_graphs("Bergingcurvegrafieken",fdla_berging, 'png_path')
+
+        fol.add_title("Schade en Bergingscurves")
+        fol.add_legend("Legenda")
+
+        fol.save(self.dir.post_processing.fdla_figures.schadecurves_html)
+
+
+    
     def create_figures(self):
         """Create figures for the damage and volume curves per drainage area."""
 
@@ -415,10 +439,12 @@ class AreaDamageCurvesAggregation:
 
         prefix = "file:///"
         schadecurves = self.drainage_areas.copy()
-        schadecurves['schadecurve'] = [prefix+str(fig_dir[f"schadecurve_{i}"].path) for i in ids]
+        schadecurves['image_path'] = [prefix+str(fig_dir[f"schadecurve_{i}"].path) for i in ids]
+        schadecurves['png_path'] = [str(fig_dir[f"schadecurve_{i}"].path) for i in ids]
 
         bergingscuves = self.drainage_areas.copy()
-        bergingscuves['bergingscurve'] = [prefix+str(fig_dir[f"bergingscurve_{i}"].path) for i in ids]
+        bergingscuves['image_path'] = [prefix+str(fig_dir[f"bergingscurve_{i}"].path) for i in ids]
+        bergingscuves['png_path'] = [str(fig_dir[f"bergingscurve_{i}"].path) for i in ids]
 
         local_file = self.dir.post_processing.fdla_figures.path
         schadecurves.to_file(local_file, layer='schadecurve', driver='GPKG')
@@ -519,7 +545,7 @@ class AreaDamageCurvesAggregation:
 
         self.create_figures()
         self.create_general_figures()
-
+        self.create_folium_html()
 
         if aggregation:
             aggregations = self.agg_run(mm_rain)

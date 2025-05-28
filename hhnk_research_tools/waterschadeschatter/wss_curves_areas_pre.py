@@ -1,73 +1,71 @@
-import rioxarray
-import geopandas as gp
+import pathlib
 import numpy as np
-import xarray as xr
+from tqdm import tqdm
 from rasterio import features
+from shapely.geometry import box
+import geopandas as gp
 import hhnk_research_tools as hrt
+from hhnk_research_tools.waterschadeschatter.wss_curves_utils import split_geometry_in_tiles
+from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 
-def classify_panden(landuse_raster_path, output_path):
+# globals
+PREFIX = "damage_curve"
 
-    # Load raster data with rioxarray
-    raster = rioxarray.open_rasterio(landuse_raster_path, chunks={"x": 1024, "y": 1024})
+class DCCustomLanduse:
 
-    # Apply the classification function
-    classified_raster = raster.map_blocks(classify_pixels)
+    def __init__(self, panden_path, landuse_raster_path, tile_size=1000):
+        
+        self.landuse = hrt.Raster(landuse_raster_path)
+        self.panden = gp.read_file(panden_path)
+        self.tile_size = tile_size
 
-    # Save the result to a new GeoTIFF file
-    classified_raster.rio.to_raster(output_path, chunks={"x": 1024, "y": 1024}, compress='zstd'})
+        bbox_gdal = self.landuse.metadata.bbox_gdal
+        self.extent = gp.GeoDataFrame(
+        geometry=[box(*bbox_gdal)], 
+        crs=self.landuse.metadata.projection
+        )
 
-def rasterize_panden(panden_path, example_raster_path, output_path):
-
-    panden = gp.read_file(panden_path,layer = 'BAG_panden_20241001_HHNK' )
-    example_raster = hrt.Raster(example_raster_path)
-
-    geometry = panden.geometry
-    if hasattr(geometry, "geoms"):
-        geometry_list = list(geometry.geoms)
-    else:
-        geometry_list = [geometry]
-
-    array = features.rasterize(
-        geometry_list,
-        out_shape=example_raster.metadata.shape,
-        transform=example_raster.metadata.georef,
+    def tiles(self):
+        return split_geometry_in_tiles(
+        self.extent.geometry.iloc[0],
+        envelope_tile_size=self.tile_size
     )
 
-    hrt.save_raster_array_to_tiff(
-        output_file=output_path,
-        raster_array=array,
-        nodata=example_raster.nodata,
-        overwrite=True,
-)
+    def run(self, output_dir):
+        tiles = self.tiles()
+        src = self.landuse.open_rio()
 
+        for i in tqdm(range(len(tiles)), "Creating custom landuse"):
+            tile = tiles.iloc[i]
 
-# Define classification function
-def classify_pixels(data_array):
-    """Classifies pixels based on value ranges."""
+            metadata = hrt.RasterMetadataV2.from_gdf(gdf=gp.GeoDataFrame(tile).set_geometry(tile.name),
+                                           res=self.landuse.metadata.pixel_width)
 
-    data = data_array.values
+            lu_array = self.landuse.read_geometry(tile.geometry,set_nan=False)
 
-    classified = np.select(
-        condlist=[(data >= 2) & (data <= 14)], # in essentie all bag klasses
-        choicelist=[254],  # Water
-    )
+            mask = (lu_array >= 2) & (lu_array <= 14)
+            lu_array[mask] = 254
 
-    classified_da = xr.DataArray(
-    classified,
-    dims=data_array.dims,  # Use the same dimensions as the input
-    coords=data_array.coords,  # Use the same coordinates as the input
-    attrs=data_array.attrs  # Preserve attributes
-)
+            # Get panden that intersect with tile
+            tile_panden = self.panden[self.panden.intersects(tile.geometry)]
+            
+            if len(tile_panden) > 0:
 
-    return classified_da
+                # Rasterize panden for this tile
+                panden_array = features.rasterize(
+                    [(geom, 1) for geom in tile_panden.geometry],
+                    out_shape=metadata.shape,
+                    transform=metadata.affine,
+                    dtype=np.uint8
+                )
 
-if __name__ == "__main__":
-    redo_panden(, )
-    landuse_raster_path =r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\data\rasters\landgebruik\landuse2023_tiles\all.vrt" 
-    classified_landuse_path = r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\landgebruik_panden_vervangen/all.tif"
-     classify_panden
+                lu_array[panden_array == 1] = 2
 
-    panden_path = r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\data\vectors\BAG_panden_20241001_HHNK_RUW.gpkg"
-    example_raster_path = r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\data\rasters\landgebruik\landuse2023_tiles\all.vrt"
-    output_path = r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\landgebruik_panden_vervangen/panden_rasterized.tif"
-    rasterize_panden(panden__path, example_raster_path, output_path)
+            output_path = pathlib.Path(output_dir) / f"{PREFIX}_lu_tile_{i}.tif"
+            hrt.save_raster_array_to_tiff(
+                output_file=output_path,
+                raster_array=lu_array,
+                metadata=metadata,
+                nodata=DEFAULT_NODATA_VALUES['uint8'],
+                overwrite=True
+            )

@@ -107,6 +107,7 @@ class Input(Folder):
         super().__init__(os.path.join(base, "input"), create)
         self.add_file("dem", "dem.vrt")
         self.add_file("lu", "lu.vrt")
+        self.add_file("lu_input", "lu_input.vrt")
         self.add_file("area", "area.gpkg")
         self.add_file("wss_settings", "wss_settings.json")
         self.add_file("wss_cfg_settings", "wss_config_settings.json")
@@ -114,12 +115,15 @@ class Input(Folder):
         self.add_file("settings_json_file", "settings_json_file.json")
         self.add_file("wss_lookup", "wss_lookup.json")
         self.tiles = Tiles(self.base, create)
-
+        self.custom_landuse_tiles = CustomLandUseTiles(self.base, create)
 
 class Tiles(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "tiles"), create)
 
+class CustomLandUseTiles(Folder):
+    def __init__(self, base, create):
+        super().__init__(os.path.join(base, "custom_landuse_tiles"), create)
 
 class Work(Folder):
     def __init__(self, base, create):
@@ -204,7 +208,10 @@ class PostProcessing(Folder):
         self.add_file("vol_level_curve", "vol_level_curve.csv")
         self.add_file("damage_per_m3", "damage_per_m3.csv")
         self.add_file("damage_level_per_ha", "damage_level_per_ha.csv")
+        
         self.add_file("fdla_figures", "figures.gpkg")
+        self.add_file("schadecurves_html", "Schadecurves.html")
+
         self.create_readme()
 
     def add_aggregate_dirs(self):
