@@ -412,7 +412,7 @@ class AreaDamageCurvesAggregation:
         fol.add_title("Schade en Bergingscurves")
         fol.add_legend("Legenda")
 
-        fol.save(self.dir.post_processing.fdla_figures.schadecurves_html)
+        fol.save(self.dir.post_processing.schadecurves_html.path)
 
 
     

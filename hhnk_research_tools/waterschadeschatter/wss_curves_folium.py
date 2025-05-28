@@ -63,7 +63,7 @@ class WSSCurvesFolium:
 
         for idx, data in gdf.iterrows():
             centroid = data.geometry.centroid
-            point_gdf = gp.GeoDataFrame(geometry=[centroid], crs=figures.crs)
+            point_gdf = gp.GeoDataFrame(geometry=[centroid], crs=gdf.crs)
 
             # Reproject to WGS84
             point_wgs84 = point_gdf.to_crs(epsg=4326)
