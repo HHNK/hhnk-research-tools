@@ -2,7 +2,7 @@
 import os
 import re
 import sqlite3
-from typing import Union
+from typing import Optional, Tuple
 
 import geopandas as gpd
 import oracledb
@@ -21,16 +21,16 @@ logger = logging.get_logger(name=__name__)
 
 # TODO was: create_update_case_statement
 def sql_create_update_case_statement(
-    df,
-    layer,
-    df_id_col,
-    db_id_col,
-    new_val_col,
-    excluded_ids=[],
-    old_val_col=None,
-    old_col_name=None,
-    show_prev=False,
-    show_proposed=False,
+    df: pd.DataFrame,
+    layer: str,
+    df_id_col: str,
+    db_id_col: str,
+    new_val_col: str,
+    excluded_ids: Optional[list] = None,
+    old_val_col: Optional[str] = None,
+    old_col_name: Optional[str] = None,
+    show_prev: bool = False,
+    show_proposed: bool = False,
 ) -> str:
     """
     Create an sql statement with the following structure:
@@ -40,14 +40,19 @@ def sql_create_update_case_statement(
 
     Initialization:
 
+    Returns
+    -------
+    query : str
     """
+    if excluded_ids is None:
+        excluded_ids = []
     if show_proposed and show_prev:
         raise Exception("sql_create_update_case_statement: Only one of show_prev and show_proposed can be True")
     try:
         query = None
         if not show_prev and not show_proposed:
             vals_list = [(idx, val) for idx, val in zip(df[df_id_col], df[new_val_col]) if idx not in excluded_ids]
-            statement_list = [f"WHEN {idx} THEN {val if not val is None else 'null'}" for idx, val in vals_list]
+            statement_list = [f"WHEN {idx} THEN {val if val is not None else 'null'}" for idx, val in vals_list]
         else:
             comment = "Previous:" if show_prev else "Proposed"
             vals_list = [
@@ -56,7 +61,7 @@ def sql_create_update_case_statement(
                 if cur_id not in excluded_ids
             ]
             statement_list = [
-                f"WHEN {cur_id} THEN {new_val if not new_val is None else 'null'} -- {comment} {old_val}"
+                f"WHEN {cur_id} THEN {new_val if new_val is not None else 'null'} -- {comment} {old_val}"
                 for old_val, new_val, cur_id in vals_list
             ]
         if statement_list:
@@ -85,13 +90,13 @@ def sql_construct_select_query(table_name, columns=None) -> str:
     try:
         if columns is not None:
             selection_lst = []
-            if type(columns) == dict:
+            if isinstance(columns, dict):
                 for key, value in columns.items():
                     if value is not None:
                         selection_lst.append(f"{key} AS {value}")
                     else:
                         selection_lst.append(key)
-            elif type(columns) == list:
+            elif isinstance(columns, list):
                 selection_lst = columns
             query = base_query.format(columns=",\n".join(selection_lst), table_name=table_name)
         else:
@@ -135,7 +140,7 @@ def create_sqlite_connection(database_path):
 
 
 # TODO REMOVE
-def sql_table_exists(database_path, table_name):
+def sql_table_exists(database_path, table_name: str):
     """Check if a table name exists in the specified database"""
     try:
         query = f"""PRAGMA table_info({table_name})"""
@@ -195,7 +200,7 @@ def execute_sql_changes(query, database=None, conn=None):
 
 
 # TODO was: get_creation_statement_from_table
-def _sql_get_creation_statement_from_table(src_table_name, dst_table_name, cursor):
+def _sql_get_creation_statement_from_table(src_table_name: str, dst_table_name: str, cursor) -> str:
     """Replace the original table name with the new name to make the creation statement"""
     try:
         creation_sql = f"""
@@ -371,6 +376,45 @@ def sql_builder_select_by_location(
     return sql
 
 
+def sql_builder_select_by_id_list_statement(
+    sub_id_list_sql: str,
+    schema: str,
+    sub_table: str,
+    sub_id_column: str,
+    include_todays_mutations=False,
+):
+    """Create Oracle 12 SQL using extra statement that list id's from another table.
+    Created for 'Profielen' and other table from DAMO_W database.
+
+    Parameters
+    ----------
+    sub_id_list_sql: str
+        sql to extract id list
+    schema : str
+        database schema options are now ['DAMO_W', 'BGT']
+    sub_table : str
+        table name in schema
+    sub_id_column : str
+        Name of id column in target table
+    include_todays_mutations : bool
+        Choose whether to use todays mutations in data, normally mutations are available
+        overnight.
+        Not sure if this works for BGT or OGS
+    """
+
+    # modify table_name to include today's mutations
+    if include_todays_mutations and "_EVW" not in sub_table:
+        sub_table = f"{sub_table}_EVW"
+
+    sql = f"""SELECT *
+FROM {schema}.{sub_table}
+WHERE {sub_id_column} IN (
+    {sub_id_list_sql} 
+)"""
+
+    return sql
+
+
 def _oracle_curve_polygon_to_linear(blob_curvepolygon):
     """
     Turn curved polygon from oracle database into linear one
@@ -424,10 +468,10 @@ def database_to_gdf(
     db_dict: dict,
     sql: str,
     columns: list[str] = None,
-    lower_cols=True,
-    remove_blob_cols=True,
+    lower_cols: bool = True,
+    remove_blob_cols: bool = True,
     crs="EPSG:28992",
-) -> Union[gpd.GeoDataFrame, str]:
+) -> Tuple[gpd.GeoDataFrame, str]:
     """
     Connect to (oracle) database, create a cursor and execute sql
 
@@ -435,11 +479,11 @@ def database_to_gdf(
     ----------
     db_dict: dict
         connection dict. e.g.:
-        {'service_name': 'ODSPRD',
+        {'service_name': '',
         'user': '',
         'password': '',
-        'host': 'srvxx.corp.hhnk.nl',
-        'port': '1521'}
+        'host': '',
+        'port': ''}
     sql: str
         oracledb 12 sql to execute
         Takes only one sql statement at a time, ';' is removed
@@ -455,8 +499,10 @@ def database_to_gdf(
 
     Returns
     -------
-    gdf : Geodataframe with data and (linear) geometry, colum names in lowercase.
-    sql : str with the used sql in the request.
+    gdf : gpd.GeoDataFrame
+        gdf with data and (linear) geometry, colum names in lowercase.
+    sql : str
+        The used sql in the request.
 
     """
 
@@ -541,10 +587,169 @@ def database_to_gdf(
 
         # make geodataframe and convert curve geometry to linear
         if "geometry" in df.columns:
-            df = df.set_geometry(gpd.GeoSeries(df["geometry"].apply(_oracle_curve_polygon_to_linear)), crs=crs)
+            df = df.set_geometry(
+                gpd.GeoSeries(df["geometry"].apply(_oracle_curve_polygon_to_linear)),
+                crs=crs,
+            )
 
         # remove blob columns from oracle
         if remove_blob_cols:
             df = _remove_blob_columns(df)
 
         return df, sql2
+
+
+def get_table_columns(
+    db_dict: dict,
+    schema: str,
+    table_name: str,
+):
+    """
+    Connect to (oracle) databaseand retrieve table columns
+
+    Parameters
+    ----------
+    db_dict: dict
+        connection dict. e.g.:
+        {'service_name': '',
+        'user': '',
+        'password': '',
+        'host': '',
+        'port': ''}
+    schema: str
+        schema name
+    table_name: str
+        table name
+
+    Returns
+    -------
+    columns_out : List of column names
+    """
+    columns_out = None
+    sql = f"""
+        SELECT *
+        FROM {schema}.{table_name}
+        FETCH FIRST 0 ROWS ONLY
+        """
+
+    with oracledb.connect(**db_dict) as con:
+        cur = oracledb.Cursor(con)
+        cur.execute(sql)
+        columns_out = [i[0] for i in cur.description]
+
+    return columns_out
+
+
+def get_tables_from_oracle_db(db_dict: dict):
+    """
+    Get list of all tables in database.
+
+    Outputs OWNER (SCHEMA), TABLE_NAME
+
+    Parameters
+    ----------
+    db_dict : dict
+        connection dict. e.g.:
+        {'service_name': '',
+        'user': '',
+        'password': '',
+        'host': '',
+        'port': ''}
+    """
+    with oracledb.connect(**db_dict) as con:
+        cur = oracledb.Cursor(con)
+        tables_df = execute_sql_selection("SELECT owner, table_name FROM all_tables", conn=con)
+
+    return tables_df
+
+
+def get_table_domains_from_oracle(
+    db_dict: dict,
+    schema: str,
+    table_name: str,
+    column_list: list[str] = None,
+):
+    """
+    Get domain for DAMO_W tables.
+
+    Parameters
+    ----------
+    db_dict : dict
+        connection dict. e.g.:
+        {'service_name': '',
+        'user': '',
+        'password': '',
+        'host': '',
+        'port': ''}
+    schema : str
+        schema name
+    table_name : str
+        Table name
+    column_list : str
+        List of column names for which to retrieve the domains.
+    """
+
+    if schema == "DAMO_W":
+        if column_list is None:
+            column_list = get_table_columns(db_dict=db_dict, schema=schema, table_name=table_name)
+
+        # make all items list columnlist lowercase
+        column_list = [c.lower() for c in column_list]
+
+        # standard queries
+        map_query = f"""
+                SELECT *
+                FROM DAMO_W.DAMOKOLOM
+                WHERE LOWER(DAMOTABELNAAM) = '{table_name.lower()}'
+                AND DAMODOMEINNAAM IS NOT NULL
+                """
+        domain_query = """
+                SELECT *
+                FROM DAMO_W.DAMODOMEINWAARDE
+                """
+        # Query database
+        with oracledb.connect(**db_dict) as con:
+            cur = oracledb.Cursor(con)
+            map_df = execute_sql_selection(map_query, conn=con)
+            map_df.columns = map_df.columns.str.lower()
+            map_df = map_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+            # select relevant domains for columns
+            map_df = map_df[map_df["damokolomnaam"].isin(column_list)]
+
+            # List domains from DAMO
+            domain_df = execute_sql_selection(domain_query, conn=con)
+            domain_df.columns = domain_df.columns.str.lower()
+            domain_df = domain_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+
+        domains = pd.DataFrame()
+        for i in map_df["damodomeinnaam"].unique():
+            # Select relevant domains
+            domain_rules = domain_df[domain_df["damodomeinnaam"] == i]
+            domain_rules = domain_rules[
+                [
+                    "damodomeinnaam",
+                    "codedomeinwaarde",
+                    "naamdomeinwaarde",
+                    "fieldtype",
+                ]
+            ]
+            # select relevant mapping columns
+            mapping = map_df[map_df["damodomeinnaam"] == i]
+            mapping = mapping[
+                [
+                    "damotabelnaam",
+                    "damokolomnaam",
+                    "damodomeinnaam",
+                    "definitie",
+                ]
+            ]
+
+            # join mapping and domain
+            df = mapping.merge(domain_rules, on="damodomeinnaam", how="left")
+
+            domains = pd.concat([domains, df], ignore_index=True)
+
+    else:
+        logger.warning("Schema not supported, only DAMO_W contains domains.")
+
+    return domains

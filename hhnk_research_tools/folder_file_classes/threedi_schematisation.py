@@ -108,13 +108,13 @@ class ThreediSchematisation(Folder):
             self.add_file("gwlvl_ggg", "gwlvl_ggg.tif")
             self.add_file("gwlvl_ghg", "gwlvl_ghg.tif")
 
-        def find_file_by_name(self, name) -> File:
+        def find_file_by_name(self, name: str) -> File:
             tifs = [i for i in self.path.glob(name)]
             if len(tifs) == 0:
                 tifs = [""]
             return File(tifs[0])
 
-        def get_raster_path(self, table_name, col_name):
+        def get_raster_path(self, table_name: str, col_name: str):
             """Read the sqlite to check which rasters are used in the model.
             This only works for models from Klondike release onwards, where we only have
             one global settings row.
@@ -183,7 +183,7 @@ class ThreediResult(Folder):
         return GridH5Admin(self.admin_path.base)
 
     @property
-    def load(self):
+    def load(self) -> ThreediResultLoader:
         return ThreediResultLoader(self.grid)
 
     def __repr__(self):
@@ -214,22 +214,22 @@ class RevisionsDir(Folder):
         if revision in ["", None]:
             create = False
 
-        if type(revision) == int:  # revision number as input
+        if isinstance(revision, int):  # revision number as input
             revision_dir = self.revisions[revision]
         elif os.path.isabs(str(revision)):  # full path as input
             revision_dir = revision
-        elif not os.sep in str(revision):
+        elif os.sep not in str(revision):
             revision_dir = self.full_path(revision)
         else:
             raise ValueError(f"{str(revision)} is not valid input for `revision`")
 
         revision_dir = Folder(revision_dir)
-        if not revision_dir.name in self.sub_folders.keys():
+        if revision_dir.name not in self.sub_folders.keys():
             self.sub_folders[revision_dir.name] = self.returnclass(revision_dir, create=create)
 
         return self.sub_folders[revision_dir.name]
 
-    def revision_structure(self, name):
+    def revision_structure(self, name: str):
         spacing = "\n\t\t\t\t\t\t\t"
         structure = f""" {spacing}{name} """
         for i, rev in enumerate(self.revisions):
@@ -241,12 +241,12 @@ class RevisionsDir(Folder):
         return structure
 
     @property
-    def revisions(self):
+    def revisions(self) -> list:
         return self.content
 
     @property
     def revisions_mtime(self):
-        """sorted list of revisions by:
+        """Sorted list of revisions by:
         mtime -> latest edit date first
         """
         revisions_sorted = np.take(self.revisions, np.argsort([item.lstat().st_mtime for item in self.revisions]))[
@@ -256,7 +256,7 @@ class RevisionsDir(Folder):
 
     @property
     def revisions_rev(self):
-        """sort list of revisions by:
+        """Sort list of revisions by:
         rev -> revisions. highest revisionnr first
         """
         lst_items = []

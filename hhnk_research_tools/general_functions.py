@@ -154,7 +154,7 @@ def load_source(name: str, path: str):
     return module
 
 
-def get_uuid(chars=8):
+def get_uuid(chars=8) -> str:
     """Max chars is 36"""
     return str(uuid4())[:chars]
 
@@ -165,7 +165,7 @@ def get_pkg_resource_path(package_resource, name) -> Path:
         return p.absolute().resolve()
 
 
-def current_time(time_format="%H:%M:%S", date: bool = False):
+def current_time(time_format="%H:%M:%S", date: bool = False) -> str:
     if date is True:
         time_format = "%Y%m%d_%H%M%S_%f"
     return datetime.datetime.now().strftime(time_format)
