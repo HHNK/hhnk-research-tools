@@ -351,6 +351,8 @@ def sql_builder_select_by_location(
             geomcolumn = "SHAPE"
         elif schema == "BGT":
             geomcolumn = "GEOMETRIE"
+        elif schema == "CS_OBJECTEN":
+            geomcolumn = "SHAPE"
         else:
             raise ValueError("Provide geometry column")
 
