@@ -603,7 +603,7 @@ def database_to_gdf(
             invalid_geoms = ~df.geometry.is_valid
             if invalid_geoms.any():
                 logger.warning(f"{invalid_geoms.sum()} invalid geometries found in dataframe.")
-                df = df[df.geometry.is_valid]
+                df = df[~invalid_geoms]
 
         # remove blob columns from oracle
         if remove_blob_cols:
