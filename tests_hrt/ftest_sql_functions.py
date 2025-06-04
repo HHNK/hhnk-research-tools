@@ -21,12 +21,12 @@ logger = logging.get_logger(name=__name__)
 # %%
 
 
-def test_database_to_gdf():
-    """test_database_to_gdf"""
+def test_database_to_gdf_damo():
+    """test_database_to_gdf for DAMO table"""
     # %%
     gpkg_path = TEST_DIRECTORY / r"area_test_sql_helsdeur.gpkg"
 
-    db_dict = DATABASES.get("bgt_lezen", None)
+    db_dict = DATABASES.get("aquaprd_lezen", None)
     columns = None
 
     schema = "DAMO_W"
@@ -43,9 +43,6 @@ def test_database_to_gdf():
         schema=schema, table_name=table_name, epsg_code=epsg_code, polygon_wkt=polygon_wkt, simplify=True
     )
 
-    db_dict = DATABASES.get("aquaprd_lezen", None)
-    columns = None
-
     gdf, sql2 = database_to_gdf(db_dict=db_dict, sql=sql, columns=columns, lower_cols=True, remove_blob_cols=True)
     assert gdf.loc[0, "code"] == "KGM-Q-29234"
 
@@ -54,6 +51,32 @@ def test_database_to_gdf():
     # with oracledb.connect(**db_dict) as con:
     #     cur = oracledb.Cursor(con)
     #     a = execute_sql_selection("SELECT owner, table_name FROM all_tables", conn=con)
+
+
+def test_bgt_database_to_gdf_bgt():
+    """test_database_to_gdf"""
+    # %%
+    gpkg_path = TEST_DIRECTORY / r"area_test_sql_helsdeur.gpkg"
+
+    db_dict = DATABASES.get("bgt_lezen", None)
+    columns = None
+
+    schema = "BGT"
+    table_name = "HHNK_MV_WTD"
+    # table_name = "PEILGEBIEDPRAKTIJK"
+
+    # Load area for selection
+    test_gdf = gpd.read_file(gpkg_path, engine="pyogrio")
+    polygon_wkt = test_gdf.iloc[0]["geometry"]
+    epsg_code = "28992"
+
+    # Build sql to select by input polygon
+    sql = sql_builder_select_by_location(
+        schema=schema, table_name=table_name, epsg_code=epsg_code, polygon_wkt=polygon_wkt, simplify=True
+    )
+
+    gdf, sql2 = database_to_gdf(db_dict=db_dict, sql=sql, columns=columns, lower_cols=True, remove_blob_cols=True)
+    assert gdf.loc[0, "id"] == 9728209
 
 
 # %%

@@ -351,6 +351,8 @@ def sql_builder_select_by_location(
             geomcolumn = "SHAPE"
         elif schema == "BGT":
             geomcolumn = "GEOMETRIE"
+        elif schema == "CS_OBJECTEN":
+            geomcolumn = "SHAPE"
         else:
             raise ValueError("Provide geometry column")
 
@@ -419,17 +421,23 @@ def _oracle_curve_polygon_to_linear(blob_curvepolygon):
     """
     Turn curved polygon from oracle database into linear one
     (so it can be used in geopandas)
-    Does no harm to linear geometries
+    Does no harm to linear geometries, polygon or other
     """
+    try:
+        # Import as an OGR curved geometry
+        g1 = ogr.CreateGeometryFromWkt(str(blob_curvepolygon))
 
-    # Import as an OGR curved geometry
-    g1 = ogr.CreateGeometryFromWkt(str(blob_curvepolygon))
-    if g1 is None:
+        # Check if geometry is valid
+        if g1 is None or not g1.IsValid():
+            logger.warning(f"Invalid geometry found: {blob_curvepolygon}, returning None")
+            return None
+
+        # Approximate as linear geometry, and export to GeoJSON
+        g1l = g1.GetLinearGeometry()
+        g2 = wkt.loads(g1l.ExportToWkt())
+    except Exception as e:
+        logger.warning(f"Unable to convert curve polygon {str(blob_curvepolygon)} to linear: {e}, returning None")
         return None
-
-    # Approximate as linear geometry, and export to GeoJSON
-    g1l = g1.GetLinearGeometry()
-    g2 = wkt.loads(g1l.ExportToWkt())
 
     return g2
 
@@ -591,6 +599,11 @@ def database_to_gdf(
                 gpd.GeoSeries(df["geometry"].apply(_oracle_curve_polygon_to_linear)),
                 crs=crs,
             )
+            # Check if geometries in dataframe are valid
+            invalid_geoms = ~df.geometry.is_valid
+            if invalid_geoms.any():
+                logger.warning(f"{invalid_geoms.sum()} invalid geometries found in dataframe.")
+                df = df[~invalid_geoms]
 
         # remove blob columns from oracle
         if remove_blob_cols:
