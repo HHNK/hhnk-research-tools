@@ -701,7 +701,7 @@ def get_table_domains_from_oracle(
     column_list : str
         List of column names for which to retrieve the domains.
     """
-
+    domains = None
     if schema == "DAMO_W":
         if column_list is None:
             column_list = get_table_columns(db_dict=db_dict, schema=schema, table_name=table_name)
