@@ -20,7 +20,7 @@ keywords = []
 repository = "https://github.com/hhnk/hhnk-research-tools"
 
 [tool.setuptools]
-packages = { find = { include = ["hhnk_research_tools"] } }
+packages = { find = { include = ["hhnk_research_tools", "hhnk_research_tools.*"] } }
 include-package-data = true
 
 
