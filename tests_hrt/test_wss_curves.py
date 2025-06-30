@@ -37,6 +37,7 @@ CURVE_STEP = 0.5
 CURVE_MAX = 2.5
 AREA_START_LEVEL = "streefpeil"
 EXPECTED_RESULT = WSS_DATA / "expected_result.csv"
+EXPECTED_RESULT_OPTIMIZED = WSS_DATA / "expected_result_optimized.csv"
 EXPECTED_RESULT_AGGREGATE = WSS_DATA / "expected_result_aggregate.csv"
 LANDUSE_CONVERSION_TABLE = hrt.get_pkg_resource_path(wss_resources, "landuse_conversion_table.csv")
 # %%
@@ -79,6 +80,11 @@ class TestWSSCurves:
         output = pd.read_csv(EXPECTED_RESULT)
         return output
 
+    @pytest.fixture(scope="class")
+    def output_optimized(self):
+        output = pd.read_csv(EXPECTED_RESULT_OPTIMIZED)
+        return output
+
     # Note: 2D wordt eerst getest omdat result_lu_damage.csv wordt overschreven en
     # zodoende niet goed getest wordt in de validatie.
     def test_integrated_2d_mp(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
@@ -102,6 +108,11 @@ class TestWSSCurves:
         schadecurves.run(run_1d=True, multiprocessing=False)
         test_output = pd.read_csv(schadecurves.dir.output.result.path)
         pd.testing.assert_frame_equal(output, test_output)
+
+    def test_integrated_1d_mp_optimized(self, schadecurves: AreaDamageCurves, output_optimized: pd.DataFrame):
+        schadecurves.run_mp_optimized(limit=500, tile_size=100)
+        test_output = pd.read_csv(schadecurves.dir.output.result.path)
+        pd.testing.assert_frame_equal(output_optimized, test_output)
 
 
 class TestWSSAggregation:

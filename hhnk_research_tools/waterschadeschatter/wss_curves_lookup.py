@@ -25,6 +25,7 @@ logger = logging.get_logger(__name__)
 
 # Globals
 NAME = "WSS LookupTable"
+LU_LOOKUP_FACTOR = 100
 
 
 class DummyCaller:
@@ -80,28 +81,14 @@ class WaterSchadeSchatterLookUp:
         self.pixel_factor = pixel_factor
         self.caller = DummyCaller(nodata=nodata)
         self.depth_steps = depth_steps
-        self.timelog = WSSTimelog(subject=NAME)
+        self.time = WSSTimelog(name=NAME)
         self.output = {}
-
-    # @cached_property
-    # def mapping_arrays(self):
-
-    #     data = {}
-    #     for ds, luses in self.output.items():
-
-    #         k = np.array(list(luses.keys()))
-    #         v = np.array(list(luses.values()))
-
-    #         mapping_ar = np.zeros(k.max() + 1, dtype=v.dtype)
-    #         mapping_ar[k] = v
-    #         data[ds] = mapping_ar
-    #     return data
 
     def __getitem__(self, lu_depth):
         return self.output[lu_depth[0]][lu_depth[1]]
 
-    def run(self):
-        logger.info("Start generating table")
+    def run(self, flatten=True):
+        self.time.log("Start generating table")
 
         for depth in tqdm(self.depth_steps, NAME):
             depth = round(depth, 2)
@@ -123,7 +110,15 @@ class WaterSchadeSchatterLookUp:
             self.output[depth][DEFAULT_NODATA_VALUES["uint16"]] = 0
             self.output[depth][255] = 0  # not in cfg
 
-        logger.info("Ended generating table")
+        self.time.log("Ended generating table")
+
+        if flatten:
+            self.time.log("Flatten lookup to increase speed using (lu*LU_LOOKUP_FACTOR)+depth_step.")
+            flattened = {}
+            for depth_step, lu_lookup in self.output.items():
+                for lu, damage in lu_lookup.items():
+                    flattened[(lu * LU_LOOKUP_FACTOR) + depth_step] = damage
+            self.output = flattened
 
     def write_dict(self, path: Union[str, Path]):
         write_dict(self.output, path)
