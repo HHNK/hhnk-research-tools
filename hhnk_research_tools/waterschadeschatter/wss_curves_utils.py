@@ -273,3 +273,11 @@ def get_drainage_areas(settings_path):
     sql = "SELECT * FROM CS_OBJECTEN.COMBINATIEPEILGEBIED"
     gdf, sql2 = database_to_gdf(db_dict=db_dict, sql=sql, columns=None)
     return gdf
+
+def check_double_IDs(shape):
+    print(shape.columns)
+    dubbele_ID = shape["Id"].where(shape.duplicated("Id")).dropna().values
+    if len(dubbele_ID) == 0:
+        print("Geen dubbele ID's in shapefile")
+    else:
+        raise Exception(f"{len(dubbele_ID)} dubbele ID's in shapefile: {dubbele_ID}")

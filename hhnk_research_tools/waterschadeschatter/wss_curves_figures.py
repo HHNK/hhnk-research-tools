@@ -42,6 +42,9 @@ class Figuur:
     def ylim(self, ymin, ymax):
         self.ax.set(ylim=(ymin, ymax))
 
+    def grid(self):
+        self.ax.grid(axis='both', color='lightgray')
+
     def xticks(self, ticks, *labels):
         self.ax.set_xticks(ticks, *labels)
 
@@ -89,6 +92,7 @@ class BergingsCurveFiguur(Figuur):
 
             self.plot(valid_data)
             self.set_x_y_label()
+            self.grid()
             self.ax_mm.set_ylabel(self.ylabel_mm)
             self.title(f"bergingscurve voor {name}")
             plotpng = output_dir.path / f"bergingscurve_{name}.png"
@@ -194,6 +198,7 @@ class LandgebruikCurveFiguur(PercentageFiguur):
             self.set_x_y_label()
             self.set_x_y_lim()
             self.set_x_y_ticks()
+            self.grid()
             self.title(f"landgebruikverdeling voor {name}")
 
             self.ax.legend(
@@ -226,6 +231,7 @@ class DamagesLuCurveFiguur(PercentageFiguur):
             self.set_x_y_label()
             self.set_x_y_lim()
             self.set_x_y_ticks()
+            self.grid()
             self.title(f"schadeverdeling voor {name}")
 
             self.ax.legend(
