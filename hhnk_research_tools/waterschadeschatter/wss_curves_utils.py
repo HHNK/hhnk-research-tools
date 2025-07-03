@@ -289,6 +289,7 @@ class AggregationFigures(Folder):
         self.add_file("landgebruikcurve", f"landgebruikcurve_{name}.png")
         self.add_file("bergingscurve", f"bergingscurve_{name}.png")
         self.add_file("schadecurve", f"schadecurve_{name}.png")
+        self.add_file("aggregate", f"schade_aggregate_{name}.png")
 
 class Figures(Folder):
     def __init__(self, base, create, fdla_ids):
@@ -297,6 +298,7 @@ class Figures(Folder):
             self.add_file(f"landgebruikcurve_{name}", f"landgebruikcurve_{name}.png")
             self.add_file(f"bergingscurve_{name}", f"bergingscurve_{name}.png")
             self.add_file(f"schadecurve_{name}", f"schadecurve_{name}.png")
+            self.add_file(f"aggregate_{name}", f"schade_aggregate_{name}.png")
 
 class WSSTimelog:
     """
