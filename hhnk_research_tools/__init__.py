@@ -100,10 +100,11 @@ logging.set_default_logconfig(
 )
 
 
-# TODO how does this versioning work?
-# Threedigrid version number is automatic updated with zest.releaser. Geopandas uses versioneer.py.
-# the version number in setup.py is updated using the find_version()
-__version__ = "2024.1"
+# Get version from the pyproject.toml
+from importlib.metadata import version
+
+__version__ = version("hhnk-research-tools")
+
 
 __doc__ = """
 General toolbox for loading, converting and saving serval datatypes.
