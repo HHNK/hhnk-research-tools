@@ -4,6 +4,8 @@ from tqdm import tqdm
 from rasterio import features
 from shapely.geometry import box
 import geopandas as gp
+from typing import Optional, Union
+
 import hhnk_research_tools as hrt
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import split_geometry_in_tiles
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
@@ -12,8 +14,17 @@ from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 PREFIX = "damage_curve"
 
 class DCCustomLanduse:
+    """ 
+    Create a custom landuse based on the input landuse.
+    A custom landuse needed due to differences in the buildings used in height models and creation of landuse maps.
 
-    def __init__(self, panden_path, landuse_raster_path, tile_size=1000):
+    DCCUSTOMLanduse:
+        - Masks all bag data and replaces it with water.
+        - Pushed buildings onto the landuse as number 2.
+        - Does it tiled.
+
+    """
+    def __init__(self, panden_path:str, landuse_raster_path:str, tile_size:int=1000):
         
         self.landuse = hrt.Raster(landuse_raster_path)
         self.panden = gp.read_file(panden_path)
