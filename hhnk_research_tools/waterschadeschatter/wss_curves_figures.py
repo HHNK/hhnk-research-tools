@@ -42,12 +42,15 @@ class Figuur:
     def ylim(self, ymin, ymax):
         self.ax.set(ylim=(ymin, ymax))
 
-    def xticks(self, ticks, *labels):
-        self.ax.set_xticks(ticks, *labels)
+    def grid(self):
+        self.ax.grid(axis='both', color='lightgray')
 
-    def yticks(self, ticks, labels=[]):
-        self.ax.set_yticks(ticks, labels)
+    def xticks(self, ticks, labels=None):
+        self.ax.set_xticks(ticks, labels)
 
+    def yticks(self, ticks, labels=None):
+        self.ax.set_yticks(ticks, labels=labels)
+        
     def set_x_y_label(self):
         self.xlabel(self.xlabel_dsc)
         self.ylabel(self.ylabel_dsc)
@@ -102,6 +105,7 @@ class BergingsCurveFiguur(Figuur):
 
             self.plot(valid_data)
             self.set_x_y_label()
+            self.grid()
             self.ax_mm.set_ylabel(self.ylabel_mm)
             self.title(f"bergingscurve voor {name}")
             self.write(output_path, dpi=dpi)
@@ -206,6 +210,7 @@ class LandgebruikCurveFiguur(PercentageFiguur):
             self.set_x_y_label()
             self.set_x_y_lim()
             self.set_x_y_ticks()
+            self.grid()
             self.title(f"landgebruikverdeling voor {name}")
 
             self.ax.legend(
@@ -213,7 +218,6 @@ class LandgebruikCurveFiguur(PercentageFiguur):
             )
 
             self.write(output_path, dpi=dpi)
-
 
 class DamagesLuCurveFiguur(PercentageFiguur):
     def __init__(self, path, agg_dir):
@@ -237,6 +241,7 @@ class DamagesLuCurveFiguur(PercentageFiguur):
             self.set_x_y_label()
             self.set_x_y_lim()
             self.set_x_y_ticks()
+            self.grid()
             self.title(f"schadeverdeling voor {name}")
 
             self.ax.legend(
@@ -245,12 +250,43 @@ class DamagesLuCurveFiguur(PercentageFiguur):
 
             self.write(output_path, dpi=dpi)
 
+#%%
+class DamagesAggFiguur(Figuur):
+    def __init__(self, agg_csv_dir):
+        super().__init__()
+        self.df_agg_csv = pd.read_csv(agg_csv_dir)
+        self.xlabel_dsc = "Volume (m3)"
+        self.ylabel_dsc = "Schadebedrag (Euro's)"
+        self.xlim_min = 0
+        self.xlim_max = self.df_agg_csv['Volume [m3]'].max() * 1.1
+        self.ylim_min = 0
+        self.ylim_max = self.df_agg_csv.iloc[:, 1:].max().max() * 1.1
+        self.x_ticks_list = np.arange(0, self.xlim_max, 500000)
+        self.y_ticks_list = np.arange(0, self.ylim_max, 500000)
+        
+    def run(self, output_path, name, dpi=DPI):
+        self.create()
+        for i in range(1,4):
+            col_name = self.df_agg_csv.columns[i]
+            self.ax.plot(self.df_agg_csv['Volume [m3]'], self.df_agg_csv[col_name],label=col_name, linewidth=2)
+        self.ax.legend(labels = ['Neerslag bergen vanaf het laagste peilvak', 'Neerslag verdelen zodat in elk peilvak een gelijke waterdiepte is', 'In het peilvak gevallen neerslag bergen in hetzelfde peilvak'], loc='upper left')
+        self.set_x_y_label()
+        self.set_x_y_lim()
+        self.xticks(self.x_ticks_list)
+        self.yticks(self.y_ticks_list)
+        self.grid()
+        self.title(f"Schadebedragen voor drie type aggregaties voor {name}")
+        self.write(output_path, dpi=dpi)
 
 if __name__ == "__main__":
     lu_conversion_table = pd.read_csv(
         r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\Project\05 Project execution\Omzettingstabel_landgebruik.csv"
     )
+
     # damages = DamagesLuCurveFiguur(agg_dir.agg_landuse_damages.path)
     # damages.combine_classes(lu_conversion_table, agg_dir.path/"result_lu_damages_classes.csv")
     # (agg_dir.path/"schade_percentagescurve").mkdir(exist_ok = True)
     # damages.run(self.lu_conversion_table, agg_dir.path/"schade_percentagescurve")
+
+
+# %%

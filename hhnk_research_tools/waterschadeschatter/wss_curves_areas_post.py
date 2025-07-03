@@ -28,7 +28,8 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_figures import (
     BergingsCurveFiguur,
     DamagesLuCurveFiguur,
     LandgebruikCurveFiguur,
-    CurveFiguur
+    CurveFiguur,
+    DamagesAggFiguur
 )
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     DRAINAGE_LEVEL_FIELD,
@@ -514,10 +515,14 @@ class AreaDamageCurvesAggregation:
             lu_omzetting=self.lu_conversion_table,
             output_path=agg_dir.result_lu_damages_classes.path,
         )
-
         damages.run(lu_omzetting=self.lu_conversion_table,
-                    output_path=agg_dir.figures.schadecurve.path,
-                     name=name, schadecurve_totaal=True)
+            output_path=agg_dir.figures.schadecurve.path,
+            name=name, schadecurve_totaal=True)
+        
+        damages_agg = DamagesAggFiguur(agg_dir.aggregate.path)
+        damages_agg.run(output_path=agg_dir.figures.aggregate.path, 
+            name=name,
+        )
 
     def agg_run(self, mm_rain=DEFAULT_RAIN) -> dict:
         """Create a dataframe in which methods can be compared"""

@@ -644,11 +644,16 @@ class AreaDamageCurves:
                 lu_input = tiles[0]
 
             self.time.log("Creating custom landuse tiles.")
-            custom_lu = DCCustomLanduse(self.panden_path, lu_input, tile_size=tile_size)
-            custom_lu.run(self.dir.input.custom_landuse_tiles.path)
-            self.time.log("Creating custom landuse tiles finished!")
+            panden_vector = gpd.read_file(self.panden_path)
+            if gpd.sjoin(panden_vector, self.area_vector, how="inner", predicate="intersects").empty:
+                self.time.log("No panden found in area vector.")
+                path_or_dir = lu_input
+            else:
+                custom_lu = DCCustomLanduse(self.panden_path, lu_input, tile_size=tile_size)
+                custom_lu.run(self.dir.input.custom_landuse_tiles.path)
+                self.time.log("Creating custom landuse tiles finished!")
 
-            path_or_dir = self.dir.input.custom_landuse_tiles.path
+                path_or_dir = self.dir.input.custom_landuse_tiles.path
 
         self.lu = self._input_to_vrt(path_or_dir, self.dir.input.lu.path)
         self.time.log("Loading landuse vrt finished!")

@@ -26,6 +26,7 @@ RUN_CURVES_FILE = WSS_DATA / "run_wss_curves_2024.json"
 AREA_PATH = WSS_DATA / "wss_curve_area.gpkg"
 AREA_AGGREGATE_PATH = WSS_DATA / "wss_curve_area_aggregate.gpkg"
 NODAMAGE_PATH = WSS_DATA / "nodamage.gpkg"
+PANDEN_PATH = WSS_DATA / "wss_curve_panden.shp"
 
 DEM_PATH = WSS_DATA / "wss_curve_area_dem.tif"
 LU_PATH = WSS_DATA / "wss_curve_area_lu.tif"
@@ -71,7 +72,8 @@ class TestWSSCurves:
             area_start_level_field=AREA_START_LEVEL,
             wss_config_file=WSS_CFG_FILE,
             wss_curves_filter_settings_file=WSS_CURVE_FILTER_SETTINGS_FILE,
-        )
+            panden_path=PANDEN_PATH
+            )
 
         return schadecurves
 
