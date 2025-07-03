@@ -111,9 +111,9 @@ jupyterlab = "==4.2.0"
 ipywidgets = "==8.1.2"
 jupytext = "==1.16.6"
 
-pytest = "==7.2.2"
+pytest = "*"
 pytest-cov = "*"
-pluggy = "==1.0.0" # pytest dependency
+pluggy = "*" # pytest dependency
 iniconfig = "==2.0.0" # pytest dependency
 tqdm = "==4.64.0"
 rioxarray = "==0.15.0" # higher versions need python >=3.10
@@ -142,8 +142,7 @@ threedigrid_builder = "==1.14.4" # threedi_results_analysis 3.9.2
 threedigrid = "==2.3.3" # threedi_results_analysis 3.12.0
 threedidepth = "==0.6.3" # threedi_results_analysis 3.9.0
 
-#Editable installs
-hhnk_research_tools = { path = ".", editable = true }
+hhnk-research-tools = { path = ".", editable = true }
 
 
 [environments]
