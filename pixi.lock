@@ -5963,7 +5963,7 @@ packages:
 - pypi: .\
   name: hhnk-research-tools
   version: '2025.1'
-  sha256: f57c8ee967dd02d4fb35ebe2d3a47f5a04f187089d41488b227221b561447de2
+  sha256: d4f082e0165bf740b5288cdcf567a367f63def5b5dcbcf4e0bea671a56bae874
   requires_python: '>=3.9'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/hpack-4.1.0-pyhd8ed1ab_0.conda

@@ -103,7 +103,7 @@ logging.set_default_logconfig(
 # Get version from the pyproject.toml
 from importlib.metadata import version
 
-__version__ = version("hhnk-research-tools")
+__version__ = version("hhnk_research_tools")
 
 
 __doc__ = """
