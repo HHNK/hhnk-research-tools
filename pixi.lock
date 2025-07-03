@@ -1828,6 +1828,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/af/db/70bdf58fba21f1043db3bfada43c2c15c7246c7077859429e36abc43b171/threedidepth-0.6.3-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/98/ea/1154f19785c18d35066ce8819ba50aedec91e4194d712d84e14930e7b073/threedigrid-2.3.3-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/be/4d/433aee868c4a1bcdc44093af52b36e77157cad58dfc44577b13256057190/threedigrid_builder-1.14.4-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+      - pypi: .\
       win-64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/affine-2.4.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/anyio-4.9.0-pyh29332c3_0.conda
@@ -2211,6 +2212,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/af/db/70bdf58fba21f1043db3bfada43c2c15c7246c7077859429e36abc43b171/threedidepth-0.6.3-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/98/ea/1154f19785c18d35066ce8819ba50aedec91e4194d712d84e14930e7b073/threedigrid-2.3.3-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/75/b7/7849ad6f25e17f72f4c7e411b36b456205db2c501ad495bfc97c1cd3b813/threedigrid_builder-1.14.4-cp39-cp39-win_amd64.whl
+      - pypi: .\
 packages:
 - conda: https://conda.anaconda.org/conda-forge/linux-64/_libgcc_mutex-0.1-conda_forge.tar.bz2
   sha256: fe51de6107f9edc7aa4f786a70f4a883943bc9d39b3bb7307c04c41410990726
@@ -5963,7 +5965,7 @@ packages:
 - pypi: .\
   name: hhnk-research-tools
   version: '2025.1'
-  sha256: d4f082e0165bf740b5288cdcf567a367f63def5b5dcbcf4e0bea671a56bae874
+  sha256: f57c8ee967dd02d4fb35ebe2d3a47f5a04f187089d41488b227221b561447de2
   requires_python: '>=3.9'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/hpack-4.1.0-pyhd8ed1ab_0.conda
