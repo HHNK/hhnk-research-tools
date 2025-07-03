@@ -2,7 +2,7 @@
 requires = ["setuptools"]
 
 [project]
-name = "hhnk_research_tools"
+name = "hhnk-research-tools"
 version = "2025.1"
 description='General tools for analysis, data manipulation and threedi interaction for analysis of water systems'
 readme = "README.md"
