@@ -143,16 +143,15 @@ class TestWSSAggregation:
         aggregatie.run()
         test_output = pd.read_csv(aggregatie.dir.post_processing["Wieringermeer"].aggregate.path)
         pd.testing.assert_frame_equal(output, test_output)
-
-        path_landgebruikcurve = (
-            aggregatie.dir.post_processing["Wieringermeer"].path / "landgebruikcurve_Wieringermeer.png"
-        )
-        path_bergingscurve = aggregatie.dir.post_processing["Wieringermeer"].path / "bergingscurve_Wieringermeer.png"
-        path_schadecurve = aggregatie.dir.post_processing["Wieringermeer"].path / "schadecurve_Wieringermeer.png"
+        path_landgebruikcurve = aggregatie.dir.post_processing['Wieringermeer'].figures.landgebruikcurve.path
+        path_bergingscurve = aggregatie.dir.post_processing['Wieringermeer'].figures.bergingscurve.path
+        path_schadecurve = aggregatie.dir.post_processing['Wieringermeer'].figures.schadecurve.path
+        path_aggregate = aggregatie.dir.post_processing['Wieringermeer'].figures.aggregate.path
 
         assert path_landgebruikcurve.exists()
         assert path_bergingscurve.exists()
         assert path_schadecurve.exists()
+        assert path_aggregate.exists()
 
 
 # %%
