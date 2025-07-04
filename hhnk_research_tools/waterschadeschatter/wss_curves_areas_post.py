@@ -171,13 +171,18 @@ class AreaDamageCurvesAggregation:
             data[area[ID_FIELD]] = damage_per_m3
         return pd.DataFrame(data)
 
+    @cached_property
+    def fdla_geometry(self):
+        da = self.drainage_areas.copy()
+        da.index = da[ID_FIELD]
+        return da.geometry
     @property
     def selection(self) -> dict[str, pd.Series]:
         selection = {}
         for idx, feature, areas in self:
             selection[feature[self.field]] = areas
         return selection
-
+    
     def _within(self, geometry: shapely.geometry, buffer: int = DEFAULT_BUFFER):
         buffered = geometry.buffer(buffer)
         area_within = self.drainage_areas[self.drainage_areas.geometry.within(buffered)]
@@ -394,28 +399,29 @@ class AreaDamageCurvesAggregation:
         agg_series = pd.Series(aggregate_curve, name="damage_own_area_retention")
         return agg_series
     
-    def create_folium_html(self):
-
+    def create_folium_html(self, depth_steps=[0.5, 1, 2, 2.5]):
 
         fol = WSSCurvesFolium()
-        fol.add_colormap(0, 5)
         fol.add_water_layer()
-
-        fdla_schade = gpd.read_file(self.dir.post_processing.fdla_figures.path, layer="schadecurve")
-        fdla_berging = gpd.read_file(self.dir.post_processing.fdla_figures.path, layer="bergingscurve")
-
-        fol.add_layer("Schadescurves", fdla_schade, datacolumn="drainage_level", tooltip_fields=['pid'])
-        fol.add_graphs("Schadecurvegrafieken",fdla_schade, 'png_path')
-
-        fol.add_layer("Bergingcurves", fdla_berging, datacolumn="drainage_level", tooltip_fields=['pid'])
-        fol.add_graphs("Bergingcurvegrafieken",fdla_berging, 'png_path')
-
-        fol.add_title("Schade en Bergingscurves")
-        fol.add_legend("Legenda")
-
+        fdla_schade = gpd.read_file(self.dir.post_processing.peilgebieden.path, layer="schadecurve")
+        fol.add_border_layer("Peilvakken", fdla_schade, tooltip_fields=['pid'])
+        fol.add_graphs("Schadecurve per peilvak (grafiek)",fdla_schade, 'png_path')
+        for idx, depth_step_data in self.damage_curve.iterrows():
+            if idx not in depth_steps:
+                continue
+            ds_df = gpd.GeoDataFrame(depth_step_data, geometry = self.fdla_geometry, crs="EPSG:28992")
+            fol.add_layer(f"Peilgebied schadecurve {idx}m peilstijging.",
+                          ds_df,
+                          datacolumn=str(idx),
+                          tooltip_fields=[str(idx)],
+                          data_min=ds_df[idx].min(),
+                          data_max=ds_df[idx].max(),
+                          colormap_name="plasma",
+                          show=False,
+                          )
+           
+        fol.add_title("Schadecurves.")
         fol.save(self.dir.post_processing.schadecurves_html.path)
-
-
     
     def create_figures(self):
         """Create figures for the damage and volume curves per drainage area."""
@@ -433,24 +439,24 @@ class AreaDamageCurvesAggregation:
             path = self.dir.post_processing.figures[f"bergingscurve_{area_id}"].path 
             figure.run(name=area_id, output_path=path, title="Bergingscurve")
 
-    def create_general_figures(self) -> None:
-        output = self.drainage_areas.copy()
+    def create_fdla_gpkg(self) -> None:
+
         fig_dir = self.dir.post_processing.figures
         ids = self.drainage_areas[ID_FIELD]
 
-        prefix = "file:///"
         schadecurves = self.drainage_areas.copy()
-        schadecurves['image_path'] = [prefix+str(fig_dir[f"schadecurve_{i}"].path) for i in ids]
+        schadecurves['image_path'] = ["file:///"+str(fig_dir[f"schadecurve_{i}"].path) for i in ids]
         schadecurves['png_path'] = [str(fig_dir[f"schadecurve_{i}"].path) for i in ids]
+        schadecurves.index = schadecurves.pid
+        transposed = self.damage_curve.T
+        transposed.columns =transposed.columns.astype(str) 
+        schadecurves = pd.concat([schadecurves,transposed],axis=1)
 
-        bergingscuves = self.drainage_areas.copy()
-        bergingscuves['image_path'] = [prefix+str(fig_dir[f"bergingscurve_{i}"].path) for i in ids]
-        bergingscuves['png_path'] = [str(fig_dir[f"bergingscurve_{i}"].path) for i in ids]
-
-        local_file = self.dir.post_processing.fdla_figures.path
+        local_file = self.dir.post_processing.peilgebieden.path
         schadecurves.to_file(local_file, layer='schadecurve', driver='GPKG')
-        bergingscuves.to_file(local_file, layer='bergingscurve', driver='GPKG')
-        styling = self.create_styling(table_names=["schadecurve", "bergingscurve"])
+
+        # add styling
+        styling = self.create_styling(table_names=["schadecurve"])
         gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver='GPKG')
 
     def create_styling(self, table_names):
@@ -549,8 +555,7 @@ class AreaDamageCurvesAggregation:
         self.damage_level_per_ha.to_csv(self.dir.post_processing.damage_level_per_ha.path)
 
         self.create_figures()
-        self.create_general_figures()
-        self.create_folium_html()
+        self.create_fdla_gpkg()
 
         if aggregation:
             aggregations = self.agg_run(mm_rain)
@@ -606,6 +611,9 @@ class AreaDamageCurvesAggregation:
                 
                 agg_dir.create_figure_dir(name)
                 self.create_aggregated_figures(agg_dir, name, feature)
+
+
+        self.create_folium_html()
 
 
 if __name__ == "__main__":
