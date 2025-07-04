@@ -210,6 +210,7 @@ class PostProcessing(Folder):
         self.add_file("damage_level_per_ha", "damage_level_per_ha.csv")
         
         self.add_file("peilgebieden", "peilgebieden.gpkg")
+        self.add_file("aggregatie", "aggregatie.gpkg")
         self.add_file("schadecurves_html", "Schadecurves.html")
 
         self.create_readme()

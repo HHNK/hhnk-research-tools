@@ -60,13 +60,14 @@ class WSSCurvesFolium:
             show=show,
             overlay=True,
         )
-        
+        # Store the show parameter on the layer object
+        layer.show = show
         self.layers.append(layer)
         
     
-    def add_layer(self, name, gdf, datacolumn, tooltip_fields, data_min, data_max, colormap_name, show):
+    def add_layer(self, name, gdf, datacolumn, tooltip_fields, data_min, data_max, colormap_name, show=False):
 
-        colormap = self.get_colormap(f"Legend {name}", data_min, data_max, colormap_name )
+        colormap = self.get_colormap(f"Legend {name}", data_min, data_max, colormap_name)
 
         layer = folium.GeoJson(
             gdf,
@@ -80,17 +81,19 @@ class WSSCurvesFolium:
             tooltip=folium.GeoJsonTooltip(
                 fields=tooltip_fields,
                 aliases=tooltip_fields,
-            show=False,
+            ),
+            show=show,
             control=True,
             overlay=True,
-
-            ),
         )
+        # Store the show parameter on the layer object
+        layer.show = show
         self.layers.append(layer)
+
         self.color_maps.append(colormap)
         self.color_map_binds.append(BindColormap(layer, colormap))
-        
-    def add_graphs(self, name, gdf, image_field):
+            
+    def add_graphs(self, name, gdf, image_field, width=520, height=520):
 
         marker_cluster = MarkerCluster(
                 name=name,
@@ -111,9 +114,9 @@ class WSSCurvesFolium:
             lon, lat = point_wgs84.geometry.x.iloc[0], point_wgs84.geometry.y.iloc[0]
 
             encoded = base64.b64encode(open(data[image_field], 'rb').read()).decode()
-            html = '<img src="data:image/png;base64,{}" width="520" height="520">'.format
-            iframe = IFrame(html(encoded), width=500+20, height=500+20)
-            popup = folium.Popup(iframe, max_width=500+20)
+            html = f'<img src="data:image/png;base64,{encoded}" width="{width}" height="{height}">'
+            iframe = IFrame(html, width=width, height=height)
+            popup = folium.Popup(iframe, max_width=width)
 
             icon = folium.Icon(color="red", icon="ok")
             marker = folium.Marker(location=[lat, lon], popup=popup, icon=icon)
@@ -131,19 +134,34 @@ class WSSCurvesFolium:
         self.m.get_root().html.add_child(folium.Element(title_html))
 
     def save(self, output_path):
+        # Create layer control first
+        layer_control = folium.LayerControl(collapsed=False, sort_layers=True, position='topright')
         
+        # Add all layers to the control but only show them if show=True
         for l in self.layers:
-            self.m.add_child(l)
+            if hasattr(l, 'show') and l.show:
+                self.m.add_child(l)
+            else:
+                # Add to map but hide it
+                l.add_to(self.m)
+                self.m.get_root().html.add_child(folium.Element(f'''
+                    <script>
+                        document.addEventListener("DOMContentLoaded", function() {{
+                            map.removeLayer({l.get_name()});
+                        }});
+                    </script>
+                '''))
         
-        self.m.add_child(folium.LayerControl(collapsed=False))
+        # Add the layer control after all layers
+        self.m.add_child(layer_control)
 
+        # Add colormaps and bindings
         for c in self.color_maps:
             self.m.add_child(c)
         
         for b in self.color_map_binds:
             self.m.add_child(b)
-        
-        
+    
         logger.debug(f"Saving interactive map to: {output_path}")
         self.m.save(output_path)
 

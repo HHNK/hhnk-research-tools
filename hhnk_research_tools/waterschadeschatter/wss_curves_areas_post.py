@@ -399,28 +399,62 @@ class AreaDamageCurvesAggregation:
         agg_series = pd.Series(aggregate_curve, name="damage_own_area_retention")
         return agg_series
     
-    def create_folium_html(self, depth_steps=[0.5, 1, 2, 2.5]):
+    def create_folium_html(self, depth_steps=[0.5, 1]):
 
         fol = WSSCurvesFolium()
         fol.add_water_layer()
+
         fdla_schade = gpd.read_file(self.dir.post_processing.peilgebieden.path, layer="schadecurve")
-        fol.add_border_layer("Peilvakken", fdla_schade, tooltip_fields=['pid'])
-        fol.add_graphs("Schadecurve per peilvak (grafiek)",fdla_schade, 'png_path')
+        agg_schade = gpd.read_file(self.dir.post_processing.aggregatie.path, layer="aggregatie")
+
+        # grafieken
+        fol.add_graphs("Peilgebieden: Schadecurve (grafiek)",fdla_schade, 'png_path', width=600, height=600)
+        fol.add_graphs("Aggregatie: Schadecurve (grafiek)",agg_schade, 'png_path', width=1200, height=600)
+
+        # per peilgebied 
+        fol.add_border_layer("Peilgebieden: Peilvakken", fdla_schade, tooltip_fields=['pid'])
+        
+        # schade per peilstijging
         for idx, depth_step_data in self.damage_curve.iterrows():
             if idx not in depth_steps:
                 continue
             ds_df = gpd.GeoDataFrame(depth_step_data, geometry = self.fdla_geometry, crs="EPSG:28992")
-            fol.add_layer(f"Peilgebied schadecurve {idx}m peilstijging.",
+            fol.add_layer(f"Peilgebieden: Schadecurve {idx}m peilstijging.",
                           ds_df,
                           datacolumn=str(idx),
                           tooltip_fields=[str(idx)],
-                          data_min=ds_df[idx].min(),
-                          data_max=ds_df[idx].max(),
+                          data_min=int(ds_df[idx].quantile(0.1)),
+                          data_max=int(ds_df[idx].quantile(0.9)),
                           colormap_name="plasma",
-                          show=False,
+                          show=False
                           )
-           
-        fol.add_title("Schadecurves.")
+            
+        # peilstijging per schade
+        schade_stappen = [100, 1000, 10000, 100000]
+        for s in schade_stappen:
+            mask = self.damage_curve > s
+            first_occurrence = mask.apply(lambda x: x[x].index[0] if x.any() else -9999)
+            ds_df = gpd.GeoDataFrame(
+                {"Peilstijging":first_occurrence},
+                geometry=self.fdla_geometry,
+                crs="EPSG:28992"
+            )
+            
+            # Add to map
+            fol.add_layer(
+                f"Peilgebieden: Peilstijging schade boven €{s:,}",
+                ds_df,
+                datacolumn='Peilstijging',  # the first occurrence values
+                tooltip_fields=['Peilstijging'],
+                data_min=0,
+                data_max=ds_df['Peilstijging'].max(),
+                colormap_name="plasma",
+                show=False,
+            )
+
+        # per aggregatie gebied
+        fol.add_border_layer("Aggregatie: Aggregatiegrenzen", agg_schade, tooltip_fields=['index'])
+        fol.add_title("Schadecurves en aggregaties")
         fol.save(self.dir.post_processing.schadecurves_html.path)
     
     def create_figures(self):
@@ -457,6 +491,31 @@ class AreaDamageCurvesAggregation:
 
         # add styling
         styling = self.create_styling(table_names=["schadecurve"])
+        gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver='GPKG')
+
+    def create_aggregate_gpkg(self) -> None:
+        
+        ids = self.vector[self.field]
+        figure_type = ['aggregate', 'bergingscurve', 'landgebruikcurve', 'schadecurve']
+
+        data = {"image_path": [], "png_path": [], "index": [], "geometry": []}
+        for i in ids:
+            geometry = self.vector[self.vector[self.field] == i].geometry.iloc[0]
+            agg_figure_dir = self.dir.post_processing[i].figures
+            for ftype in figure_type:
+                path = getattr(agg_figure_dir, ftype).path
+                data['image_path'].append("file:///"+str(path))
+                data['png_path'].append(str(path)) 
+                data['index'].append(i+"_"+ftype)
+                data['geometry'].append(geometry)
+
+        output = gpd.GeoDataFrame(data, geometry=data['geometry'], crs=self.vector.crs, dtype=str, index=data['index'])
+
+        local_file = self.dir.post_processing.aggregatie.path
+        output.to_file(local_file, layer='aggregatie', driver='GPKG')
+
+        # add styling
+        styling = self.create_styling(table_names=["aggregatie"])
         gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver='GPKG')
 
     def create_styling(self, table_names):
@@ -611,6 +670,8 @@ class AreaDamageCurvesAggregation:
                 
                 agg_dir.create_figure_dir(name)
                 self.create_aggregated_figures(agg_dir, name, feature)
+
+        self.create_aggregate_gpkg()
 
 
         self.create_folium_html()
