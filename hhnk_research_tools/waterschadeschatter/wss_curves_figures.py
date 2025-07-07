@@ -43,14 +43,14 @@ class Figuur:
         self.ax.set(ylim=(ymin, ymax))
 
     def grid(self):
-        self.ax.grid(axis='both', color='lightgray')
+        self.ax.grid(axis="both", color="lightgray")
 
     def xticks(self, ticks, labels=None):
         self.ax.set_xticks(ticks, labels)
 
     def yticks(self, ticks, labels=None):
         self.ax.set_yticks(ticks, labels=labels)
-        
+
     def set_x_y_label(self):
         self.xlabel(self.xlabel_dsc)
         self.ylabel(self.ylabel_dsc)
@@ -62,6 +62,7 @@ class Figuur:
     def write(self, path, dpi=DPI):
         plt.savefig(path, dpi=dpi)
         plt.close()
+
 
 class CurveFiguur(Figuur):
     def __init__(self, damage_df):
@@ -76,6 +77,7 @@ class CurveFiguur(Figuur):
         self.set_x_y_label()
         self.title(f"{title} voor {name}")
         self.write(output_path, dpi=dpi)
+
 
 class BergingsCurveFiguur(Figuur):
     def __init__(self, path, feature):
@@ -219,6 +221,7 @@ class LandgebruikCurveFiguur(PercentageFiguur):
 
             self.write(output_path, dpi=dpi)
 
+
 class DamagesLuCurveFiguur(PercentageFiguur):
     def __init__(self, path, agg_dir):
         super().__init__(path, agg_dir)
@@ -250,7 +253,8 @@ class DamagesLuCurveFiguur(PercentageFiguur):
 
             self.write(output_path, dpi=dpi)
 
-#%%
+
+# %%
 class DamagesAggFiguur(Figuur):
     def __init__(self, agg_csv_dir):
         super().__init__()
@@ -258,18 +262,25 @@ class DamagesAggFiguur(Figuur):
         self.xlabel_dsc = "Volume (m3)"
         self.ylabel_dsc = "Schadebedrag (Euro's)"
         self.xlim_min = 0
-        self.xlim_max = self.df_agg_csv['Volume [m3]'].max() * 1.1
+        self.xlim_max = self.df_agg_csv["Volume [m3]"].max() * 1.1
         self.ylim_min = 0
         self.ylim_max = self.df_agg_csv.iloc[:, 1:].max().max() * 1.1
         self.x_ticks_list = np.arange(0, self.xlim_max, 500000)
         self.y_ticks_list = np.arange(0, self.ylim_max, 500000)
-        
+
     def run(self, output_path, name, dpi=DPI):
         self.create()
-        for i in range(1,4):
+        for i in range(1, 4):
             col_name = self.df_agg_csv.columns[i]
-            self.ax.plot(self.df_agg_csv['Volume [m3]'], self.df_agg_csv[col_name],label=col_name, linewidth=2)
-        self.ax.legend(labels = ['Neerslag bergen vanaf het laagste peilvak', 'Neerslag verdelen zodat in elk peilvak een gelijke waterdiepte is', 'In het peilvak gevallen neerslag bergen in hetzelfde peilvak'], loc='upper left')
+            self.ax.plot(self.df_agg_csv["Volume [m3]"], self.df_agg_csv[col_name], label=col_name, linewidth=2)
+        self.ax.legend(
+            labels=[
+                "Neerslag bergen vanaf het laagste peilvak",
+                "Neerslag verdelen zodat in elk peilvak een gelijke waterdiepte is",
+                "In het peilvak gevallen neerslag bergen in hetzelfde peilvak",
+            ],
+            loc="upper left",
+        )
         self.set_x_y_label()
         self.set_x_y_lim()
         self.xticks(self.x_ticks_list)
@@ -277,6 +288,7 @@ class DamagesAggFiguur(Figuur):
         self.grid()
         self.title(f"Schadebedragen voor drie type aggregaties voor {name}")
         self.write(output_path, dpi=dpi)
+
 
 if __name__ == "__main__":
     lu_conversion_table = pd.read_csv(

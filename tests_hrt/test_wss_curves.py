@@ -72,8 +72,8 @@ class TestWSSCurves:
             area_start_level_field=AREA_START_LEVEL,
             wss_config_file=WSS_CFG_FILE,
             wss_curves_filter_settings_file=WSS_CURVE_FILTER_SETTINGS_FILE,
-            panden_path=PANDEN_PATH
-            )
+            panden_path=PANDEN_PATH,
+        )
 
         return schadecurves
 
@@ -143,10 +143,10 @@ class TestWSSAggregation:
         aggregatie.run()
         test_output = pd.read_csv(aggregatie.dir.post_processing["Wieringermeer"].aggregate.path)
         pd.testing.assert_frame_equal(output, test_output)
-        path_landgebruikcurve = aggregatie.dir.post_processing['Wieringermeer'].figures.landgebruikcurve.path
-        path_bergingscurve = aggregatie.dir.post_processing['Wieringermeer'].figures.bergingscurve.path
-        path_schadecurve = aggregatie.dir.post_processing['Wieringermeer'].figures.schadecurve.path
-        path_aggregate = aggregatie.dir.post_processing['Wieringermeer'].figures.aggregate.path
+        path_landgebruikcurve = aggregatie.dir.post_processing["Wieringermeer"].figures.landgebruikcurve.path
+        path_bergingscurve = aggregatie.dir.post_processing["Wieringermeer"].figures.bergingscurve.path
+        path_schadecurve = aggregatie.dir.post_processing["Wieringermeer"].figures.schadecurve.path
+        path_aggregate = aggregatie.dir.post_processing["Wieringermeer"].figures.aggregate.path
 
         assert path_landgebruikcurve.exists()
         assert path_bergingscurve.exists()

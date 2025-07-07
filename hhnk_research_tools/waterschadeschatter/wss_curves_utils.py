@@ -117,13 +117,16 @@ class Input(Folder):
         self.tiles = Tiles(self.base, create)
         self.custom_landuse_tiles = CustomLandUseTiles(self.base, create)
 
+
 class Tiles(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "tiles"), create)
 
+
 class CustomLandUseTiles(Folder):
     def __init__(self, base, create):
         super().__init__(os.path.join(base, "custom_landuse_tiles"), create)
+
 
 class Work(Folder):
     def __init__(self, base, create):
@@ -208,7 +211,7 @@ class PostProcessing(Folder):
         self.add_file("vol_level_curve", "vol_level_curve.csv")
         self.add_file("damage_per_m3", "damage_per_m3.csv")
         self.add_file("damage_level_per_ha", "damage_level_per_ha.csv")
-        
+
         self.add_file("peilgebieden", "peilgebieden.gpkg")
         self.add_file("aggregatie", "aggregatie.gpkg")
         self.add_file("schadecurves_html", "Schadecurves.html")
@@ -223,11 +226,11 @@ class PostProcessing(Folder):
         directory = AggregateDir(self.base, create=True, name=name)
         setattr(self, name, directory)
         return directory
-    
+
     def create_figure_dir(self, fdla_ids):
         """Create a directory for figures for fdla's."""
         setattr(self, "figures", Figures(self.base, create=True, fdla_ids=fdla_ids))
-        
+
     def create_readme(self):
         readme_txt = """ 
 De figures.gpkg kan gebruikt worden om grafieken te tonen in qgis.
@@ -282,7 +285,8 @@ class AggregateDir(Folder):
         directory = AggregationFigures(self.base, create=True, name=name)
         setattr(self, "figures", directory)
         return directory
-    
+
+
 class AggregationFigures(Folder):
     def __init__(self, base, create, name):
         super().__init__(os.path.join(base, "figures"), create)
@@ -292,6 +296,7 @@ class AggregationFigures(Folder):
         self.add_file("schadecurve", f"schadecurve_{name}.png")
         self.add_file("aggregate", f"schade_aggregate_{name}.png")
 
+
 class Figures(Folder):
     def __init__(self, base, create, fdla_ids):
         super().__init__(os.path.join(base, "figures"), create)
@@ -300,6 +305,7 @@ class Figures(Folder):
             self.add_file(f"bergingscurve_{name}", f"bergingscurve_{name}.png")
             self.add_file(f"schadecurve_{name}", f"schadecurve_{name}.png")
             self.add_file(f"aggregate_{name}", f"schade_aggregate_{name}.png")
+
 
 class WSSTimelog:
     """
@@ -357,6 +363,7 @@ def get_drainage_areas(settings_path):
     sql = "SELECT * FROM CS_OBJECTEN.COMBINATIEPEILGEBIED"
     gdf, sql2 = database_to_gdf(db_dict=db_dict, sql=sql, columns=None)
     return gdf
+
 
 def fdla_performance(fdla_gdf, tile_gdf, fdla_time_dir, folder):
     """
