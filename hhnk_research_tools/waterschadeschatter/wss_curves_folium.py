@@ -1,50 +1,55 @@
 # %%
+# Standard library imports
 import base64
-import colorsys
-import numpy as np
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 # Third party imports
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from matplotlib import colors as mcolors
-import folium
-from folium import IFrame
-from folium.plugins import MarkerCluster
 import branca.colormap as cm
-from branca.element import MacroElement
-from jinja2 import Template
+import folium
 import geopandas as gp
+from branca.element import MacroElement
+from folium import IFrame, Map
+from folium.plugins import MarkerCluster
+from geopandas import GeoDataFrame
+from jinja2 import Template
+from matplotlib import colors as mcolors
 
 # Local imports
 import hhnk_research_tools.logger as logging
 
 logger = logging.get_logger(__name__, level="DEBUG")
 
+
 class DummyColormap:
     """
     Dummy class to represent a colormap when no colormap is needed.
     This is used to avoid errors when no colormap is specified.
     """
-    def __init__(self, colormap_dict, name):
+
+    def __init__(self, colormap_dict: Dict[Any, str], name: str) -> None:
         self.colormap_dict = colormap_dict
         self.name = name
 
-    def get_name(self):
+    def get_name(self) -> str:
         return self.name
-    
-    def __call__(self, value):
-        return self.colormap_dict[value]
-    
-class WSSCurvesFolium:
-    def __init__(self):
-        self.create_map()
-        self.layers = []
-        self.color_maps = []
-        self.color_map_binds = []
 
-    def create_map(self):
-        # Create the map
-        # background maps at: https://leaflet-extras.github.io/leaflet-providers/preview/
+    def __call__(self, value: Any) -> str:
+        return self.colormap_dict[value]
+
+
+class WSSCurvesFolium:
+    def __init__(self) -> None:
+        """Initialize WSSCurvesFolium with empty map and layer collections."""
+        self.create_map()
+        self.layers: List[folium.GeoJson] = []
+        self.color_maps: List[Union[DummyColormap, cm.LinearColormap]] = []
+        self.color_map_binds: List[BindColormap] = []
+        self.m: Map
+
+    def create_map(self) -> None:
+        """Create base Folium map with Dutch aerial imagery background."""
+
         self.m = folium.Map(
             location=[52.8, 4.9],
             tiles="nlmaps.luchtfoto",
@@ -52,10 +57,20 @@ class WSSCurvesFolium:
             attr="<a href=https://nlmaps.nl/>NL Maps luchtfoto</a>",
         )
 
-    def get_colormap(self, label, data_min, data_max, gdf, colormap_field=None, colormap_name="plasma", nr_steps=5, colormap_type="categorical"):
+    def get_colormap(
+        self,
+        label: str,
+        data_min: float,
+        data_max: float,
+        gdf: GeoDataFrame,
+        colormap_field: Optional[str] = None,
+        colormap_name: str = "plasma",
+        nr_steps: int = 5,
+        colormap_type: str = "categorical",
+    ) -> Union[DummyColormap, cm.LinearColormap]:
         """
         Get a colormap that either creates a gradient for continuous data or unique colors for categorical data.
-        
+
         Args:
             label (str): Label for the colormap
             data_min: Minimum value for numeric data
@@ -76,7 +91,7 @@ class WSSCurvesFolium:
                     hex_color = mcolors.to_hex(color)
                 else:
                     # Use the color as is (assuming it's already hex)
-                    hex_color = color if color else '#808080'  # fallback to gray
+                    hex_color = color if color else "#808080"  # fallback to gray
                     print("Fallback to gray for color:", color)
 
                 colormap[color] = hex_color  # RRGGBBAA
@@ -93,10 +108,12 @@ class WSSCurvesFolium:
         colormap.caption = label
         return colormap
 
-    def add_water_layer(self):
+    def add_water_layer(self) -> None:
+        """Add Dutch water layer as tile overlay to the map."""
         folium.TileLayer("nlmaps.water", attr="<a href=https://nlmaps.nl/>NL Maps water</a>").add_to(self.m)
 
-    def add_border_layer(self, name, gdf, tooltip_fields, show=True):
+    def add_border_layer(self, name: str, gdf: GeoDataFrame, tooltip_fields: List[str], show: bool = True) -> None:
+        """Add border layer with transparent fill and black outline to the map."""
         border_style = {"color": "#000000", "weight": "1.5", "fillColor": "#58b5d1", "fillOpacity": 0.08}
 
         layer = folium.GeoJson(
@@ -115,16 +132,30 @@ class WSSCurvesFolium:
         layer.show = show
         self.layers.append(layer)
 
+    def add_layer(
+        self,
+        name: str,
+        gdf: GeoDataFrame,
+        datacolumn: str,
+        tooltip_fields: List[str],
+        data_min: float,
+        data_max: float,
+        colormap_name: str,
+        colormap_type: str = "categorical",
+        show: bool = False,
+        show_colormap: bool = True,
+    ) -> None:
+        """Add a styled layer to the map with colormap based on a data column."""
 
-    def add_layer(self, name, gdf, datacolumn, tooltip_fields, data_min, data_max, colormap_name, colormap_type="categorical", show=False, show_colormap=True):
-
-        colormap = self.get_colormap(label=f"Legend {name}",
-                                      data_min=data_min,
-                                      data_max=data_max,
-                                      colormap_name=colormap_name,
-                                      colormap_type=colormap_type,
-                                      colormap_field=datacolumn,
-                                      gdf=gdf)
+        colormap = self.get_colormap(
+            label=f"Legend {name}",
+            data_min=data_min,
+            data_max=data_max,
+            colormap_name=colormap_name,
+            colormap_type=colormap_type,
+            colormap_field=datacolumn,
+            gdf=gdf,
+        )
 
         layer = folium.GeoJson(
             gdf,
@@ -150,16 +181,11 @@ class WSSCurvesFolium:
         if show_colormap:
             self.color_maps.append(colormap)
             self.color_map_binds.append(BindColormap(layer, colormap))
-            
-    def add_graphs(self, name, gdf, image_field, width=520, height=520):
 
-        marker_cluster = MarkerCluster(
-                name=name,
-                overlay=True,
-                control=True,
-                icon_create_function=None
-            )
+    def add_graphs(self, name: str, gdf: GeoDataFrame, image_field: str, width: int = 520, height: int = 520) -> None:
+        """Add interactive image popups to the map as marker clusters."""
 
+        marker_cluster = MarkerCluster(name=name, overlay=True, control=True, icon_create_function=None)
 
         for idx, data in gdf.iterrows():
             centroid = data.geometry.centroid
@@ -171,7 +197,7 @@ class WSSCurvesFolium:
             # Get lat/lon coordinates
             lon, lat = point_wgs84.geometry.x.iloc[0], point_wgs84.geometry.y.iloc[0]
 
-            encoded = base64.b64encode(open(data[image_field], 'rb').read()).decode()
+            encoded = base64.b64encode(open(data[image_field], "rb").read()).decode()
             html = f'<img src="data:image/png;base64,{encoded}" width="{width}" height="{height}">'
             iframe = IFrame(html, width=width, height=height)
             popup = folium.Popup(iframe, max_width=width)
@@ -182,33 +208,38 @@ class WSSCurvesFolium:
 
         marker_cluster.add_to(self.m)
 
-    def add_legend(self):
+    def add_legend(self) -> None:
+        """Add colormap legend to the map."""
         self.m.add_child(self.colormap)
 
-    def add_title(self, title):
+    def add_title(self, title: str) -> None:
+        """Add a title overlay to the map."""
         # Add title to map
         title_html = f'<h1 style="position:absolute;z-index:100000;bottom:1vw;background-color:rgba(255, 255, 255, 0.8);padding:10px;border-radius:5px;" >{title}</h1>'
         self.m.get_root().html.add_child(folium.Element(title_html))
 
-    def save(self, output_path):
+    def save(self, output_path: Union[str, Path]) -> None:
+        """Save the interactive map to a file with all layers and controls."""
         # Create layer control first
-        layer_control = folium.LayerControl(collapsed=False, sort_layers=True, position='topright')
-        
+        layer_control = folium.LayerControl(collapsed=False, sort_layers=True, position="topright")
+
         # Add all layers to the control but only show them if show=True
         for l in self.layers:
-            if hasattr(l, 'show') and l.show:
+            if hasattr(l, "show") and l.show:
                 self.m.add_child(l)
             else:
                 # Add to map but hide it
                 l.add_to(self.m)
-                self.m.get_root().html.add_child(folium.Element(f'''
+                self.m.get_root().html.add_child(
+                    folium.Element(f"""
                     <script>
                         document.addEventListener("DOMContentLoaded", function() {{
                             map.removeLayer({l.get_name()});
                         }});
                     </script>
-                '''))
-        
+                """)
+                )
+
         # Add the layer control after all layers
         self.m.add_child(layer_control)
 
@@ -218,7 +249,7 @@ class WSSCurvesFolium:
 
         for b in self.color_map_binds:
             self.m.add_child(b)
-    
+
         logger.debug(f"Saving interactive map to: {output_path}")
         self.m.save(output_path)
 
@@ -232,7 +263,7 @@ class BindColormap(MacroElement):  # from https://github.com/python-visualizatio
         The colormap to bind.
     """
 
-    def __init__(self, layer, colormap):
+    def __init__(self, layer: folium.GeoJson, colormap: Union[DummyColormap, cm.LinearColormap]) -> None:
         super(BindColormap, self).__init__()
         self.layer = layer
         self.colormap = colormap
@@ -249,20 +280,3 @@ class BindColormap(MacroElement):  # from https://github.com/python-visualizatio
                 }});
         {% endmacro %}
         """)  # noqa
-
-
-if __name__ == "__main__":
-    figures = gp.read_file(
-        r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\output\heiloo_optimized\post_processing/figures.gpkg",
-        layer="bergingscurve",
-    )
-    fol = WSSCurvesFolium()
-    fol.add_colormap(0, 5)
-    fol.add_water_layer()
-    fol.add_layer("Schades", figures, datacolumn="drainage_level", tooltip_fields=["pid"])
-    fol.add_graphs("Schadegrafieken", figures, "png_path")
-    fol.add_title("Schadecurves")
-    fol.add_legend("Legenda")
-    fol.save(
-        r"C:\Users\kerklaac5395\ARCADIS\30225745 - Schadeberekening HHNK - Documents\External\output\heiloo_optimized\post_processing/test.html"
-    )

@@ -5,24 +5,22 @@ Created on Thu Oct 10 15:27:18 2024
 @author: kerklaac5395
 """
 
-# First-party imports
+# Standard library imports
 import json
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import Optional, Union
+from typing import Iterator, Optional, Tuple, TypeVar, Union
 
+# Third party imports
 import geopandas as gpd
-
-# Third-party imports
 import numpy as np
 import pandas as pd
 import shapely
 from tqdm import tqdm
 
-import hhnk_research_tools.logger as logging
-
 # Local imports
+import hhnk_research_tools.logger as logging
 from hhnk_research_tools.variables import DEFAULT_NODATA_GENERAL
 from hhnk_research_tools.waterschadeschatter.wss_curves_figures import (
     BergingsCurveFiguur,
@@ -36,8 +34,11 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     DRAINAGE_LEVEL_FIELD,
     ID_FIELD,
     AreaDamageCurveFolders,
-    # WSSTimelog,
 )
+
+# Type variables for generics
+T = TypeVar("T")
+D = TypeVar("D", bound=pd.DataFrame)
 
 # Logger
 logger = logging.get_logger(__name__)
@@ -84,11 +85,14 @@ class AreaDamageCurvesAggregation:
 
         if self.dir.output.result_lu_areas.exists():
             self.lu_area_data = pd.read_csv(self.dir.output.result_lu_areas.path, index_col=0)
+            self.lu_area_data.fid = self.lu_area_data.fid.astype(str)
 
         if self.dir.output.result_lu_damage.exists():
             self.lu_dmg_data = pd.read_csv(self.dir.output.result_lu_damage.path, index_col=0)
+            self.lu_dmg_data.fid = self.lu_dmg_data.fid.astype(str)
 
         self.drainage_areas = self.dir.input.area.load()
+        self.drainage_areas[ID_FIELD] = self.drainage_areas[ID_FIELD].astype(str)
 
         if self.aggregate_vector_path:
             self.vector = gpd.read_file(
@@ -103,13 +107,14 @@ class AreaDamageCurvesAggregation:
         # self.time = WSSTimelog(subject=NAME, output_dir=self.dir.post_processing.path)
 
     @classmethod
-    def from_settings_json(cls, settings_json_file):
+    def from_settings_json(cls, settings_json_file: Union[str, Path]) -> "AreaDamageCurvesAggregation":
+        """Create aggregation instance from settings JSON file."""
         with open(str(settings_json_file)) as json_file:
             settings = json.load(json_file)
-
         return cls(**settings)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Tuple[int, pd.Series, gpd.GeoDataFrame]]:
+        """Iterate over vector features and corresponding drainage areas."""
         for idx, feature in tqdm(self.vector.iterrows(), NAME, total=len(self.vector)):
             predicate_func = getattr(self, self.predicate)  # default = self._within
             areas = predicate_func(feature.geometry)
@@ -120,22 +125,24 @@ class AreaDamageCurvesAggregation:
     def damage_curve(self) -> pd.DataFrame:
         if self.dir.output.result.exists():
             damage = pd.read_csv(self.dir.output.result.path, index_col=0)
-            damage.columns = damage.columns
+            damage.columns = damage.columns.astype(str)
             return damage
+        return pd.DataFrame()
 
     @cached_property
     def vol_curve(self) -> pd.DataFrame:
         if self.dir.output.result_vol.exists():
             vol = pd.read_csv(self.dir.output.result_vol.path, index_col=0)
-            vol.columns = vol.columns
+            vol.columns = vol.columns.astype(str)
             return vol
+        return pd.DataFrame()
 
     @cached_property
-    def damage_interpolated_curve(self):
+    def damage_interpolated_curve(self) -> pd.DataFrame:
         return self._curve_linear_interpolate(curve=self.damage_curve, resolution=DEFAULT_RESOLUTION)
 
     @cached_property
-    def vol_interpolated_curve(self):
+    def vol_interpolated_curve(self) -> pd.DataFrame:
         return self._curve_linear_interpolate(curve=self.vol_curve, resolution=DEFAULT_RESOLUTION)
 
     @cached_property
@@ -176,7 +183,6 @@ class AreaDamageCurvesAggregation:
         da = self.drainage_areas.copy()
         da.index = da[ID_FIELD]
         return da.geometry
-    
 
     @property
     def selection(self) -> dict[str, pd.Series]:
@@ -185,12 +191,12 @@ class AreaDamageCurvesAggregation:
             selection[feature[self.field]] = areas
         return selection
 
-    def _within(self, geometry: shapely.geometry, buffer: int = DEFAULT_BUFFER):
+    def _within(self, geometry: shapely.geometry.base.BaseGeometry, buffer: int = DEFAULT_BUFFER) -> gpd.GeoDataFrame:
         buffered = geometry.buffer(buffer)
         area_within = self.drainage_areas[self.drainage_areas.geometry.within(buffered)]
         return area_within
 
-    def _curve_linear_interpolate(self, curve: pd.Series, resolution, round: int = DEFAULT_ROUND):
+    def _curve_linear_interpolate(self, curve: pd.Series, resolution: float, round: int = DEFAULT_ROUND) -> pd.Series:
         index = np.arange(0, curve.index.values[-1] + resolution, resolution).round(round)
         new_index = list(set(list(index) + list(curve.index)))
         new_index.sort()
@@ -198,7 +204,9 @@ class AreaDamageCurvesAggregation:
         interpolated.loc[0.0] = 0
         return interpolated.interpolate("linear")
 
-    def _curve_depth_to_level(self, curve: pd.Series, drainage_area: pd.Series, round: int = DEFAULT_ROUND):
+    def _curve_depth_to_level(
+        self, curve: pd.Series, drainage_area: pd.Series, round: int = DEFAULT_ROUND
+    ) -> pd.Series:
         curve.index = np.round(curve.index + drainage_area[DRAINAGE_LEVEL_FIELD], round)
         return curve
 
@@ -215,7 +223,7 @@ class AreaDamageCurvesAggregation:
         level_curve = pd.DataFrame(index=index)
 
         for idx, drainage_area in d_sorted.iterrows():
-            curve = curves[drainage_area[ID_FIELD]]
+            curve = curves[str(drainage_area[ID_FIELD])]
             if pd.isna(curve).all():
                 curve = curve.fillna(DEFAULT_NODATA_GENERAL)
             curve = curve.astype(int)
@@ -400,8 +408,9 @@ class AreaDamageCurvesAggregation:
 
         agg_series = pd.Series(aggregate_curve, name="damage_own_area_retention")
         return agg_series
-    
+
     def create_folium_html(self, depth_steps=[0.5, 1, 1.5], damage_steps=[100, 1000, 10000, 100000]):
+        """Create interactive Folium map showing damage curves and drainage areas."""
 
         fol = WSSCurvesFolium()
         fol.add_water_layer()
@@ -410,96 +419,96 @@ class AreaDamageCurvesAggregation:
         agg_schade = gpd.read_file(self.dir.post_processing.aggregatie.path, layer="aggregatie")
 
         # Split aggregation data by curve type
-        agg_landgebruik = agg_schade[agg_schade['index'].str.contains('landgebruikcurve')]
-        agg_schade_curves = agg_schade[agg_schade['index'].str.contains('schadecurve')]
-        agg_berging = agg_schade[agg_schade['index'].str.contains('bergingscurve')]
-        agg_aggregatie = agg_schade[agg_schade['index'].str.contains('aggregatie')]
+        agg_landgebruik = agg_schade[agg_schade["index"].str.contains("landgebruikcurve")]
+        agg_schade_curves = agg_schade[agg_schade["index"].str.contains("schadecurve")]
+        agg_berging = agg_schade[agg_schade["index"].str.contains("bergingscurve")]
+        agg_aggregatie = agg_schade[agg_schade["index"].str.contains("aggregatie")]
 
         # grafieken
-        fol.add_graphs("Peilgebieden: Schadecurve (grafiek)", fdla_schade, 'png_path', width=600, height=600)
-        fol.add_graphs("Aggregatie: Landgebruikcurve (grafiek)", agg_landgebruik, 'png_path', width=1200, height=600)
-        fol.add_graphs("Aggregatie: Schadecurve (grafiek)", agg_schade_curves, 'png_path', width=1200, height=600)
-        fol.add_graphs("Aggregatie: Bergingscurve (grafiek)", agg_berging, 'png_path', width=800, height=800)
-        fol.add_graphs("Aggregatie: Aggregatie (grafiek)", agg_aggregatie, 'png_path', width=800, height=800)
+        fol.add_graphs("Peilgebieden: Schadecurve (grafiek)", fdla_schade, "png_path", width=600, height=600)
+        fol.add_graphs("Aggregatie: Landgebruikcurve (grafiek)", agg_landgebruik, "png_path", width=1200, height=600)
+        fol.add_graphs("Aggregatie: Schadecurve (grafiek)", agg_schade_curves, "png_path", width=1200, height=600)
+        fol.add_graphs("Aggregatie: Bergingscurve (grafiek)", agg_berging, "png_path", width=800, height=800)
+        fol.add_graphs("Aggregatie: Aggregatie (grafiek)", agg_aggregatie, "png_path", width=800, height=800)
 
-        # per peilgebied 
-        fol.add_border_layer("Peilgebieden: Peilvakken", fdla_schade, tooltip_fields=['pid'])
-        
+        # per peilgebied
+        fol.add_border_layer("Peilgebieden: Peilvakken", fdla_schade, tooltip_fields=["pid"])
+
         # schade per peilstijging
         for idx, depth_step_data in self.damage_curve.iterrows():
             if idx not in depth_steps:
                 continue
-            ds_df = gpd.GeoDataFrame(depth_step_data, geometry = self.fdla_geometry, crs="EPSG:28992")
-            fol.add_layer(name=f"Peilgebieden: Schadecurve {idx}m peilstijging.",
-                          gdf=ds_df,
-                          datacolumn=str(idx),
-                          tooltip_fields=[str(idx)],
-                          data_min=int(ds_df[idx].quantile(0.1)),
-                          data_max=int(ds_df[idx].quantile(0.9)),
-                          colormap_name="plasma",
-                          colormap_type="continuous",
-                          show=False
-                          )
-            
-        # peilstijging per schade
-        for damage_step in damage_steps:
-            mask = self.damage_curve > damage_step
-            first_occurrence = mask.apply(lambda x: x[x].index[0] if x.any() else -9999)
-            ds_df = gpd.GeoDataFrame(
-                {"Peilstijging":first_occurrence},
-                geometry=self.fdla_geometry,
-                crs="EPSG:28992"
-            )
-            
-            # Add to map
+            ds_df = gpd.GeoDataFrame(depth_step_data, geometry=self.fdla_geometry, crs="EPSG:28992")
             fol.add_layer(
-                name=f"Peilgebieden: Peilstijging schade boven €{damage_step:,}",
+                name=f"Peilgebieden: Schadecurve {idx}m peilstijging.",
                 gdf=ds_df,
-                datacolumn='Peilstijging',  # the first occurrence values
-                tooltip_fields=['Peilstijging'],
-                data_min=0,
-                data_max=ds_df['Peilstijging'].max(),
+                datacolumn=str(idx),
+                tooltip_fields=[str(idx)],
+                data_min=int(ds_df[idx].quantile(0.1)),
+                data_max=int(ds_df[idx].quantile(0.9)),
                 colormap_name="plasma",
                 colormap_type="continuous",
                 show=False,
             )
 
-        for depth_step in depth_steps:  
-            depth_data = self.lu_dmg_data.loc[depth_step] 
+        # peilstijging per schade
+        for damage_step in damage_steps:
+            mask = self.damage_curve > damage_step
+            first_occurrence = mask.apply(lambda x: x[x].index[0] if x.any() else -9999)
+            ds_df = gpd.GeoDataFrame({"Peilstijging": first_occurrence}, geometry=self.fdla_geometry, crs="EPSG:28992")
+
+            # Add to map
+            fol.add_layer(
+                name=f"Peilgebieden: Peilstijging schade boven €{damage_step:,}",
+                gdf=ds_df,
+                datacolumn="Peilstijging",  # the first occurrence values
+                tooltip_fields=["Peilstijging"],
+                data_min=0,
+                data_max=ds_df["Peilstijging"].max(),
+                colormap_name="plasma",
+                colormap_type="continuous",
+                show=False,
+            )
+
+        for depth_step in depth_steps:
+            depth_data = self.lu_dmg_data.loc[depth_step]
             depth_data.index = depth_data.fid
-            depth_data.drop(columns=['fid'], inplace=True)
+            depth_data.drop(columns=["fid"], inplace=True)
             depth_data.fillna(DEFAULT_NODATA_GENERAL, inplace=True)
             lu_max_dmg_per_step = depth_data.idxmax(axis=1).astype(float)
-            max_lu = gpd.GeoDataFrame({"Landgebruik (max)":lu_max_dmg_per_step},geometry= self.fdla_geometry, crs="EPSG:28992")
-            
+            max_lu = gpd.GeoDataFrame(
+                {"Landgebruik (max)": lu_max_dmg_per_step}, geometry=self.fdla_geometry, crs="EPSG:28992"
+            )
+
             # Create a mapping of landuse IDs to their colors from the conversion table
-            lu_colors = self.lu_conversion_table.set_index(self.lu_conversion_table.columns[0])['kleur'].to_dict()
-            lu_functie = self.lu_conversion_table.set_index(self.lu_conversion_table.columns[0])['beschrijving'].to_dict()
-            max_lu['colors'] = max_lu["Landgebruik (max)"].map(lu_colors)
-            max_lu['Functie'] = max_lu["Landgebruik (max)"].map(lu_functie)
+            lu_colors = self.lu_conversion_table.set_index(self.lu_conversion_table.columns[0])["kleur"].to_dict()
+            lu_functie = self.lu_conversion_table.set_index(self.lu_conversion_table.columns[0])[
+                "beschrijving"
+            ].to_dict()
+            max_lu["colors"] = max_lu["Landgebruik (max)"].map(lu_colors)
+            max_lu["Functie"] = max_lu["Landgebruik (max)"].map(lu_functie)
 
             # Add to map with custom colors from landuse conversion table
             fol.add_layer(
                 name=f"Peilgebieden: Landgebruik met de meeste schade  {depth_step}m peilstijging",
                 gdf=max_lu,
-                datacolumn='colors',  # Use the colors field for custom colors
-                tooltip_fields=['Landgebruik (max)', 'Functie'],
+                datacolumn="colors",  # Use the colors field for custom colors
+                tooltip_fields=["Landgebruik (max)", "Functie"],
                 data_min=None,
                 data_max=None,
                 colormap_name=None,  # No colormap needed since we use custom colors
                 colormap_type="categorical",
                 show=False,
-                show_colormap=False
+                show_colormap=False,
             )
 
         # per aggregatie gebied
-        fol.add_border_layer("Aggregatie: Aggregatiegrenzen", agg_schade, tooltip_fields=['index'])
+        fol.add_border_layer("Aggregatie: Aggregatiegrenzen", agg_schade, tooltip_fields=["index"])
         fol.add_title("Schadecurves en aggregaties")
         fol.save(self.dir.post_processing.schadecurves_html.path)
 
     def create_figures(self):
-        """Create figures for the damage and volume c        fol.add_title("Schadecurves en aggregaties")
-        fol.save(self.dir.post_processing.schadecurves_html.path)urves per drainage area."""
+        """Generate damage curve figures for all drainage areas."""
 
         self.dir.post_processing.create_figure_dir(self.drainage_areas[ID_FIELD].tolist())
         for area_id in self.drainage_areas[ID_FIELD]:
@@ -514,6 +523,7 @@ class AreaDamageCurvesAggregation:
             figure.run(name=area_id, output_path=path, title="Bergingscurve")
 
     def create_fdla_gpkg(self) -> None:
+        """Create GeoPackage file containing drainage area geometries with damage curve data."""
         fig_dir = self.dir.post_processing.figures
         ids = self.drainage_areas[ID_FIELD]
 
@@ -533,9 +543,10 @@ class AreaDamageCurvesAggregation:
         gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver="GPKG")
 
     def create_aggregate_gpkg(self) -> None:
-        
+        """Create GeoPackage file containing aggregated damage curves by area."""
+
         ids = self.vector[self.field]
-        figure_type = ['aggregate', 'bergingscurve', 'landgebruikcurve', 'schadecurve']
+        figure_type = ["aggregate", "bergingscurve", "landgebruikcurve", "schadecurve"]
 
         data = {"image_path": [], "png_path": [], "index": [], "geometry": []}
         for i in ids:
@@ -543,24 +554,23 @@ class AreaDamageCurvesAggregation:
             agg_figure_dir = self.dir.post_processing[i].figures
             for ftype in figure_type:
                 path = getattr(agg_figure_dir, ftype).path
-                data['image_path'].append("file:///"+str(path))
-                data['png_path'].append(str(path)) 
-                data['index'].append(i+"_"+ftype)
-                data['geometry'].append(geometry)
+                data["image_path"].append("file:///" + str(path))
+                data["png_path"].append(str(path))
+                data["index"].append(i + "_" + ftype)
+                data["geometry"].append(geometry)
 
-        output = gpd.GeoDataFrame(data, geometry=data['geometry'], crs=self.vector.crs, dtype=str, index=data['index'])
+        output = gpd.GeoDataFrame(data, geometry=data["geometry"], crs=self.vector.crs, dtype=str, index=data["index"])
 
         local_file = self.dir.post_processing.aggregatie.path
-        output.to_file(local_file, layer='aggregatie', driver='GPKG')
+        output.to_file(local_file, layer="aggregatie", driver="GPKG")
 
         # add styling
         styling = self.create_styling(table_names=["aggregatie"])
-        gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver='GPKG')
+        gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver="GPKG")
 
     def create_aggregate_gpkg(self) -> None:
-        
         ids = self.vector[self.field]
-        figure_type = ['aggregate', 'bergingscurve', 'landgebruikcurve', 'schadecurve']
+        figure_type = ["aggregate", "bergingscurve", "landgebruikcurve", "schadecurve"]
 
         data = {"image_path": [], "png_path": [], "index": [], "geometry": []}
         for i in ids:
@@ -568,19 +578,19 @@ class AreaDamageCurvesAggregation:
             agg_figure_dir = self.dir.post_processing[i].figures
             for ftype in figure_type:
                 path = getattr(agg_figure_dir, ftype).path
-                data['image_path'].append("file:///"+str(path))
-                data['png_path'].append(str(path)) 
-                data['index'].append(i+"_"+ftype)
-                data['geometry'].append(geometry)
+                data["image_path"].append("file:///" + str(path))
+                data["png_path"].append(str(path))
+                data["index"].append(i + "_" + ftype)
+                data["geometry"].append(geometry)
 
-        output = gpd.GeoDataFrame(data, geometry=data['geometry'], crs=self.vector.crs, dtype=str, index=data['index'])
+        output = gpd.GeoDataFrame(data, geometry=data["geometry"], crs=self.vector.crs, dtype=str, index=data["index"])
 
         local_file = self.dir.post_processing.aggregatie.path
-        output.to_file(local_file, layer='aggregatie', driver='GPKG')
+        output.to_file(local_file, layer="aggregatie", driver="GPKG")
 
         # add styling
         styling = self.create_styling(table_names=["aggregatie"])
-        gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver='GPKG')
+        gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver="GPKG")
 
     def create_styling(self, table_names):
         qmls = [self.get_qml(name) for name in table_names]
@@ -673,7 +683,7 @@ class AreaDamageCurvesAggregation:
 
         return output
 
-    def run(self, aggregation=True, mm_rain=DEFAULT_RAIN) -> None:
+    def run(self, aggregation=True, mm_rain=DEFAULT_RAIN, create_html=True) -> None:
         # general data
         self.damage_interpolated_curve.to_csv(self.dir.post_processing.damage_interpolated_curve.path)
         self.vol_interpolated_curve.to_csv(self.dir.post_processing.volume_interpolated_curve.path)
@@ -741,9 +751,8 @@ class AreaDamageCurvesAggregation:
                 self.create_aggregated_figures(agg_dir, name, feature)
 
         self.create_aggregate_gpkg()
-
-
-        self.create_folium_html()
+        if create_html:
+            self.create_folium_html()
 
 
 if __name__ == "__main__":

@@ -140,7 +140,7 @@ class TestWSSAggregation:
         aggregatie: AreaDamageCurvesAggregation,
         output: pd.DataFrame,
     ):
-        aggregatie.run()
+        aggregatie.run(create_html=False)
         test_output = pd.read_csv(aggregatie.dir.post_processing["Wieringermeer"].aggregate.path)
         pd.testing.assert_frame_equal(output, test_output)
         path_landgebruikcurve = aggregatie.dir.post_processing["Wieringermeer"].figures.landgebruikcurve.path

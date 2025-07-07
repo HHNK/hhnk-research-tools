@@ -1,12 +1,17 @@
+# Standard library imports
 import pathlib
-from typing import Optional, Union
+from pathlib import Path
+from typing import Union
 
+# Third party imports
 import geopandas as gp
 import numpy as np
+from geopandas import GeoSeries
 from rasterio import features
 from shapely.geometry import box
 from tqdm import tqdm
 
+# Local imports
 import hhnk_research_tools as hrt
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import split_geometry_in_tiles
@@ -41,7 +46,9 @@ class DCCustomLanduse:
 
     """
 
-    def __init__(self, panden_path: str, landuse_raster_path: str, tile_size: int = 1000):
+    def __init__(
+        self, panden_path: Union[str, Path], landuse_raster_path: Union[str, Path], tile_size: int = 1000
+    ) -> None:
         self.landuse = hrt.Raster(landuse_raster_path)
         self.panden = gp.read_file(panden_path)
         self.tile_size = tile_size
@@ -49,10 +56,12 @@ class DCCustomLanduse:
         bbox_gdal = self.landuse.metadata.bbox_gdal
         self.extent = gp.GeoDataFrame(geometry=[box(*bbox_gdal)], crs=self.landuse.metadata.projection)
 
-    def tiles(self):
+    def tiles(self) -> GeoSeries:
+        """Generate tiles for processing the landuse raster in chunks."""
         return split_geometry_in_tiles(self.extent.geometry.iloc[0], envelope_tile_size=self.tile_size)
 
-    def run(self, output_dir):
+    def run(self, output_dir: Union[str, Path]) -> None:
+        """Create custom landuse raster tiles by replacing areas with building footprints."""
         tiles = self.tiles()
         src = self.landuse.open_rio()
 

@@ -7,11 +7,11 @@ Created on Fri Aug 23 15:50:56 2024
 Methodiek schade, volume en landgebruik
 1. Per waterlaag (bv 10 cm) wordt de waterdiepte uitgerekend obv hoogtemodel.
 2. Alle unieke waterdiepte en landgebruik pixels worden geteld.
-3. Schade = Combinatie opgezocht in de schadetabel en vermenigdvuldigd het aantal pixels.
+3. Schade = Combinatie opgezocht in de schadetabel en vermenigvuldigd het aantal pixels.
 4. Volume = Oppervlak pixel vermenigvuldigd met de diepte en aantal pixels.
-
 """
 
+# Standard library imports
 import argparse
 import datetime
 import json
@@ -24,14 +24,16 @@ from functools import cached_property, reduce
 from pathlib import Path
 from typing import Literal, Optional, Tuple, Union
 
+# Third party imports
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
-import shapely
 from rasterio.features import rasterize
+from shapely.geometry.base import BaseGeometry
 from tqdm import tqdm
 
+# Local imports
 import hhnk_research_tools as hrt
 from hhnk_research_tools.rasters.raster_class import Raster
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
@@ -55,7 +57,7 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
 
 # Globals
 DAMAGE_DECIMALS = 2
-MAX_PROCESSES = mp.cpu_count() - 1  # still wanna do something on the computa use minus 1
+MAX_PROCESSES = mp.cpu_count() - 1  # still wanna do something on the computer use minus 1
 MP_ENVELOPE_AREA_LIMIT = 100000000  # m2 #1.000.000.000 kwart van HHNK
 TILE_SIZE = 5000
 BUFFER_OVERLAP = 0.25
@@ -139,7 +141,7 @@ class AreaDamageCurveMethods:
         if nodamage_filter:
             self.nodamage_filter()
 
-    def read_scaled_dem(self, geometry: shapely.geometry):
+    def read_scaled_dem(self, geometry: BaseGeometry):
         """Due to large data of dem, the dem is retyped to int16 from float32.
         This means that calculation are done in dependent DAMAGE_DECIMALS.
         In the case of 2 damage decimals, it'll be cm's.
@@ -154,7 +156,7 @@ class AreaDamageCurveMethods:
         return array_dtype
 
     def apply_filter(self, gdf: gpd.GeoDataFrame) -> None:
-        """Use the gdf to mask nodata in _lu_array and _dem_array."""
+        """Apply geometries from GeoDataFrame as nodata mask to landuse and DEM arrays."""
         shapes_lu = []
         shapes_dem = []
         for geom in gdf.geometry:
@@ -178,7 +180,7 @@ class AreaDamageCurveMethods:
             )
 
     def nodamage_filter(self) -> None:
-        """Filter the input polygon based on a nodamage gdf"""
+        """Apply nodamage filter based on nodamage geometries."""
         self.time.log("start nodamage_filter")
         self.apply_filter(self.nodamage_gdf)
         self.time.log("nodamage_filter finished!")
@@ -362,6 +364,7 @@ class AreaDamageCurveMethods:
         return curve, curve_vol
 
     def write_tif(self, path, array):
+        """Write raster array to GeoTIFF file."""
         hrt.save_raster_array_to_tiff(
             output_file=path,
             raster_array=array,
@@ -452,10 +455,12 @@ class AreaDamageCurves:
         self.time.log("Initialized AreaDamageCurves!")
 
     def __iter__(self):
+        """Iterate over area identifiers"""
         for id in self.area_vector[ID_FIELD]:
             yield id
 
     def __len__(self):
+        """Return the number of areas in the area vector"""
         return len(self.area_vector)
 
     @classmethod
@@ -468,6 +473,7 @@ class AreaDamageCurves:
 
     @cached_property
     def area_vector(self) -> gpd.GeoDataFrame:
+        """Load and process area vector data."""
         if self.area_path is not None:
             self.time.log(f"Reading vector from file: {self.area_path}.")
             vector = gpd.read_file(self.area_path, layer=self.area_layer_name, engine="pyogrio")
@@ -495,6 +501,7 @@ class AreaDamageCurves:
 
     @cached_property
     def wss_settings(self) -> dict:
+        """Load water damage settings from JSON file."""
         with open(str(self.wss_settings_file)) as json_file:
             settings = json.load(json_file)
         write_dict(dictionary=settings, path=self.dir.input.wss_settings.path)
@@ -503,6 +510,7 @@ class AreaDamageCurves:
 
     @cached_property
     def wss_curves_filter_settings(self):
+        """Load filter settings from JSON file."""
         with open(str(self.wss_curves_filter_settings_file)) as json_file:
             settings = json.load(json_file)
 
@@ -511,6 +519,7 @@ class AreaDamageCurves:
 
     @cached_property
     def lookup(self):
+        """Create or load damage lookup table for efficient calculations."""
         self.time.log("Processing lookup table")
         if self.dir.input.wss_lookup.path.exists() and not self.overwrite:
             self.time.log(f"Lookup table {self.dir.input.wss_lookup.path} already exists, loading data.")
@@ -531,16 +540,18 @@ class AreaDamageCurves:
 
     @cached_property
     def metadata(self) -> hrt.RasterMetadataV2:
+        """Generate raster metadata from area vector."""
         return hrt.RasterMetadataV2.from_gdf(gdf=self.area_vector, res=self.resolution)
 
     @cached_property
     def depth_steps(self) -> list[float]:
+        """Generate depth steps for damage curve calculations."""
         steps = np.arange(self.curve_step, self.curve_max + self.curve_step, self.curve_step)
         return [round(i, 2) for i in steps]
 
     @property
     def area_data(self) -> dict:
-        """This is needed for multiprocessing."""
+        """Prepare data dictionary for multiprocessing."""
         data = {}
         data["area_path"] = self.dir.input.area.path
         data["run_type"] = self.run_type
@@ -556,6 +567,7 @@ class AreaDamageCurves:
 
     @property
     def tiled_geometries(self) -> gpd.GeoDataFrame:
+        """Load and combine tiled geometries from processing."""
         tiles = []
         for tile in self.dir.input.tiles.path.glob("tiles_*.gpkg"):
             tiles.append(gpd.read_file(tile, layer="squares"))
@@ -566,7 +578,7 @@ class AreaDamageCurves:
         return tiles
 
     def areas_divide_by_envelope(self, limit=MP_ENVELOPE_AREA_LIMIT) -> dict:
-        """Divide areas by size"""
+        """Divide areas by envelope size into large and small categories"""
         self.time.log(f"Divide areas by geometry envelope {limit} squared meters.")
         areas = {"small": [], "large": []}
 
@@ -582,21 +594,21 @@ class AreaDamageCurves:
         return areas
 
     def _check_nan(self, gdf) -> gpd.GeoDataFrame:
-        """Check for NaN"""
+        """Check for NaN values in drainage level field and remove them"""
         if gdf[DRAINAGE_LEVEL_FIELD].isna().sum() > 0:
             self.time.log("Found drainage level NAN's, deleting from input.")
             gdf = gdf[~gdf[DRAINAGE_LEVEL_FIELD].isna()]
         return gdf
 
     def _check_double_id(self, gdf) -> gpd.GeoDataFrame:
-        """Check for double ID's"""
+        """Check for duplicate ID values and remove them."""
         if gdf[ID_FIELD].duplicated().any():
             self.time.log(f"Found double {ID_FIELD}'s, deleting from input.")
             gdf = gdf[~gdf[ID_FIELD].duplicated(keep="first")]
         return gdf
 
     def _path_dir_to_list(self, path_or_dir: Union[Path, list]) -> list:
-        """Convert path to list"""
+        """Convert path or directory to list of TIFF files."""
         _input = Path(path_or_dir)
         if _input.is_dir():
             pd_list = list(_input.rglob("*.tif"))
@@ -607,7 +619,7 @@ class AreaDamageCurves:
         return pd_list
 
     def _input_to_vrt(self, path_or_dir: Union[Path, list], vrt_path: Path) -> Raster:
-        """Convert input to vrt."""
+        """Convert input files to VRT format."""
         if vrt_path.exists() and not self.overwrite:
             self.time.log(f"VRT file {vrt_path} already exists, skipping conversion.")
             return Raster(vrt_path)
@@ -620,6 +632,21 @@ class AreaDamageCurves:
         return vrt
 
     def load_landuse(self, path_or_dir: Union[Path, list], tile_size=1000):
+        """
+        Load landuse data and create custom landuse tiles if needed.
+
+        Parameters
+        ----------
+        path_or_dir : Union[Path, list]
+            Path to directory or file(s) containing landuse data.
+        tile_size : int, default 1000
+            Size of tiles for custom landuse processing.
+
+        Returns
+        -------
+        None
+            This method sets the lu attribute with the loaded landuse data.
+        """
         self.time.log("Loading landuse vrt")
         tiles = self._path_dir_to_list(path_or_dir)
 
@@ -798,7 +825,7 @@ class AreaDamageCurves:
         curve.name = str(fid)
         return curve
 
-    def read_lu_output(self, fid, curve_type):
+    def read_lu_output(self, fid: int, curve_type: str) -> pd.DataFrame | None:
         """Read land-use output for a given fid."""
         fdla_dir = self.dir.work[self.run_type][f"fdla_{fid}"]
         file = fdla_dir.damage_lu.path
@@ -933,9 +960,8 @@ class AreaDamageCurves:
 
 
 def area_method_mp(args: tuple) -> Tuple[str, str]:
-    """Function to run AreaDamageCurveMethods in a multiprocessing environment.
-    if len of tuple is 1, it means the run was successful.
-    If len of tuple is 2, it means the run failed and the second element is the traceback.
+    """
+    Function to run AreaDamageCurveMethods in a multiprocessing environment.
     """
     peilgebied_id = args[0]
     data = args[1]
@@ -958,6 +984,14 @@ def area_method_mp(args: tuple) -> Tuple[str, str]:
 
 
 def parse_run_cmd():
+    """
+    Parse command line arguments for running damage curve calculations.
+
+    Returns
+    -------
+    None
+        This function parses arguments and executes the damage curve calculations.
+    """
     parser = argparse.ArgumentParser(description="Command-line tool met subcommando's.")
     parser.add_argument("-settings", type=str, required=True, help="Settings json")
 

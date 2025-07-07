@@ -1,14 +1,15 @@
-# %%
-import os
-import pathlib
+# Standard library imports
+from typing import Any, List, Optional, Tuple, Union
 
+# Third party imports
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
-
-from hhnk_research_tools.waterschadeschatter.wss_curves_utils import AreaDamageCurveFolders
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from numpy.typing import NDArray
+from pandas import DataFrame, Series
 
 # Globals
 STANDAARD_FIGUUR = (10, 10)
@@ -18,60 +19,78 @@ MAX_PEILVERHOGING = 2.5
 
 
 class Figuur:
-    def __init__(self, figsize=STANDAARD_FIGUUR):
+    def __init__(self, figsize: Tuple[int, int] = STANDAARD_FIGUUR) -> None:
         self.figsize = figsize
+        self.fig: Optional[Figure] = None
+        self.ax: Optional[Axes] = None
 
-    def create(self):
+    def create(self) -> None:
+        """Create a new figure and axis with the specified figure size."""
         self.fig, self.ax = plt.subplots(figsize=self.figsize)
 
-    def plot(self, dataframe):
-        self.ax.plot(dataframe)
+    def plot(self, dataframe: Union[DataFrame, Series]) -> None:
+        """Plot the given dataframe or series on the current axis."""
+        if self.ax:
+            self.ax.plot(dataframe)
 
-    def xlabel(self, naam):
-        self.ax.set(xlabel=naam)
+    def xlabel(self, naam: str) -> None:
+        """Set the x-axis label."""
+        if self.ax:
+            self.ax.set(xlabel=naam)
 
-    def ylabel(self, naam):
-        self.ax.set(ylabel=naam)
+    def ylabel(self, naam: str) -> None:
+        """Set the y-axis label."""
+        if self.ax:
+            self.ax.set(ylabel=naam)
 
-    def title(self, naam):
-        self.ax.set(title=naam)
+    def title(self, naam: str) -> None:
+        """Set the plot title."""
+        if self.ax:
+            self.ax.set(title=naam)
 
-    def xlim(self, xmin, xmax):
-        self.ax.set(xlim=(xmin, xmax))
+    def xlim(self, xmin: float, xmax: float) -> None:
+        if self.ax:
+            self.ax.set(xlim=(xmin, xmax))
 
-    def ylim(self, ymin, ymax):
-        self.ax.set(ylim=(ymin, ymax))
+    def ylim(self, ymin: float, ymax: float) -> None:
+        if self.ax:
+            self.ax.set(ylim=(ymin, ymax))
 
-    def grid(self):
-        self.ax.grid(axis="both", color="lightgray")
+    def grid(self) -> None:
+        if self.ax:
+            self.ax.grid(axis="both", color="lightgray")
 
-    def xticks(self, ticks, labels=None):
-        self.ax.set_xticks(ticks, labels)
+    def xticks(self, ticks: List[float], labels: Optional[List[str]] = None) -> None:
+        if self.ax:
+            self.ax.set_xticks(ticks, labels)
 
-    def yticks(self, ticks, labels=None):
-        self.ax.set_yticks(ticks, labels=labels)
+    def yticks(self, ticks: List[float], labels: Optional[List[str]] = None) -> None:
+        if self.ax:
+            self.ax.set_yticks(ticks, labels=labels)
 
-    def set_x_y_label(self):
+    def set_x_y_label(self) -> None:
         self.xlabel(self.xlabel_dsc)
         self.ylabel(self.ylabel_dsc)
 
-    def set_x_y_lim(self):
+    def set_x_y_lim(self) -> None:
         self.xlim(self.xlim_min, self.xlim_max)
         self.ylim(self.ylim_min, self.ylim_max)
 
-    def write(self, path, dpi=DPI):
+    def write(self, path: str, dpi: int = DPI) -> None:
+        """Save the figure to file and close the plot."""
         plt.savefig(path, dpi=dpi)
         plt.close()
 
 
 class CurveFiguur(Figuur):
-    def __init__(self, damage_df):
+    def __init__(self, damage_df: DataFrame) -> None:
         super().__init__()
         self.df_damages = damage_df
         self.xlabel_dsc = "Peilverhoging boven streefpeil (m)"
         self.ylabel_dsc = "Schadebedrag (Euro's)"
 
-    def run(self, output_path, name, title, dpi=DPI):
+    def run(self, output_path: str, name: str, title: str, dpi: int = DPI) -> None:
+        """Generate and save a damage curve figure."""
         self.create()
         self.plot(self.df_damages)
         self.set_x_y_label()
@@ -80,62 +99,64 @@ class CurveFiguur(Figuur):
 
 
 class BergingsCurveFiguur(Figuur):
-    def __init__(self, path, feature):
+    def __init__(self, path: str, feature: Any) -> None:
         super().__init__()
-        self.df_vol_level = pd.read_csv(path, index_col=0)
-
+        self.df_vol_level: DataFrame = pd.read_csv(path, index_col=0)
         self.xlabel_dsc = "Waterstand (m+NAP)"
         self.ylabel_dsc = "Volume (m3)"
         self.ylabel_mm = "Berging (mm)"
         self.feature = feature
+        self.ax_mm: Optional[Axes] = None
 
-    def volume2mm(self, y):
+    def volume2mm(self, y: NDArray) -> NDArray:
         area = self.feature.geometry.area
         return y / area * 1000
 
-    def convert_V_to_mm(self, ax):
-        y1, y2 = self.ax.get_ylim()
-        self.ax_mm.set_ylim(self.volume2mm(y1), self.volume2mm(y2))
-        self.ax_mm.figure.canvas.draw()
+    def convert_V_to_mm(self, ax: Axes) -> None:
+        if self.ax and self.ax_mm:
+            y1, y2 = self.ax.get_ylim()
+            self.ax_mm.set_ylim(self.volume2mm(y1), self.volume2mm(y2))
+            self.ax_mm.figure.canvas.draw()
 
-    def run(self, output_path, name, dpi=DPI):
+    def run(self, output_path: str, name: str, dpi: int = DPI) -> None:
         for col in self.df_vol_level.columns:
             valid_data = self.df_vol_level[col].dropna()
             self.create()
-            self.ax_mm = self.ax.twinx()
-            self.ax.callbacks.connect("ylim_changed", self.convert_V_to_mm)
+            if self.ax:
+                self.ax_mm = self.ax.twinx()
+                self.ax.callbacks.connect("ylim_changed", self.convert_V_to_mm)
 
-            self.plot(valid_data)
-            self.set_x_y_label()
-            self.grid()
-            self.ax_mm.set_ylabel(self.ylabel_mm)
-            self.title(f"bergingscurve voor {name}")
-            self.write(output_path, dpi=dpi)
+                self.plot(valid_data)
+                self.set_x_y_label()
+                self.grid()
+                self.ax_mm.set_ylabel(self.ylabel_mm)
+                self.title(f"bergingscurve voor {name}")
+                self.write(output_path, dpi=dpi)
 
 
 class PercentageFiguur(Figuur):
-    def __init__(self, path, agg_dir):
+    def __init__(self, path: str, agg_dir: Any) -> None:
         super().__init__(figsize=LANDGEBRUIK_FIGUUR)
-        self.df_lu_opp_schade = pd.read_csv(path, index_col=0)
+        self.df_lu_opp_schade: DataFrame = pd.read_csv(path, index_col=0)
         self.df_lu_opp_schade.columns = pd.Series(self.df_lu_opp_schade.columns).str.split(" ").str[0]
-        self.df_sum_damages = pd.read_csv(agg_dir.agg_damage.path, index_col=0)
+        self.df_sum_damages: DataFrame = pd.read_csv(agg_dir.agg_damage.path, index_col=0)
         self.agg_dir = agg_dir
 
-        self.xlabel_dsc = "Peilverhoging boven streefpeil (m)"
-        self.ylabel_dsc = "Percentage t.o.v. totaal"
-        self.xlim_min = 0.1
-        self.xlim_max = MAX_PEILVERHOGING
-        self.ylim_min = 0
-        self.ylim_max = 1
-        self.x_ticks_list = np.arange(0.1, MAX_PEILVERHOGING + 0.1, 0.1)
-        self.y_ticks_list = np.arange(0, 1.1, 0.1)
-        self.ylabels = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"]
+        self.xlabel_dsc: str = "Peilverhoging boven streefpeil (m)"
+        self.ylabel_dsc: str = "Percentage t.o.v. totaal"
+        self.xlim_min: float = 0.1
+        self.xlim_max: float = MAX_PEILVERHOGING
+        self.ylim_min: float = 0
+        self.ylim_max: float = 1
+        self.x_ticks_list: NDArray = np.arange(0.1, MAX_PEILVERHOGING + 0.1, 0.1)
+        self.y_ticks_list: NDArray = np.arange(0, 1.1, 0.1)
+        self.ylabels: List[str] = ["0%", "10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"]
 
-    def set_x_y_ticks(self):
+    def set_x_y_ticks(self) -> None:
         self.xticks(self.x_ticks_list)
         self.yticks(ticks=self.y_ticks_list, labels=self.ylabels)
 
-    def handles_legend(self, lu_omzetting):
+    def handles_legend(self, lu_omzetting: DataFrame) -> None:
         nieuwe_klasses = np.array(lu_omzetting["nieuwe_klasse"].unique())
         self.color_dict = {}
         colors = []
@@ -151,7 +172,7 @@ class PercentageFiguur(Figuur):
             self.handels.append(handle)
             self.color_dict[str(nieuwe_klasses[i])] = colors[i]
 
-    def lu_verdeling_peilgebied(self, id):
+    def lu_verdeling_peilgebied(self, id: int) -> None:
         self.df_peilgebied = self.df_lu_opp_schade.loc[self.df_lu_opp_schade["fid"] == id].dropna(axis=1)
         self.df_peilgebied = self.df_peilgebied.drop("fid", axis=1)
         self.df_peilgebied_perc = self.df_peilgebied.divide(self.df_peilgebied.sum(axis=1), axis=0)
@@ -169,13 +190,13 @@ class PercentageFiguur(Figuur):
 
     # .index.where(self.df_lu_opp_schade['fid'] == id).dropna(), self.df_sum_damages['totaal'].where(self.df_sum_damages['fid'] == id).dropna()
 
-    def plot_schadecurve_totaal(self, id):
+    def plot_schadecurve_totaal(self, id: int) -> None:
         self.ax2 = self.ax.twinx()
         self.ax2.plot(self.df_sum_damages, color="black", linewidth=2)
         self.ax2.set_ylabel("Schadebedrag (Euro's)")
         self.ax2.set_ylim(bottom=0)
 
-    def combine_classes(self, lu_omzetting, output_path):
+    def combine_classes(self, lu_omzetting: DataFrame, output_path: str) -> None:
         nieuwe_klasses = np.array(lu_omzetting["nieuwe_klasse"].unique())
         samenvoeging_klasses = {
             "fid": self.df_lu_opp_schade["fid"]
@@ -192,10 +213,12 @@ class PercentageFiguur(Figuur):
 
 
 class LandgebruikCurveFiguur(PercentageFiguur):
-    def __init__(self, path, agg_dir):
+    def __init__(self, path: str, agg_dir: Any) -> None:
         super().__init__(path, agg_dir)
 
-    def run(self, lu_omzetting, output_path, name, schadecurve_totaal=False, dpi=DPI):
+    def run(
+        self, lu_omzetting: DataFrame, output_path: str, name: str, schadecurve_totaal: bool = False, dpi: int = DPI
+    ) -> None:
         ids = np.array(self.df_lu_opp_schade["fid"].unique())
         for id in ids:
             self.lu_verdeling_peilgebied(id)
@@ -223,10 +246,12 @@ class LandgebruikCurveFiguur(PercentageFiguur):
 
 
 class DamagesLuCurveFiguur(PercentageFiguur):
-    def __init__(self, path, agg_dir):
+    def __init__(self, path: str, agg_dir: Any) -> None:
         super().__init__(path, agg_dir)
 
-    def run(self, lu_omzetting, output_path, name, schadecurve_totaal=False, dpi=DPI):
+    def run(
+        self, lu_omzetting: DataFrame, output_path: str, name: str, schadecurve_totaal: bool = False, dpi: int = DPI
+    ) -> None:
         ids = np.array(self.df_lu_opp_schade["fid"].unique())
         for id in ids:
             self.lu_verdeling_peilgebied(id)
@@ -256,7 +281,7 @@ class DamagesLuCurveFiguur(PercentageFiguur):
 
 # %%
 class DamagesAggFiguur(Figuur):
-    def __init__(self, agg_csv_dir):
+    def __init__(self, agg_csv_dir: str) -> None:
         super().__init__()
         self.df_agg_csv = pd.read_csv(agg_csv_dir)
         self.xlabel_dsc = "Volume (m3)"
@@ -268,7 +293,7 @@ class DamagesAggFiguur(Figuur):
         self.x_ticks_list = np.arange(0, self.xlim_max, 500000)
         self.y_ticks_list = np.arange(0, self.ylim_max, 500000)
 
-    def run(self, output_path, name, dpi=DPI):
+    def run(self, output_path: str, name: str, dpi: int = DPI) -> None:
         self.create()
         for i in range(1, 4):
             col_name = self.df_agg_csv.columns[i]
@@ -288,17 +313,3 @@ class DamagesAggFiguur(Figuur):
         self.grid()
         self.title(f"Schadebedragen voor drie type aggregaties voor {name}")
         self.write(output_path, dpi=dpi)
-
-
-if __name__ == "__main__":
-    lu_conversion_table = pd.read_csv(
-        r"C:\Users\benschoj1923\ARCADIS\30225745 - Schadeberekening HHNK - Documenten\Project\05 Project execution\Omzettingstabel_landgebruik.csv"
-    )
-
-    # damages = DamagesLuCurveFiguur(agg_dir.agg_landuse_damages.path)
-    # damages.combine_classes(lu_conversion_table, agg_dir.path/"result_lu_damages_classes.csv")
-    # (agg_dir.path/"schade_percentagescurve").mkdir(exist_ok = True)
-    # damages.run(self.lu_conversion_table, agg_dir.path/"schade_percentagescurve")
-
-
-# %%
