@@ -120,14 +120,14 @@ class AreaDamageCurvesAggregation:
     def damage_curve(self) -> pd.DataFrame:
         if self.dir.output.result.exists():
             damage = pd.read_csv(self.dir.output.result.path, index_col=0)
-            damage.columns = damage.columns.astype(int)
+            damage.columns = damage.columns
             return damage
 
     @cached_property
     def vol_curve(self) -> pd.DataFrame:
         if self.dir.output.result_vol.exists():
             vol = pd.read_csv(self.dir.output.result_vol.path, index_col=0)
-            vol.columns = vol.columns.astype(int)
+            vol.columns = vol.columns
             return vol
 
     @cached_property
@@ -176,6 +176,7 @@ class AreaDamageCurvesAggregation:
         da = self.drainage_areas.copy()
         da.index = da[ID_FIELD]
         return da.geometry
+    
     @property
     def selection(self) -> dict[str, pd.Series]:
         selection = {}
@@ -399,7 +400,7 @@ class AreaDamageCurvesAggregation:
         agg_series = pd.Series(aggregate_curve, name="damage_own_area_retention")
         return agg_series
     
-    def create_folium_html(self, depth_steps=[0.5, 1]):
+    def create_folium_html(self, depth_steps=[0.5, 1, 1.5], damage_steps=[100, 1000, 10000, 100000]):
 
         fol = WSSCurvesFolium()
         fol.add_water_layer()
@@ -407,9 +408,18 @@ class AreaDamageCurvesAggregation:
         fdla_schade = gpd.read_file(self.dir.post_processing.peilgebieden.path, layer="schadecurve")
         agg_schade = gpd.read_file(self.dir.post_processing.aggregatie.path, layer="aggregatie")
 
+        # Split aggregation data by curve type
+        agg_landgebruik = agg_schade[agg_schade['index'].str.contains('landgebruikcurve')]
+        agg_schade_curves = agg_schade[agg_schade['index'].str.contains('schadecurve')]
+        agg_berging = agg_schade[agg_schade['index'].str.contains('bergingscurve')]
+        agg_aggregatie = agg_schade[agg_schade['index'].str.contains('aggregatie')]
+
         # grafieken
-        fol.add_graphs("Peilgebieden: Schadecurve (grafiek)",fdla_schade, 'png_path', width=600, height=600)
-        fol.add_graphs("Aggregatie: Schadecurve (grafiek)",agg_schade, 'png_path', width=1200, height=600)
+        fol.add_graphs("Peilgebieden: Schadecurve (grafiek)", fdla_schade, 'png_path', width=600, height=600)
+        fol.add_graphs("Aggregatie: Landgebruikcurve (grafiek)", agg_landgebruik, 'png_path', width=1200, height=600)
+        fol.add_graphs("Aggregatie: Schadecurve (grafiek)", agg_schade_curves, 'png_path', width=1200, height=600)
+        fol.add_graphs("Aggregatie: Bergingscurve (grafiek)", agg_berging, 'png_path', width=800, height=800)
+        fol.add_graphs("Aggregatie: Aggregatie (grafiek)", agg_aggregatie, 'png_path', width=800, height=800)
 
         # per peilgebied 
         fol.add_border_layer("Peilgebieden: Peilvakken", fdla_schade, tooltip_fields=['pid'])
@@ -419,20 +429,20 @@ class AreaDamageCurvesAggregation:
             if idx not in depth_steps:
                 continue
             ds_df = gpd.GeoDataFrame(depth_step_data, geometry = self.fdla_geometry, crs="EPSG:28992")
-            fol.add_layer(f"Peilgebieden: Schadecurve {idx}m peilstijging.",
-                          ds_df,
+            fol.add_layer(name=f"Peilgebieden: Schadecurve {idx}m peilstijging.",
+                          gdf=ds_df,
                           datacolumn=str(idx),
                           tooltip_fields=[str(idx)],
                           data_min=int(ds_df[idx].quantile(0.1)),
                           data_max=int(ds_df[idx].quantile(0.9)),
                           colormap_name="plasma",
+                          colormap_type="continuous",
                           show=False
                           )
             
         # peilstijging per schade
-        schade_stappen = [100, 1000, 10000, 100000]
-        for s in schade_stappen:
-            mask = self.damage_curve > s
+        for damage_step in damage_steps:
+            mask = self.damage_curve > damage_step
             first_occurrence = mask.apply(lambda x: x[x].index[0] if x.any() else -9999)
             ds_df = gpd.GeoDataFrame(
                 {"Peilstijging":first_occurrence},
@@ -442,14 +452,43 @@ class AreaDamageCurvesAggregation:
             
             # Add to map
             fol.add_layer(
-                f"Peilgebieden: Peilstijging schade boven €{s:,}",
-                ds_df,
+                name=f"Peilgebieden: Peilstijging schade boven €{damage_step:,}",
+                gdf=ds_df,
                 datacolumn='Peilstijging',  # the first occurrence values
                 tooltip_fields=['Peilstijging'],
                 data_min=0,
                 data_max=ds_df['Peilstijging'].max(),
                 colormap_name="plasma",
+                colormap_type="continuous",
                 show=False,
+            )
+
+        for depth_step in depth_steps:  
+            depth_data = self.lu_dmg_data.loc[depth_step] 
+            depth_data.index = depth_data.fid
+            depth_data.drop(columns=['fid'], inplace=True)
+            depth_data.fillna(DEFAULT_NODATA_GENERAL, inplace=True)
+            lu_max_dmg_per_step = depth_data.idxmax(axis=1).astype(float)
+            max_lu = gpd.GeoDataFrame({"Landgebruik (max)":lu_max_dmg_per_step},geometry= self.fdla_geometry, crs="EPSG:28992")
+            
+            # Create a mapping of landuse IDs to their colors from the conversion table
+            lu_colors = self.lu_conversion_table.set_index(self.lu_conversion_table.columns[0])['kleur'].to_dict()
+            lu_functie = self.lu_conversion_table.set_index(self.lu_conversion_table.columns[0])['beschrijving'].to_dict()
+            max_lu['colors'] = max_lu["Landgebruik (max)"].map(lu_colors)
+            max_lu['Functie'] = max_lu["Landgebruik (max)"].map(lu_functie)
+
+            # Add to map with custom colors from landuse conversion table
+            fol.add_layer(
+                name=f"Peilgebieden: Landgebruik met de meeste schade  {depth_step}m peilstijging",
+                gdf=max_lu,
+                datacolumn='colors',  # Use the colors field for custom colors
+                tooltip_fields=['Landgebruik (max)', 'Functie'],
+                data_min=None,
+                data_max=None,
+                colormap_name=None,  # No colormap needed since we use custom colors
+                colormap_type="categorical",
+                show=False,
+                show_colormap=False
             )
 
         # per aggregatie gebied
@@ -458,7 +497,8 @@ class AreaDamageCurvesAggregation:
         fol.save(self.dir.post_processing.schadecurves_html.path)
     
     def create_figures(self):
-        """Create figures for the damage and volume curves per drainage area."""
+        """Create figures for the damage and volume c        fol.add_title("Schadecurves en aggregaties")
+        fol.save(self.dir.post_processing.schadecurves_html.path)urves per drainage area."""
 
         self.dir.post_processing.create_figure_dir(self.drainage_areas[ID_FIELD].tolist())
         for area_id in self.drainage_areas[ID_FIELD]:

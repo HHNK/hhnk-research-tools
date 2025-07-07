@@ -1,20 +1,40 @@
 # %%
-        
-from branca.element import MacroElement
-
-from jinja2 import Template
 import base64
-import geopandas as gp
-from folium import IFrame
-import branca.colormap as cm
+import colorsys
+import numpy as np
+
+# Third party imports
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib import colors as mcolors
 import folium
-import geopandas as gp
+from folium import IFrame
 from folium.plugins import MarkerCluster
+import branca.colormap as cm
+from branca.element import MacroElement
+from jinja2 import Template
+import geopandas as gp
+
+# Local imports
 import hhnk_research_tools.logger as logging
 
 logger = logging.get_logger(__name__, level="DEBUG")
 
+class DummyColormap:
+    """
+    Dummy class to represent a colormap when no colormap is needed.
+    This is used to avoid errors when no colormap is specified.
+    """
+    def __init__(self, colormap_dict, name):
+        self.colormap_dict = colormap_dict
+        self.name = name
 
+    def get_name(self):
+        return self.name
+    
+    def __call__(self, value):
+        return self.colormap_dict[value]
+    
 class WSSCurvesFolium:
     def __init__(self):
         self.create_map()
@@ -32,12 +52,44 @@ class WSSCurvesFolium:
             attr="<a href=https://nlmaps.nl/>NL Maps luchtfoto</a>",
         )
 
-    def get_colormap(self, label, data_min, data_max, colormap_name= "plasma", nr_steps=5):
-        # Use getattr to dynamically access the colormap
-        colormap = getattr(cm.linear, colormap_name)
-        colormap = colormap.scale(data_min, data_max)
-     #   steps = [i for i in range(int(data_min), int(data_max), int((data_max-data_min)/nr_steps))]
-        colormap = colormap.to_step(nr_steps)
+    def get_colormap(self, label, data_min, data_max, gdf, colormap_field=None, colormap_name="plasma", nr_steps=5, colormap_type="categorical"):
+        """
+        Get a colormap that either creates a gradient for continuous data or unique colors for categorical data.
+        
+        Args:
+            label (str): Label for the colormap
+            data_min: Minimum value for numeric data
+            data_max: Maximum value for numeric data
+            gdf: GeoDataFrame containing the data
+            colormap_field: Field to use for determining unique values
+            colormap_name (str): Name of matplotlib colormap or "custom" for custom colors
+            nr_steps (int): Number of steps for continuous data
+            colormap_type (str): "continuous" or "categorical"
+            custom_colors (dict): Dictionary mapping values to matplotlib color names or hex codes
+        """
+        if colormap_type == "categorical":
+            # If colormap_field is provided, use it to determine the unique values
+            colormap = {}
+            for color in gdf[colormap_field]:
+                if color in mcolors.CSS4_COLORS or color in mcolors.TABLEAU_COLORS:
+                    # Convert named color to hex
+                    hex_color = mcolors.to_hex(color)
+                else:
+                    # Use the color as is (assuming it's already hex)
+                    hex_color = color if color else '#808080'  # fallback to gray
+                    print("Fallback to gray for color:", color)
+
+                colormap[color] = hex_color  # RRGGBBAA
+            colormap = DummyColormap(colormap, name=label)
+
+        elif colormap_type == "continuous":
+            # For continuous data, use branca's built-in colormaps
+            colormap = getattr(cm.linear, colormap_name)
+            colormap = colormap.scale(data_min, data_max)
+            colormap = colormap.to_step(nr_steps)
+        else:
+            raise ValueError(f"Unknown colormap type: {colormap_type}. Use 'categorical' or 'continuous'.")
+
         colormap.caption = label
         return colormap
 
@@ -63,18 +115,24 @@ class WSSCurvesFolium:
         # Store the show parameter on the layer object
         layer.show = show
         self.layers.append(layer)
-        
-    
-    def add_layer(self, name, gdf, datacolumn, tooltip_fields, data_min, data_max, colormap_name, show=False):
 
-        colormap = self.get_colormap(f"Legend {name}", data_min, data_max, colormap_name)
+
+    def add_layer(self, name, gdf, datacolumn, tooltip_fields, data_min, data_max, colormap_name, colormap_type="categorical", show=False, show_colormap=True):
+
+        colormap = self.get_colormap(label=f"Legend {name}",
+                                      data_min=data_min,
+                                      data_max=data_max,
+                                      colormap_name=colormap_name,
+                                      colormap_type=colormap_type,
+                                      colormap_field=datacolumn,
+                                      gdf=gdf)
 
         layer = folium.GeoJson(
             gdf,
             style_function=lambda feature: {
                 "fillColor": colormap(feature["properties"][datacolumn]),
                 "color": "white",
-                "fillOpacity": 0.8,
+                "fillOpacity": 1,
                 "weight": 1,
             },
             name=name,
@@ -90,8 +148,9 @@ class WSSCurvesFolium:
         layer.show = show
         self.layers.append(layer)
 
-        self.color_maps.append(colormap)
-        self.color_map_binds.append(BindColormap(layer, colormap))
+        if show_colormap:
+            self.color_maps.append(colormap)
+            self.color_map_binds.append(BindColormap(layer, colormap))
             
     def add_graphs(self, name, gdf, image_field, width=520, height=520):
 
