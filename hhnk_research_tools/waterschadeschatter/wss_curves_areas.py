@@ -35,6 +35,8 @@ from tqdm import tqdm
 import hhnk_research_tools as hrt
 from hhnk_research_tools.rasters.raster_class import Raster
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
+from hhnk_research_tools.waterschadeschatter.wss_curves_areas_pre import PREFIX as CUSTOM_LU_PREFIX
+from hhnk_research_tools.waterschadeschatter.wss_curves_areas_pre import DCCustomLanduse
 from hhnk_research_tools.waterschadeschatter.wss_curves_lookup import (
     LU_LOOKUP_FACTOR,
     WaterSchadeSchatterLookUp,
@@ -49,11 +51,6 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     pad_zeros,
     split_geometry_in_tiles,
     write_dict,
-)
-
-from hhnk_research_tools.waterschadeschatter.wss_curves_areas_pre import (
-    DCCustomLanduse,
-    PREFIX as CUSTOM_LU_PREFIX
 )
 
 # Globals
@@ -491,7 +488,7 @@ class AreaDamageCurves:
         )
         vector = self._check_nan(vector)
         vector = self._check_double_id(vector)
-        
+
         vector.to_file(self.dir.input.area.path)
         self.time.log("Processing drainage levels Finished")
         return vector
@@ -590,15 +587,15 @@ class AreaDamageCurves:
             self.time.log("Found drainage level NAN's, deleting from input.")
             gdf = gdf[~gdf[DRAINAGE_LEVEL_FIELD].isna()]
         return gdf
-    
+
     def _check_double_id(self, gdf) -> gpd.GeoDataFrame:
         """Check for double ID's"""
         if gdf[ID_FIELD].duplicated().any():
             self.time.log(f"Found double {ID_FIELD}'s, deleting from input.")
             gdf = gdf[~gdf[ID_FIELD].duplicated(keep="first")]
         return gdf
-    
-    def _path_dir_to_list(self, path_or_dir:Union[Path, list]) -> list:
+
+    def _path_dir_to_list(self, path_or_dir: Union[Path, list]) -> list:
         """Convert path to list"""
         _input = Path(path_or_dir)
         if _input.is_dir():
@@ -609,7 +606,7 @@ class AreaDamageCurves:
             self.time.log("Unrecognized inputs")
         return pd_list
 
-    def _input_to_vrt(self, path_or_dir:Union[Path, list], vrt_path:Path) -> Raster:
+    def _input_to_vrt(self, path_or_dir: Union[Path, list], vrt_path: Path) -> Raster:
         """Convert input to vrt."""
         if vrt_path.exists() and not self.overwrite:
             self.time.log(f"VRT file {vrt_path} already exists, skipping conversion.")
@@ -621,8 +618,8 @@ class AreaDamageCurves:
             )
 
         return vrt
-    
-    def load_landuse(self, path_or_dir:Union[Path, list], tile_size=1000):
+
+    def load_landuse(self, path_or_dir: Union[Path, list], tile_size=1000):
         self.time.log("Loading landuse vrt")
         tiles = self._path_dir_to_list(path_or_dir)
 
@@ -630,7 +627,7 @@ class AreaDamageCurves:
 
         has_local_custom_lu = all([CUSTOM_LU_PREFIX in t.stem for t in local_tiles]) and len(local_tiles) > 0
         input_is_custom_lu = all([CUSTOM_LU_PREFIX in t.stem for t in tiles])
-        
+
         if has_local_custom_lu:
             self.time.log("Found local custom landuse.")
             path_or_dir = self.dir.input.custom_landuse_tiles.path
