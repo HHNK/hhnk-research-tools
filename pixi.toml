@@ -98,7 +98,7 @@ ruff = "*"
 # Editable installs, not installed on test. #FIXME doesnt work on Github Actions.
 # https://github.com/prefix-dev/pixi/issues/2763
 # FIXME disabled. should run pixi run postinstall
-# hhnk-research-tools = { path = "../hhnk-research-tools", editable = true }
+# hhnk-research-tools = { git = "https://github.com/hhnk/hhnk-research-tools.git", rev="import_module_fix"}
 build = "*"
 
 
