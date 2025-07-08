@@ -1,21 +1,27 @@
-[project]
-channels = ["conda-forge"]
+[package]
 name = "hhnk-research-tools"
-platforms = ["win-64", "linux-64"]
+version = "0.1.0"
 repository = "https://github.com/hhnk/hhnk-research-tools"
 
+[package.build] 
+backend = { name = "pixi-build-python", version = "0.1.*" }
+
+[workspace]
+channels = [
+  "https://prefix.dev/pixi-build-backends",
+  "https://prefix.dev/conda-forge",
+]
+platforms = ["win-64", "linux-64", "osx-arm64", "osx-64"]
+preview = ["pixi-build"]
 
 [tasks]
 #Starting vs code using vs-code.cmd (pixi run code)
 lab = "jupyter lab"
 code = "code"
 code_insiders = "code-insiders"
-
-pre-commit-install = "pre-commit install --install-hooks -t=pre-push" # -t=pre-commit"
+pre-commit-install = "pre-commit install --install-hooks -t=pre-push"
 postinstall = { depends-on = ["pre-commit-install"] }
-
 pre-commit-run = "pre-commit run --all-files"
-
 
 [feature.dev.tasks]
 #Styling
@@ -145,5 +151,4 @@ threedidepth = "==0.6.3" # threedi_results_analysis 3.9.0
 
 [environments]
 dev = ["dev"]
-# test = { features=["test"], no-default-feature = false }
 py39 = { features=["py39"], no-default-feature = true }
