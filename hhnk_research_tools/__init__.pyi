@@ -80,7 +80,6 @@ from .sql_functions import (
 )
 from .threedi.call_api import call_threedi_api
 from .threedi.read_api_file import read_api_file
-from .waterschadeschatter import resources
 
 # curves
 from .waterschadeschatter.wss_curves_areas import AreaDamageCurves

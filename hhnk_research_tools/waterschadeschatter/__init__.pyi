@@ -10,11 +10,13 @@ __all__ = [
     "wss_curves_utils",
     "wss_loading",
     "wss_main",
+    "resources",
 ]
 
 from . import (
     grid,
     read_api_file,
+    resources,
     threediresult_loader,
     wss_calculations,
     wss_curves_areas,
