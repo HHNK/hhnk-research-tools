@@ -762,7 +762,8 @@ def get_table_domains_from_oracle(
 
             domains = pd.concat([domains, df], ignore_index=True)
 
+        return domains
+
     else:
         logger.warning("Schema not supported, only DAMO_W contains domains.")
-
-    return domains
+        return None
