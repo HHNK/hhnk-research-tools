@@ -21,7 +21,7 @@ from typing import Any, Literal, Optional, Union
 LOGFORMAT = "%(asctime)s|%(levelname)-8s| %(name)s:%(lineno)-4d| %(message)s"  # default logformat
 DATEFMT_STREAM = "%H:%M:%S"  # default dateformat for console logger
 DATEFMT_FILE = "%Y-%m-%d %H:%M:%S"  # default dateformat for file logger
-LOG_LEVEL = Literal["WARNING", "DEBUG", "INFO"]
+LOG_LEVEL = Literal["ERROR", "WARNING", "DEBUG", "INFO"]
 
 
 def get_logconfig_dict(
