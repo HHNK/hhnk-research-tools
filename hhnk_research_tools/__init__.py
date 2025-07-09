@@ -11,7 +11,7 @@ __version__ = version("hhnk_research_tools")
 __getattr__, __dir__, __all__ = _lazy.attach_stub(__name__, __file__)
 
 
-print(f"Load1 in {(time.time() - t0):.3f} s")
+print(f"Load in {(time.time() - t0):.3f}s main.__init__ ")
 
 # Set default logg ing to console
 from .logging import set_default_logconfig
@@ -27,9 +27,9 @@ set_default_logconfig(
 )
 
 # FIXME not ideal to do here. can we do this lazily?
-import hhnk_research_tools.installation_checks
+# import hhnk_research_tools.installation_checks
 
 __doc__ = """
 General toolbox for loading, converting and saving serval datatypes.
 """
-print(f"Load2 in {(time.time() - t0):.3f} s")
+print(f"Load2 in {(time.time() - t0):.3f}s main.__init__")

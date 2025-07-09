@@ -1,6 +1,16 @@
 # hhnk_research_tools/__init__.pyi
+from . import (
+    folder_file_classes,
+    gis,
+    installation_checks,
+    logging,
+    rasters,
+    threedi,
+    variables,
+    waterschadeschatter,
+)
 
-from . import installation_checks, logging, threedi, variables
+# Exposing functions to top level
 from .dataframe_functions import (
     df_add_geometry_to_gdf,
     df_convert_to_gdf,
@@ -9,7 +19,6 @@ from .dataframe_functions import (
 )
 from .folder_file_classes.file_class import File
 from .folder_file_classes.folder_file_classes import (
-    File,
     Folder,
 )
 from .folder_file_classes.spatial_database_class import (
