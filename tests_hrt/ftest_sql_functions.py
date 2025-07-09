@@ -6,7 +6,7 @@ import pytest
 from IPython.display import display
 from local_settings import DATABASES
 
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 from hhnk_research_tools.sql_functions import (
     _remove_blob_columns,
     database_to_gdf,

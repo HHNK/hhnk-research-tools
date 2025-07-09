@@ -12,7 +12,7 @@ import os
 import numpy as np
 
 from hhnk_research_tools import Folder
-from hhnk_research_tools.logger import add_file_handler, get_logger
+from hhnk_research_tools.logging import add_file_handler, get_logger
 
 # GLOBALS
 ID_FIELD = "pid"

@@ -20,7 +20,7 @@ import pandas as pd
 import shapely
 from tqdm import tqdm
 
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 
 # Local imports
 from hhnk_research_tools.variables import DEFAULT_NODATA_GENERAL

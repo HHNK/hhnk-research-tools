@@ -17,7 +17,7 @@ from rasterio import features
 from scipy import ndimage
 from shapely import geometry
 
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 from hhnk_research_tools.folder_file_classes.file_class import File
 from hhnk_research_tools.general_functions import check_create_new_file
 from hhnk_research_tools.rasters.raster_metadata import RasterMetadataV2

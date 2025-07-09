@@ -1,6 +1,6 @@
 # hhnk_research_tools/__init__.pyi
 
-from . import installation_checks, logger, threedi, variables
+from . import installation_checks, logging, threedi, variables
 from .dataframe_functions import (
     df_add_geometry_to_gdf,
     df_convert_to_gdf,

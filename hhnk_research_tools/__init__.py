@@ -13,8 +13,8 @@ __getattr__, __dir__, __all__ = _lazy.attach_stub(__name__, __file__)
 
 print(f"Load1 in {(time.time() - t0):.3f} s")
 
-# Set default logging to console
-from .logger import set_default_logconfig
+# Set default logg ing to console
+from .logging import set_default_logconfig
 
 # FIXME not ideal to do here. can we do this on the level of caller packages?
 set_default_logconfig(
@@ -28,7 +28,6 @@ set_default_logconfig(
 
 # FIXME not ideal to do here. can we do this lazily?
 import hhnk_research_tools.installation_checks
-
 
 __doc__ = """
 General toolbox for loading, converting and saving serval datatypes.

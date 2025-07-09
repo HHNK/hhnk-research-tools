@@ -5,7 +5,7 @@ import types
 import numpy as np
 from osgeo import gdal, ogr
 
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 from hhnk_research_tools.general_functions import (
     check_create_new_file,
     ensure_file_path,
