@@ -1,9 +1,10 @@
+# %%
 import numpy as np
-import rasterio as rio
-from osgeo import gdal
+from rasterio.dtypes import dtype_fwd
 
 # default_variables
 DEF_GEOMETRY_COL = "geometry"
+
 DEF_TRGT_CRS = 28992
 DEF_SRC_CRS = 4326
 DEF_DELIMITER = ","
@@ -37,7 +38,7 @@ GDB = "gdb"
 SHX = "shx"
 DBF = "dbf"
 PRJ = "prj"
-GDAL_DATATYPE = gdal.GDT_Float32
+GDAL_DATATYPE = 6  # gdal.GDT_Float32
 file_types_dict = {
     "csv": ".csv",
     "txt": ".txt",
@@ -83,6 +84,6 @@ DEFAULT_NODATA_VALUES = {
     "float64": np.nan,  # Or np.finfo(np.float64).min
     "bool": False,
 }  # TODO the gdal datatypes to numpy name conversion is found here; rasterio.dtypes.dtype_fwd
-GDAL_DTYPES = rio.dtypes.dtype_fwd  # dict with keys=gdal int, value=str dtype
+GDAL_DTYPES = dtype_fwd  # dict with keys=gdal int, value=str dtype
 
 DEFAULT_NODATA_GENERAL = -9999

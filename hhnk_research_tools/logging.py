@@ -112,9 +112,9 @@ def set_default_logconfig(
 
     Parameters
     ----------
-    level_root : Literal["WARNING", "DEBUG", "INFO"], optional
+    level_root : Literal["ERROR", "WARNING", "DEBUG", "INFO"], optional
         Default log level, warnings are printed to console. By default "WARNING"
-    level_dict : Optional[dict[Literal["WARNING", "DEBUG", "INFO"], list[str]]], optional
+    level_dict : Optional[dict[Literal["ERROR", "WARNING", "DEBUG", "INFO"], list[str]]], optional
         e.g. {"INFO" : ['hhnk_research_tools','hhnk_threedi_tools']}
         Apply a different loglevel for these packages. by default None
     log_filepath : Optional[Union[str, PathLike]], optional
