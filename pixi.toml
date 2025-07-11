@@ -7,7 +7,6 @@ repository = "https://github.com/hhnk/hhnk-research-tools"
 
 [tasks]
 #Starting vs code using vs-code.cmd (pixi run code)
-lab = "jupyter lab"
 code = "code"
 code_insiders = "code-insiders"
 
@@ -29,9 +28,7 @@ twine_upload = "twine upload --repository hhnk-research-tools  dist/*" #Upload t
 
 build = { depends-on = ["build_wheels", "twine_check"] }
 
-# FIXME set env to 'test' here once we switch to py312. Run tests with; pixi run -e py39 tests
-# FIXME change env in pytests_research_tools.yml as well
-[feature.py39.tasks]
+[feature.test.tasks]
 tests = "pytest --cov-report term-missing --cov=hhnk_research_tools --cov-report=xml"
 
 
@@ -90,64 +87,8 @@ ruff = "*"
 
 
 [feature.dev.pypi-dependencies]
-# Editable installs, not installed on test. #FIXME doesnt work on Github Actions.
-# https://github.com/prefix-dev/pixi/issues/2763
-# FIXME disabled. should run pixi run postinstall
-# hhnk-research-tools = { path = "../hhnk-research-tools", editable = true }
 build = "*"
-
-
-# Temporary old py39 env to have working tests
-[feature.py39.dependencies]
-python = "==3.9.18" # equals MI python version
-geopandas = "==0.14.1"
-pandas = "==2.0.2"
-scipy = "==1.10.1"
-h5py = "*" # Incompatible met rest van env; conda solved naar 3.11.0
-fiona = "==1.9.5"
-shapely = "==2.0.2"
-
-#User folder
-jupyterlab = "==4.2.0"
-ipywidgets = "==8.1.2"
-jupytext = "==1.16.6"
-
-pytest = "*"
-pytest-cov = "*"
-pluggy = "*" # pytest dependency
-iniconfig = "==2.0.0" # pytest dependency
-tqdm = "==4.64.0"
-rioxarray = "==0.15.0" # higher versions need python >=3.10
-pyogrio = "==0.7.2" # 0.9.0 doesnt work with gdal
-rasterio = "==1.3.10" # rxr dep
-affine = "==2.4.0" # rxr dep
-dask = "==2024.6.2" # rxr dep
-matplotlib = "3.8.*" # 3.9.0 gives RuntimeError: Entry point name 'inline' duplicated
-# See also: https://discourse.matplotlib.org/t/latest-versions-via-pip-jupyterlab-import-of-matplotlib-broken/24477/7
-
-xarray = "==2024.3.0"
-openpyxl = "==3.1.2"
-cached_property = "==1.5.2"
-rtree = "==1.0.1"
-oracledb = "==2.4.1"
-seaborn = "*"
-pip = "*"
-urllib3= "1.*"
-
-[feature.py39.pypi-dependencies]
-threedi_modelchecker = "==2.6.3" # threedi_results_analysis 3.9.0
-threedi_scenario_downloader = "==1.4" # Lizard API v4 only
-threedi_schema = "==0.219.3" # threedi_results_analysis 3.9.0
-threedi-api-client = "==4.1.7" # 3Di Models and Simulations 3.11.0
-threedigrid_builder = "==1.14.4" # threedi_results_analysis 3.9.2
-threedigrid = "==2.3.3" # threedi_results_analysis 3.12.0
-threedidepth = "==0.6.3" # threedi_results_analysis 3.9.0
-
-hhnk-research-tools = { path = ".", editable = true }
-lazy-loader = "*"
-
 
 [environments]
 dev = ["dev"]
-# test = { features=["test"], no-default-feature = false }
-py39 = { features=["py39"], no-default-feature = true }
+test = { features=["test"], no-default-feature = false }
