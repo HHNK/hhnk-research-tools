@@ -1,6 +1,7 @@
 # MANIFEST.in is used in building the pypi wheels.
 include *.rst
 include README.md
+include hhnk_research_tools/py.typed
 graft hhnk_research_tools/waterschadeschatter/resources
 
 global-exclude */__pycache__/* *.py[cod]
