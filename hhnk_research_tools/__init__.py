@@ -1,7 +1,4 @@
 # hhnk_research_tools/__init__.py
-# import time
-
-# t0 = time.time()
 import lazy_loader as _lazy
 from importlib.metadata import version
 
@@ -10,8 +7,6 @@ from importlib.metadata import version
 # ... all other symbols you expose for typing
 __version__ = version("hhnk_research_tools")
 __getattr__, __dir__, __all__ = _lazy.attach_stub(__name__, __file__)
-
-# print(f"Load in {(time.time() - t0):.3f}s main.__init__ ")
 
 # Set default logg ing to console
 from .logging import set_default_logconfig
@@ -30,4 +25,3 @@ set_default_logconfig(
 __doc__ = """
 General toolbox for loading, converting and saving serval datatypes.
 """
-# print(f"Load2 in {(time.time() - t0):.3f}s main.__init__")
