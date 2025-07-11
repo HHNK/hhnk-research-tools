@@ -14,7 +14,7 @@ import branca.colormap as cm
 import folium
 import geopandas as gpd
 
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 
 logger = logging.get_logger(__name__, level="DEBUG")
 

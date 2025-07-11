@@ -3,7 +3,7 @@ import pandas as pd
 import xarray as xr
 
 import hhnk_research_tools as hrt
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 
 logger = logging.get_logger(__name__)
 
