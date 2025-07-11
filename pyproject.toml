@@ -17,20 +17,12 @@ maintainers = [
 ]
 keywords = []
 
-
 [project.urls]
 repository = "https://github.com/hhnk/hhnk-research-tools"
 
-
-# [tool.mypy]
-# ignore_missing_imports = true
-
-# [tool.setuptools]
-# packages = { find = { include = ["hhnk_research_tools"] } }
-# include-package-data = true
-
 [tool.hatch.build]
-include = ["hhnk_research_tools", "hhnk_research_tools/py.typed"]
+include = ["hhnk_research_tools", "hhnk_research_tools/*"]
+
 
 [tool.ruff]
 # see https://docs.astral.sh/ruff/rules/ for meaning of rules
