@@ -6,7 +6,7 @@ import pandas as pd
 import shapely.wkt as wkt
 
 import hhnk_research_tools as hrt
-from hhnk_research_tools.threedi.geometry_functions import point_geometries_to_wkt
+from hhnk_research_tools.threedi.geometry_functions import line_geometries_to_coords, point_geometries_to_wkt
 from hhnk_research_tools.threedi.variables.results_mapping import one_d_two_d
 
 DEF_TRGT_CRS = 28992
@@ -77,7 +77,7 @@ def read_1d2d_lines(results):
     """
     try:
         # Creates geodataframe with geometries of 1d2d subset of nodes in 3di results
-        coords = hrt.threedi.line_geometries_to_coords(results.lines.subset(one_d_two_d).line_geometries)
+        coords = line_geometries_to_coords(results.lines.subset(one_d_two_d).line_geometries)
         one_d_two_d_lines_gdf = gpd.GeoDataFrame(geometry=coords, crs=f"EPSG:{DEF_TRGT_CRS}")
 
         # 1d nodes om te bepalen bij welk kunstwerk het hoort

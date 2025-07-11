@@ -21,7 +21,7 @@ jobs:
       matrix:
         os: ["windows-latest", ]
         # ["ubuntu-latest", "windows-latest"]
-        python-version: [ "py39", ]
+        python-version: [ "test", ]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
           environments: ${{ matrix.python-version }}
           
       - name: Run Tests
-        run: pixi run -e py39 tests tests_hrt/
+        run: pixi run -e test tests tests_hrt/
 
       # - name: Upload coverage
       #   uses: codecov/codecov-action@v5

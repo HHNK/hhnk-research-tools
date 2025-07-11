@@ -32,7 +32,7 @@ from tqdm import tqdm
 import hhnk_research_tools as hrt
 
 # logging
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 from hhnk_research_tools.rasters.raster_class import Raster
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter.wss_curves_lookup import (

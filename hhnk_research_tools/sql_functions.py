@@ -10,7 +10,7 @@ import pandas as pd
 from osgeo import ogr
 from shapely import Polygon, wkt
 
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 from hhnk_research_tools.dataframe_functions import df_convert_to_gdf
 from hhnk_research_tools.variables import DEF_SRC_CRS, MOD_SPATIALITE_PATH
 
