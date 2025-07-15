@@ -72,7 +72,7 @@ class FileGDB(SpatialDatabase):
     def __init__(self, base):
         super().__init__(base)
         warnings.warn(
-            "\nFileGDB is deprecated and will be removed in a future release. \nPlease use SpatialDatabase instead",
+            "FileGDB is deprecated and will be removed in a future release. Please use SpatialDatabase instead",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -81,7 +81,7 @@ class FileGDB(SpatialDatabase):
 class FileGDBLayer(SpatialDatabaseLayer):
     def __init__(self, name: str, parent):
         warnings.warn(
-            "\FileGDBLayer is deprecated and will be removed in a future release. \nPlease use SpatialDatabaseLayer instead",
+            "FileGDBLayer is deprecated and will be removed in a future release. Please use SpatialDatabaseLayer instead",
             DeprecationWarning,
             stacklevel=2,
         )

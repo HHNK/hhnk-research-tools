@@ -279,7 +279,7 @@ class Raster(File):
             )
         elif result.rio.crs != crs:
             raise ValueError("CRS on DataArray not equal to provided crs")
-        result.rio.set_crs(crs)
+        result.rio.write_crs(crs)
 
         # Write to file
         result.rio.to_raster(
