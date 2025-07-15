@@ -17,10 +17,13 @@ from rasterio import features
 from scipy import ndimage
 from shapely import geometry
 
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 from hhnk_research_tools.folder_file_classes.file_class import File
 from hhnk_research_tools.general_functions import check_create_new_file
+from hhnk_research_tools.installation_checks import check_rasterio_pyproj_installation
 from hhnk_research_tools.rasters.raster_metadata import RasterMetadataV2
+
+check_rasterio_pyproj_installation()  # check issues with pyproj.
 
 CHUNKSIZE = 4096
 

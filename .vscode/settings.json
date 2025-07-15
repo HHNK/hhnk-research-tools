@@ -28,7 +28,8 @@
     },
     
     "search.exclude": {
-        "**/.pixi": true
+        "**/.pixi": true,
+        "pixi.lock": true
     },
 
     "jupyter.interactiveWindow.textEditor.executeSelection": true,

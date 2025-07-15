@@ -1,6 +1,6 @@
 # %% Code test
 
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
 
 
