@@ -153,6 +153,7 @@ def create_new_raster_file(
 
         if driver == "MEM":
             check_is_file = False
+            create_options = {}  # driver MEM does not support the creation options
         else:
             check_is_file = True
         if (
