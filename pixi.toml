@@ -79,6 +79,7 @@ threedidepth = "==0.6.3"
 # HHNK deps
 hhnk-research-tools = { path = ".", editable = true }
 lazy-loader = "*"
+ruff = "*"
 
 [feature.dev.dependencies]
 jupyterlab = "*"
@@ -86,7 +87,6 @@ ipywidgets = "*"
 jupytext = "*"
 pre-commit = "*"
 twine="*"
-ruff = "*"
 
 
 [feature.dev.pypi-dependencies]
