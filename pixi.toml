@@ -15,25 +15,24 @@ postinstall = { depends-on = ["pre-commit-install"] }
 
 pre-commit-run = "pre-commit run --all-files"
 
+# Development
+# Styling checks; only warnings, used in gh actions
+sort_imports-check = "ruff check  ./**/*.py --select I --force-exclude"
+fmt-check = "ruff format ./**/*.py --check --force-exclude"
+style-check = {depends-on = ["sort_imports-check", "fmt-check"]}
 
-[feature.dev.tasks]
-#Styling
-sort_imports = "ruff check  ./**/*.py --select I --fix --force-exclude"
-fmt = "ruff format ./**/*.py --force-exclude"
-style = {depends-on = ["sort_imports", "fmt"]} # `pixi run style`
+# Styling checks; fixes issues, used in pre-commit
+sort_imports = "python -m ruff check  ./**/*.py --select I --fix --force-exclude"
+fmt = "python -m ruff format ./**/*.py --force-exclude"
+style = {depends-on = ["sort_imports", "fmt"]}
 
+# Building for pypi
 build_wheels = "rm -rf dist/ && python -m build" # build wheels
 twine_check = "twine check dist/*"
 twine_upload = "twine upload --repository hhnk-research-tools  dist/*" #Upload to pypi
-
 build = { depends-on = ["build_wheels", "twine_check"] }
 
-[feature.test.tasks]
 tests = "pytest --cov-report term-missing --cov=hhnk_research_tools --cov-report=xml"
-sort_imports-check = "ruff check  ./**/*.py --select I --force-exclude"
-fmt-check = "ruff format ./**/*.py --check --force-exclude"
-style-check = {depends-on = ["sort_imports-check", "fmt-check"]} # raises errors instead of fixing
-
 
 [dependencies]
 python = "3.12.*"
@@ -88,10 +87,8 @@ jupytext = "*"
 pre-commit = "*"
 twine="*"
 
-
 [feature.dev.pypi-dependencies]
 build = "*"
 
 [environments]
-dev = ["dev"]
-test = { features=["test"], no-default-feature = false }
+default = ["dev"]
