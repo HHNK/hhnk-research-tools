@@ -18,3 +18,17 @@ These repo's use this as dependency;
 # Installation
 1. Install [Pixi](https://pixi.sh/latest/)
 2. `pixi install -e dev`
+
+
+# Release
+For releasing draft a new release on https://github.com/HHNK/hhnk-research-tools/releases.
+
+The naming should equal "v" + the version in pyproject.toml; e.g. `v2025.1.0`
+
+The [environment](https://github.com/HHNK/hhnk-research-tools/settings/environments) `release` has been created on Github and in it the secret `TESTPYPI_API_TOKEN` has been configured. Get this token from https://test.pypi.org/manage/account/ -> `API tokens`.
+
+When this release is published it will run the gh action publish_on_release.yml.
+This runs:\
+`pixi run build`\
+`pixi run test`\
+`pixi run twine_upload_test`
