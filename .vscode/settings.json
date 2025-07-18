@@ -29,7 +29,8 @@
     
     "search.exclude": {
         "**/.pixi": true,
-        "pixi.lock": true
+        "pixi.lock": true,
+        "/dist": true,
     },
 
     "jupyter.interactiveWindow.textEditor.executeSelection": true,

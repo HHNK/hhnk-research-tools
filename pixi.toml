@@ -22,11 +22,13 @@ sort_imports = "ruff check  ./**/*.py --select I --fix --force-exclude"
 fmt = "ruff format ./**/*.py --force-exclude"
 style = {depends-on = ["sort_imports", "fmt"]} # `pixi run style`
 
-build_wheels = "rm -rf dist/ && python -m build" # build wheels
-twine_check = "twine check dist/*"
-twine_upload = "twine upload --repository hhnk-research-tools  dist/*" #Upload to pypi
+# Releasing to pypi. Gh action will release to pypi when a release is made on github.
+# make sure to tag the release on github with v*
+build_wheels = "rm -rf dist/ && python -m build" # step 1: build wheels
+twine_check = "twine check dist/*" # step 2: check built wheels
+twine_upload = "twine upload dist/*" # step 3: Upload to pypi
+twine_upload_test = "twine upload -r testpypi  dist/*" # step 3: Upload to testpypi for testing
 
-build = { depends-on = ["build_wheels", "twine_check"] }
 
 [feature.test.tasks]
 tests = "pytest --cov-report term-missing --cov=hhnk_research_tools --cov-report=xml"

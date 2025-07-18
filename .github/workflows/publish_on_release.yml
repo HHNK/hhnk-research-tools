@@ -1,0 +1,34 @@
+name: Upload Python Package
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0.8.12
+        with:
+          pixi-version: "latest"
+          cache: true
+          environments: dev
+
+      - name: Build package
+        run: pixi run build
+
+      - name: Check package
+        run: pixi run twine_check
+
+      - name: Upload to PyPI
+        run: pixi run twine_upload_test
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TESTPYPI_API_TOKEN }}
+
