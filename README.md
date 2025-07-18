@@ -25,6 +25,7 @@ For releasing draft a new release on https://github.com/HHNK/hhnk-research-tools
 
 The naming should equal "v" + the version in pyproject.toml; e.g. `v2025.1.0`
 
+A secret has been configured in https://github.com/HHNK/hhnk-research-tools/settings/secrets/actions.\
 When this release is published it will runn the gh action publish_on_release.yml.
 This runs:\
 `pixi run build`\

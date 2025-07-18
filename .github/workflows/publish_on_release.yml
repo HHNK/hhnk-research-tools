@@ -2,10 +2,12 @@ name: Upload Python Package
 
 on:
   release:
-    types: [created]
+    types: [published]
   workflow_dispatch:
 
-
+permissions:
+  contents: read
+  
 jobs:
   publish:
     runs-on: windows-latest
