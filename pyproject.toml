@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hhnk-research-tools"
-version = "2025.1"
+version = "2025.1.0"
 description='General tools for analysis, data manipulation and threedi interaction for analysis of water systems'
 readme = "README.md"
 requires-python = ">=3.9"

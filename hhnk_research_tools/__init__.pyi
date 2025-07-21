@@ -55,6 +55,7 @@ __all__ = [
     "logging",
     "rasters",
     "read_api_file",
+    "remove_cache_dirs",
     "reproject",
     "save_raster_array_to_tiff",
     "sql_builder_select_by_location",
@@ -118,6 +119,7 @@ from .general_functions import (
     get_uuid,
     get_variables,
     load_source,
+    remove_cache_dirs,
     time_delta,
 )
 from .gis.interactive_map import create_interactive_map

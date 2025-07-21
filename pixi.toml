@@ -6,34 +6,28 @@ repository = "https://github.com/hhnk/hhnk-research-tools"
 
 
 [tasks]
-#Starting vs code using vs-code.cmd (pixi run code)
-code = "code"
-code_insiders = "code-insiders"
-
-pre-commit-install = "pre-commit install --install-hooks -t=pre-push" # -t=pre-commit"
-postinstall = { depends-on = ["pre-commit-install"] }
-
+postinstall = "pre-commit install --install-hooks -t=pre-push" # -t=pre-commit"
 pre-commit-run = "pre-commit run --all-files"
 
+# Releasing to pypi. Gh action will release to pypi when a release is made on github.
+# make sure to tag the release on github with v*
+build_wheels = "rm -rf dist/ && python -m build" # step 1: build wheels
+twine_check = "twine check dist/*" # step 2: check built wheels
+twine_upload = "twine upload dist/*" # step 3: Upload to pypi
+twine_upload_test = "twine upload -r testpypi  dist/*" # step 3: Upload to testpypi for testing
 
-[feature.dev.tasks]
-#Styling
-sort_imports = "ruff check  ./**/*.py --select I --fix --force-exclude"
-fmt = "ruff format ./**/*.py --force-exclude"
-style = {depends-on = ["sort_imports", "fmt"]} # `pixi run style`
-
-build_wheels = "rm -rf dist/ && python -m build" # build wheels
-twine_check = "twine check dist/*"
-twine_upload = "twine upload --repository hhnk-research-tools  dist/*" #Upload to pypi
-
-build = { depends-on = ["build_wheels", "twine_check"] }
-
-[feature.test.tasks]
-tests = "pytest --cov-report term-missing --cov=hhnk_research_tools --cov-report=xml"
+# Development
+# Styling checks; only warnings, used in gh actions
 sort_imports-check = "ruff check  ./**/*.py --select I --force-exclude"
 fmt-check = "ruff format ./**/*.py --check --force-exclude"
-style-check = {depends-on = ["sort_imports-check", "fmt-check"]} # raises errors instead of fixing
+style-check = {depends-on = ["sort_imports-check", "fmt-check"]}
 
+# Styling checks; fixes issues, used in pre-commit
+sort_imports = "python -m ruff check  ./**/*.py --select I --fix --force-exclude"
+fmt = "python -m ruff format ./**/*.py --force-exclude"
+style = {depends-on = ["sort_imports", "fmt"]}
+
+tests = "pytest --cov-report term-missing --cov=hhnk_research_tools --cov-report=xml"
 
 [dependencies]
 python = "3.12.*"
@@ -65,6 +59,13 @@ xarray = "*"
 
 pip = "*"
 
+# Development
+jupyterlab = "*"
+ipywidgets = "*"
+jupytext = "*"
+pre-commit = "*"
+twine="*"
+
 [pypi-dependencies]
 # NenS deps
 threedi-api-client = "==4.1.12"
@@ -79,19 +80,7 @@ threedidepth = "==0.6.3"
 # HHNK deps
 hhnk-research-tools = { path = ".", editable = true }
 lazy-loader = "*"
+
+# Development
 ruff = "*"
-
-[feature.dev.dependencies]
-jupyterlab = "*"
-ipywidgets = "*"
-jupytext = "*"
-pre-commit = "*"
-twine="*"
-
-
-[feature.dev.pypi-dependencies]
 build = "*"
-
-[environments]
-dev = ["dev"]
-test = { features=["test"], no-default-feature = false }

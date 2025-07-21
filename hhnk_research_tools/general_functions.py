@@ -2,6 +2,8 @@ import datetime
 import importlib
 import importlib.resources as pkg_resources  # Load resource from package
 import inspect
+import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Union
@@ -177,6 +179,35 @@ def time_delta(start_time: datetime.datetime):
     start_time (datetime.datetime): get by using datetime.datetime.now()
     """
     return round((datetime.datetime.now() - start_time).total_seconds(), 2)
+
+
+def remove_cache_dirs(repo_path: os.PathLike) -> None:
+    """Recusively remove cached files from repository.
+    The cache dirs can grow quite a bit during development. This cleans up the folder.
+
+    Removes all these folders in the main and its subfolders.
+    .mypy_cache
+    .pytest_cache
+    .ruff_cache
+    __pycache__
+
+    Parameters
+    ----------
+    repo_path : os.PathLike
+        Path to repository
+    """
+    repo_path = Path(repo_path)
+    for name in [
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "__pycache__",
+    ]:
+        for cachedir in repo_path.rglob(name):
+            if cachedir.is_dir():
+                if ".pixi" not in str(cachedir):
+                    logger.info(f"Remove: {cachedir}")
+                    shutil.rmtree(cachedir, ignore_errors=True)
 
 
 class dict_to_class(dict):

@@ -21,13 +21,13 @@ jobs:
       matrix:
         os: ["windows-latest", ]
         # ["ubuntu-latest", "windows-latest"]
-        python-version: [ "test", ]
+        python-version: [ "default", ]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       
       - name: Setup pixi
-        uses: prefix-dev/setup-pixi@v0.8.8
+        uses: prefix-dev/setup-pixi@v0.8.12
         with:
           pixi-version: "latest"
           cache: true
@@ -35,10 +35,10 @@ jobs:
           environments: ${{ matrix.python-version }}
           
       - name: Run ruff
-        run: pixi run -e test style-check
+        run: pixi run style-check
 
       - name: Run Tests
-        run: pixi run -e test tests tests_hrt/
+        run: pixi run tests tests_hrt/
 
       # - name: Upload coverage
       #   uses: codecov/codecov-action@v5
