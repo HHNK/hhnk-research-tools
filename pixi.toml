@@ -15,6 +15,11 @@ postinstall = { depends-on = ["pre-commit-install"] }
 
 pre-commit-run = "pre-commit run --all-files"
 
+# Development
+# Styling checks; only warnings, used in gh actions
+sort_imports-check = "ruff check  ./**/*.py --select I --force-exclude"
+fmt-check = "ruff format ./**/*.py --check --force-exclude"
+style-check = {depends-on = ["sort_imports-check", "fmt-check"]}
 
 [feature.dev.tasks]
 #Styling
@@ -32,10 +37,6 @@ twine_upload_test = "twine upload -r testpypi  dist/*" # step 3: Upload to testp
 
 [feature.test.tasks]
 tests = "pytest --cov-report term-missing --cov=hhnk_research_tools --cov-report=xml"
-sort_imports-check = "ruff check  ./**/*.py --select I --force-exclude"
-fmt-check = "ruff format ./**/*.py --check --force-exclude"
-style-check = {depends-on = ["sort_imports-check", "fmt-check"]} # raises errors instead of fixing
-
 
 [dependencies]
 python = "3.12.*"
@@ -90,10 +91,8 @@ jupytext = "*"
 pre-commit = "*"
 twine="*"
 
-
 [feature.dev.pypi-dependencies]
 build = "*"
 
 [environments]
-dev = ["dev"]
-test = { features=["test"], no-default-feature = false }
+default = ["dev"]
