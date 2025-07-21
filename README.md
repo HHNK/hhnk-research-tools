@@ -33,4 +33,4 @@ This runs:\
 `pixi run tests`\
 `pixi run build_wheels`\
 `pixi run twine_check`\
-`pixi run twine_upload_test`
+`pixi run twine_upload`

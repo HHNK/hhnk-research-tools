@@ -22,8 +22,6 @@ jobs:
           cache: true
           environments: default
 
-
-
       - name: Run tests
         run: pixi run tests
 
