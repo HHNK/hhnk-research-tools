@@ -183,8 +183,9 @@ def time_delta(start_time: datetime.datetime):
 
 def remove_cache_dirs(repo_path: os.PathLike) -> None:
     """Recusively remove cached files from repository.
+    The cache dirs can grow quite a bit during development. This cleans up the folder.
 
-    Removes all these folders in the main and its subfolders;
+    Removes all these folders in the main and its subfolders.
     .mypy_cache
     .pytest_cache
     .ruff_cache
