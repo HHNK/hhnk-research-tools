@@ -21,10 +21,11 @@ sort_imports-check = "ruff check  ./**/*.py --select I --force-exclude"
 fmt-check = "ruff format ./**/*.py --check --force-exclude"
 style-check = {depends-on = ["sort_imports-check", "fmt-check"]}
 
-# Styling checks; fixes issues, used in pre-commit
-sort_imports = "python -m ruff check  ./**/*.py --select I --fix --force-exclude"
-fmt = "python -m ruff format ./**/*.py --force-exclude"
-style = {depends-on = ["sort_imports", "fmt"]}
+[feature.dev.tasks]
+#Styling
+sort_imports = "ruff check  ./**/*.py --select I --fix --force-exclude"
+fmt = "ruff format ./**/*.py --force-exclude"
+style = {depends-on = ["sort_imports", "fmt"]} # `pixi run style`
 
 # Releasing to pypi. Gh action will release to pypi when a release is made on github.
 # make sure to tag the release on github with v*
