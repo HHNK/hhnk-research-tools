@@ -16,6 +16,9 @@ These repo's use this as dependency;
 - FEWS
 
 # Installation
+For development setup the python environment with:
+We use vs-code as IDE.
+
 1. Install [Pixi](https://pixi.sh/latest/)
 2. `pixi install`
 3. `pixi run postinstall` -> install pre-commits
