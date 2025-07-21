@@ -17,7 +17,8 @@ These repo's use this as dependency;
 
 # Installation
 1. Install [Pixi](https://pixi.sh/latest/)
-2. `pixi install -e dev`
+2. `pixi install`
+3. `pixi run postinstall` -> install pre-commits
 
 
 # Release
@@ -29,6 +30,7 @@ The [environment](https://github.com/HHNK/hhnk-research-tools/settings/environme
 
 When this release is published it will run the gh action publish_on_release.yml.
 This runs:\
-`pixi run build`\
-`pixi run test`\
+`pixi run tests`\
+`pixi run build_wheels`\
+`pixi run twine_check`\
 `pixi run twine_upload_test`

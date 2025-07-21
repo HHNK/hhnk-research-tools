@@ -20,7 +20,12 @@ jobs:
         with:
           pixi-version: "latest"
           cache: true
-          environments: dev
+          environments: default
+
+
+
+      - name: Run tests
+        run: pixi run tests
 
       - name: Build package
         run: pixi run build
