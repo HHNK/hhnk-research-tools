@@ -15,14 +15,11 @@ These repo's use this as dependency;
 - SPOC
 - FEWS
 
-# Installation
+# Development
 For development setup the python environment with:
-We use vs-code as IDE.
-
 1. Install [Pixi](https://pixi.sh/latest/)
-2. `pixi install`
-3. `pixi run postinstall` -> install pre-commits
-
+2. `pixi install` -> installs `default` environment
+3. `pixi run postinstall` -> installs pre-commits
 
 # Release
 For releasing draft a new release on https://github.com/HHNK/hhnk-research-tools/releases.
