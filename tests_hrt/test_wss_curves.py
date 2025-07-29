@@ -25,6 +25,8 @@ RUN_CURVES_FILE = WSS_DATA / "run_wss_curves_2024.json"
 
 AREA_PATH = WSS_DATA / "wss_curve_area.gpkg"
 AREA_AGGREGATE_PATH = WSS_DATA / "wss_curve_area_aggregate.gpkg"
+NODAMAGE_PATH = WSS_DATA / "nodamage.gpkg"
+PANDEN_PATH = WSS_DATA / "wss_curve_panden.shp"
 
 DEM_PATH = WSS_DATA / "wss_curve_area_dem.tif"
 LU_PATH = WSS_DATA / "wss_curve_area_lu.tif"
@@ -36,6 +38,7 @@ CURVE_STEP = 0.5
 CURVE_MAX = 2.5
 AREA_START_LEVEL = "streefpeil"
 EXPECTED_RESULT = WSS_DATA / "expected_result.csv"
+EXPECTED_RESULT_OPTIMIZED = WSS_DATA / "expected_result_optimized.csv"
 EXPECTED_RESULT_AGGREGATE = WSS_DATA / "expected_result_aggregate.csv"
 LANDUSE_CONVERSION_TABLE = hrt.get_pkg_resource_path(wss_resources, "landuse_conversion_table.csv")
 # %%
@@ -62,12 +65,14 @@ class TestWSSCurves:
             landuse_path_dir=LU_PATH,
             dem_path_dir=DEM_PATH,
             wss_settings_file=WSS_SETTINGS_FILE,
+            nodamage_file=NODAMAGE_PATH,
             area_id=AREA_ID,
             curve_max=CURVE_MAX,
             curve_step=CURVE_STEP,
             area_start_level_field=AREA_START_LEVEL,
             wss_config_file=WSS_CFG_FILE,
             wss_curves_filter_settings_file=WSS_CURVE_FILTER_SETTINGS_FILE,
+            panden_path=PANDEN_PATH,
         )
 
         return schadecurves
@@ -77,16 +82,13 @@ class TestWSSCurves:
         output = pd.read_csv(EXPECTED_RESULT)
         return output
 
-    def test_integrated_1d_mp(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
-        schadecurves.run(run_1d=True, multiprocessing=True, processes=4)
-        test_output = pd.read_csv(schadecurves.dir.output.result.path)
-        pd.testing.assert_frame_equal(output, test_output)
+    @pytest.fixture(scope="class")
+    def output_optimized(self):
+        output = pd.read_csv(EXPECTED_RESULT_OPTIMIZED)
+        return output
 
-    def test_integrated_1d(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
-        schadecurves.run(run_1d=True, multiprocessing=False)
-        test_output = pd.read_csv(schadecurves.dir.output.result.path)
-        pd.testing.assert_frame_equal(output, test_output)
-
+    # Note: 2D wordt eerst getest omdat result_lu_damage.csv wordt overschreven en
+    # zodoende niet goed getest wordt in de validatie.
     def test_integrated_2d_mp(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
         schadecurves.run(run_2d=True, multiprocessing=True, processes=4, nodamage_filter=True)
 
@@ -99,6 +101,21 @@ class TestWSSCurves:
         test_output = pd.read_csv(schadecurves.dir.output.result.path)
         pd.testing.assert_frame_equal(output, test_output)
 
+    def test_integrated_1d_mp(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
+        schadecurves.run(run_1d=True, multiprocessing=True, processes=4)
+        test_output = pd.read_csv(schadecurves.dir.output.result.path)
+        pd.testing.assert_frame_equal(output, test_output)
+
+    def test_integrated_1d(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
+        schadecurves.run(run_1d=True, multiprocessing=False)
+        test_output = pd.read_csv(schadecurves.dir.output.result.path)
+        pd.testing.assert_frame_equal(output, test_output)
+
+    def test_integrated_1d_mp_optimized(self, schadecurves: AreaDamageCurves, output_optimized: pd.DataFrame):
+        schadecurves.run_mp_optimized(limit=500, tile_size=100)
+        test_output = pd.read_csv(schadecurves.dir.output.result.path)
+        pd.testing.assert_frame_equal(output_optimized, test_output)
+
 
 class TestWSSAggregation:
     @pytest.fixture(scope="class")
@@ -107,7 +124,7 @@ class TestWSSAggregation:
         aggregatie = AreaDamageCurvesAggregation(
             result_path=OUTPUT_DIR,
             aggregate_vector_path=AREA_AGGREGATE_PATH,
-            vector_field=VECTOR_FIELD,
+            aggregate_vector_id_field=VECTOR_FIELD,
             landuse_conversion_path=LANDUSE_CONVERSION_TABLE,
         )
 
@@ -123,9 +140,18 @@ class TestWSSAggregation:
         aggregatie: AreaDamageCurvesAggregation,
         output: pd.DataFrame,
     ):
-        aggregatie.run()
+        aggregatie.run(create_html=False)
         test_output = pd.read_csv(aggregatie.dir.post_processing["Wieringermeer"].aggregate.path)
         pd.testing.assert_frame_equal(output, test_output)
+        path_landgebruikcurve = aggregatie.dir.post_processing["Wieringermeer"].figures.landgebruikcurve.path
+        path_bergingscurve = aggregatie.dir.post_processing["Wieringermeer"].figures.bergingscurve.path
+        path_schadecurve = aggregatie.dir.post_processing["Wieringermeer"].figures.schadecurve.path
+        path_aggregate = aggregatie.dir.post_processing["Wieringermeer"].figures.aggregate.path
+
+        assert path_landgebruikcurve.exists()
+        assert path_bergingscurve.exists()
+        assert path_schadecurve.exists()
+        assert path_aggregate.exists()
 
 
 # %%
