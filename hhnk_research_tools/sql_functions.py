@@ -2,7 +2,7 @@
 import os
 import re
 import sqlite3
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import geopandas as gpd
 import oracledb
@@ -10,7 +10,7 @@ import pandas as pd
 from osgeo import ogr
 from shapely import Polygon, wkt
 
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 from hhnk_research_tools.dataframe_functions import df_convert_to_gdf
 from hhnk_research_tools.variables import DEF_SRC_CRS, MOD_SPATIALITE_PATH
 
@@ -52,7 +52,7 @@ def sql_create_update_case_statement(
         query = None
         if not show_prev and not show_proposed:
             vals_list = [(idx, val) for idx, val in zip(df[df_id_col], df[new_val_col]) if idx not in excluded_ids]
-            statement_list = [f"WHEN {idx} THEN {val if not val is None else 'null'}" for idx, val in vals_list]
+            statement_list = [f"WHEN {idx} THEN {val if val is not None else 'null'}" for idx, val in vals_list]
         else:
             comment = "Previous:" if show_prev else "Proposed"
             vals_list = [
@@ -61,7 +61,7 @@ def sql_create_update_case_statement(
                 if cur_id not in excluded_ids
             ]
             statement_list = [
-                f"WHEN {cur_id} THEN {new_val if not new_val is None else 'null'} -- {comment} {old_val}"
+                f"WHEN {cur_id} THEN {new_val if new_val is not None else 'null'} -- {comment} {old_val}"
                 for old_val, new_val, cur_id in vals_list
             ]
         if statement_list:
@@ -351,6 +351,8 @@ def sql_builder_select_by_location(
             geomcolumn = "SHAPE"
         elif schema == "BGT":
             geomcolumn = "GEOMETRIE"
+        elif schema == "CS_OBJECTEN":
+            geomcolumn = "SHAPE"
         else:
             raise ValueError("Provide geometry column")
 
@@ -376,21 +378,66 @@ def sql_builder_select_by_location(
     return sql
 
 
+def sql_builder_select_by_id_list_statement(
+    sub_id_list_sql: str,
+    schema: str,
+    sub_table: str,
+    sub_id_column: str,
+    include_todays_mutations=False,
+):
+    """Create Oracle 12 SQL using extra statement that list id's from another table.
+    Created for 'Profielen' and other table from DAMO_W database.
+
+    Parameters
+    ----------
+    sub_id_list_sql: str
+        sql to extract id list
+    schema : str
+        database schema options are now ['DAMO_W', 'BGT']
+    sub_table : str
+        table name in schema
+    sub_id_column : str
+        Name of id column in target table
+    include_todays_mutations : bool
+        Choose whether to use todays mutations in data, normally mutations are available
+        overnight.
+        Not sure if this works for BGT or OGS
+    """
+
+    # modify table_name to include today's mutations
+    if include_todays_mutations and "_EVW" not in sub_table:
+        sub_table = f"{sub_table}_EVW"
+
+    sql = f"""SELECT *
+FROM {schema}.{sub_table}
+WHERE {sub_id_column} IN (
+    {sub_id_list_sql} 
+)"""
+
+    return sql
+
+
 def _oracle_curve_polygon_to_linear(blob_curvepolygon):
     """
     Turn curved polygon from oracle database into linear one
     (so it can be used in geopandas)
-    Does no harm to linear geometries
+    Does no harm to linear geometries, polygon or other
     """
+    try:
+        # Import as an OGR curved geometry
+        g1 = ogr.CreateGeometryFromWkt(str(blob_curvepolygon))
 
-    # Import as an OGR curved geometry
-    g1 = ogr.CreateGeometryFromWkt(str(blob_curvepolygon))
-    if g1 is None:
+        # Check if geometry is valid
+        if g1 is None or not g1.IsValid():
+            logger.warning(f"Invalid geometry found: {blob_curvepolygon}, returning None")
+            return None
+
+        # Approximate as linear geometry, and export to GeoJSON
+        g1l = g1.GetLinearGeometry()
+        g2 = wkt.loads(g1l.ExportToWkt())
+    except Exception as e:
+        logger.warning(f"Unable to convert curve polygon {str(blob_curvepolygon)} to linear: {e}, returning None")
         return None
-
-    # Approximate as linear geometry, and export to GeoJSON
-    g1l = g1.GetLinearGeometry()
-    g2 = wkt.loads(g1l.ExportToWkt())
 
     return g2
 
@@ -440,11 +487,11 @@ def database_to_gdf(
     ----------
     db_dict: dict
         connection dict. e.g.:
-        {'service_name': 'ODSPRD',
+        {'service_name': '',
         'user': '',
         'password': '',
-        'host': 'srvxx.corp.hhnk.nl',
-        'port': '1521'}
+        'host': '',
+        'port': ''}
     sql: str
         oracledb 12 sql to execute
         Takes only one sql statement at a time, ';' is removed
@@ -548,10 +595,175 @@ def database_to_gdf(
 
         # make geodataframe and convert curve geometry to linear
         if "geometry" in df.columns:
-            df = df.set_geometry(gpd.GeoSeries(df["geometry"].apply(_oracle_curve_polygon_to_linear)), crs=crs)
+            df = df.set_geometry(
+                gpd.GeoSeries(df["geometry"].apply(_oracle_curve_polygon_to_linear)),
+                crs=crs,
+            )
+            # Check if geometries in dataframe are valid
+            invalid_geoms = ~df.geometry.is_valid
+            if invalid_geoms.any():
+                logger.warning(f"{invalid_geoms.sum()} invalid geometries found in dataframe.")
+                df = df[~invalid_geoms]
 
         # remove blob columns from oracle
         if remove_blob_cols:
             df = _remove_blob_columns(df)
 
         return df, sql2
+
+
+def get_table_columns(
+    db_dict: dict,
+    schema: str,
+    table_name: str,
+):
+    """
+    Connect to (oracle) databaseand retrieve table columns
+
+    Parameters
+    ----------
+    db_dict: dict
+        connection dict. e.g.:
+        {'service_name': '',
+        'user': '',
+        'password': '',
+        'host': '',
+        'port': ''}
+    schema: str
+        schema name
+    table_name: str
+        table name
+
+    Returns
+    -------
+    columns_out : List of column names
+    """
+    columns_out = None
+    sql = f"""
+        SELECT *
+        FROM {schema}.{table_name}
+        FETCH FIRST 0 ROWS ONLY
+        """
+
+    with oracledb.connect(**db_dict) as con:
+        cur = oracledb.Cursor(con)
+        cur.execute(sql)
+        columns_out = [i[0] for i in cur.description]
+
+    return columns_out
+
+
+def get_tables_from_oracle_db(db_dict: dict):
+    """
+    Get list of all tables in database.
+
+    Outputs OWNER (SCHEMA), TABLE_NAME
+
+    Parameters
+    ----------
+    db_dict : dict
+        connection dict. e.g.:
+        {'service_name': '',
+        'user': '',
+        'password': '',
+        'host': '',
+        'port': ''}
+    """
+    with oracledb.connect(**db_dict) as con:
+        cur = oracledb.Cursor(con)
+        tables_df = execute_sql_selection("SELECT owner, table_name FROM all_tables", conn=con)
+
+    return tables_df
+
+
+def get_table_domains_from_oracle(
+    db_dict: dict,
+    schema: str,
+    table_name: str,
+    column_list: list[str] = None,
+):
+    """
+    Get domain for DAMO_W tables.
+
+    Parameters
+    ----------
+    db_dict : dict
+        connection dict. e.g.:
+        {'service_name': '',
+        'user': '',
+        'password': '',
+        'host': '',
+        'port': ''}
+    schema : str
+        schema name
+    table_name : str
+        Table name
+    column_list : str
+        List of column names for which to retrieve the domains.
+    """
+
+    if schema == "DAMO_W":
+        if column_list is None:
+            column_list = get_table_columns(db_dict=db_dict, schema=schema, table_name=table_name)
+
+        # make all items list columnlist lowercase
+        column_list = [c.lower() for c in column_list]
+
+        # standard queries
+        map_query = f"""
+                SELECT *
+                FROM DAMO_W.DAMOKOLOM
+                WHERE LOWER(DAMOTABELNAAM) = '{table_name.lower()}'
+                AND DAMODOMEINNAAM IS NOT NULL
+                """
+        domain_query = """
+                SELECT *
+                FROM DAMO_W.DAMODOMEINWAARDE
+                """
+        # Query database
+        with oracledb.connect(**db_dict) as con:
+            cur = oracledb.Cursor(con)
+            map_df = execute_sql_selection(map_query, conn=con)
+            map_df.columns = map_df.columns.str.lower()
+            map_df = map_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+            # select relevant domains for columns
+            map_df = map_df[map_df["damokolomnaam"].isin(column_list)]
+
+            # List domains from DAMO
+            domain_df = execute_sql_selection(domain_query, conn=con)
+            domain_df.columns = domain_df.columns.str.lower()
+            domain_df = domain_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+
+        domains = pd.DataFrame()
+        for i in map_df["damodomeinnaam"].unique():
+            # Select relevant domains
+            domain_rules = domain_df[domain_df["damodomeinnaam"] == i]
+            domain_rules = domain_rules[
+                [
+                    "damodomeinnaam",
+                    "codedomeinwaarde",
+                    "naamdomeinwaarde",
+                    "fieldtype",
+                ]
+            ]
+            # select relevant mapping columns
+            mapping = map_df[map_df["damodomeinnaam"] == i]
+            mapping = mapping[
+                [
+                    "damotabelnaam",
+                    "damokolomnaam",
+                    "damodomeinnaam",
+                    "definitie",
+                ]
+            ]
+
+            # join mapping and domain
+            df = mapping.merge(domain_rules, on="damodomeinnaam", how="left")
+
+            domains = pd.concat([domains, df], ignore_index=True)
+
+        return domains
+
+    else:
+        logger.warning("Schema not supported, only DAMO_W contains domains.")
+        return None

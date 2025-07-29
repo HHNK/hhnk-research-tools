@@ -1,7 +1,7 @@
 # %% Code test
 import geopandas as gpd
 
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 from hhnk_research_tools.gis.interactive_map import create_interactive_map
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
 

@@ -69,7 +69,7 @@ class Folder(BasePath):
         created if parent doesnt exist.
         """
         warnings.warn(
-            ".create is deprecated v2024.1 and will be removed in a future release. Please use .mkdir instead",
+            ".create is deprecated since v2024.1 and will be removed in a future release. Please use .mkdir instead",
             DeprecationWarning,
             stacklevel=2,
         )

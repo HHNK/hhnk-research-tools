@@ -8,6 +8,7 @@ hhnk_research_tools.egg-info
 local_settings.py
 *.aux.xml
 .mypy_cache
+.pixi
 
 # Pytests
 .coverage

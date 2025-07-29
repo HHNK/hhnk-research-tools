@@ -15,7 +15,7 @@ import numpy as np
 from tqdm import tqdm
 
 # Local imports
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter import wss_calculations, wss_loading
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import WSSTimelog, write_dict

@@ -24,8 +24,8 @@ from geopandas import GeoDataFrame
 
 # Local imports
 from hhnk_research_tools import Folder
-from hhnk_research_tools.logger import get_logger
 from hhnk_research_tools.sql_functions import database_to_gdf
+from hhnk_research_tools.logging import get_logger
 
 # GLOBALS
 ID_FIELD = "pid"
@@ -152,7 +152,9 @@ class Run1D(Folder):
         for i in self.path.glob("*"):
             self.add_fdla_dir(depth_steps, i.stem)
 
-    def create_fdla_dir(self, name: str, depth_steps: List[float], overwrite: bool, tiled: bool = False) -> None:
+    def create_fdla_dir(
+        self, name: str, depth_steps: List[float], overwrite: bool, tiled: bool = False
+    ) -> None:
         """Create fixed drainage level areas"""
         if (pathlib.Path(self.base) / f"fdla_{name}").exists() and not overwrite:
             self.add_fdla_dir(depth_steps, name)
@@ -173,7 +175,9 @@ class Run2D(Folder):
         for i in self.path.glob("*"):
             self.add_fdla_dir(depth_steps, i.stem)
 
-    def create_fdla_dir(self, name: str, depth_steps: List[float], overwrite: bool) -> None:
+    def create_fdla_dir(
+        self, name: str, depth_steps: List[float], overwrite: bool
+    ) -> None:
         """Create fixed drainage level areas"""
         if (pathlib.Path(self.base) / f"fdla_{name}").exists() and not overwrite:
             self.add_fdla_dir(depth_steps, name)
@@ -250,7 +254,9 @@ De volgende stappen moeten daarvoor worden uitgevoerd:
 class FDLADir(Folder):
     """Folder/directory for fixed drainage level areas."""
 
-    def __init__(self, base: Union[str, Path], create: bool, name: str, depth_steps: List[float]) -> None:
+    def __init__(
+        self, base: Union[str, Path], create: bool, name: str, depth_steps: List[float]
+    ) -> None:
         super().__init__(os.path.join(base, name), create)
 
         self.add_file("curve", "curve.csv")
@@ -300,7 +306,9 @@ class AggregationFigures(Folder):
 
 
 class Figures(Folder):
-    def __init__(self, base: Union[str, Path], create: bool, fdla_ids: List[str]) -> None:
+    def __init__(
+        self, base: Union[str, Path], create: bool, fdla_ids: List[str]
+    ) -> None:
         super().__init__(os.path.join(base, "figures"), create)
         for name in fdla_ids:
             self.add_file(f"landgebruikcurve_{name}", f"landgebruikcurve_{name}.png")
@@ -324,7 +332,9 @@ class WSSTimelog:
         self.log_file = log_file
         self.start_time = datetime.datetime.now()
         self.data = {"time": [self.start_time], "message": ["WSSTimelog initialized"]}
-        self.logger = get_logger(self.name, level=logging.DEBUG, filepath=log_file, filemode="a")
+        self.logger = get_logger(
+            self.name, level=logging.DEBUG, filepath=log_file, filemode="a"
+        )
         self.quiet = quiet
 
     @property
@@ -345,7 +355,9 @@ class WSSTimelog:
         df.to_csv(self.time_file)
 
 
-def write_dict(dictionary: Dict[str, Any], path: Union[str, Path], overwrite: bool = True) -> None:
+def write_dict(
+    dictionary: Dict[str, Any], path: Union[str, Path], overwrite: bool = True
+) -> None:
     """Write dictionary to JSON file with optional overwrite protection."""
     exists = os.path.exists(path)
     if not exists or overwrite:
@@ -371,7 +383,9 @@ def get_drainage_areas(settings_path: Union[str, Path]) -> GeoDataFrame:
     return gdf
 
 
-def fdla_performance(fdla_gdf: GeoDataFrame, tile_gdf: GeoDataFrame, fdla_time_dir: Path, folder: Path) -> None:
+def fdla_performance(
+    fdla_gdf: GeoDataFrame, tile_gdf: GeoDataFrame, fdla_time_dir: Path, folder: Path
+) -> None:
     """
     Analyze the performance of fixed drainage level areas (FDLA) by calculating the duration of processing for each area.
     """
@@ -379,7 +393,9 @@ def fdla_performance(fdla_gdf: GeoDataFrame, tile_gdf: GeoDataFrame, fdla_time_d
     if len(tile_gdf) > 0:
         fdla_gdf = fdla_gdf[~fdla_gdf["pid"].isin(tile_gdf["ori_pid"])]
         fdla_gdf = gp.GeoDataFrame(
-            pd.concat([fdla_gdf, tile_gdf]).reset_index(), geometry="geometry", crs=fdla_gdf.crs
+            pd.concat([fdla_gdf, tile_gdf]).reset_index(),
+            geometry="geometry",
+            crs=fdla_gdf.crs,
         )
 
     fdla_gdf["area"] = fdla_gdf.geometry.area
@@ -403,14 +419,18 @@ def fdla_performance(fdla_gdf: GeoDataFrame, tile_gdf: GeoDataFrame, fdla_time_d
                 areas.append(data.area)
 
     total_duration = duration.sum().sort_values(ascending=False)
-    average_duration_per_message = (duration.sum(axis=1) / len(total_duration)).sort_values(ascending=False)
+    average_duration_per_message = (
+        duration.sum(axis=1) / len(total_duration)
+    ).sort_values(ascending=False)
     percentage = (duration / duration.sum()).mean(axis=1) * 100
     percentage = percentage.sort_values(ascending=False)
 
     with pd.ExcelWriter(folder / "fdla_performance_analysis.xlsx") as writer:
         pd.DataFrame(duration).to_excel(writer, sheet_name="duration_per_message")
         total_duration.to_excel(writer, sheet_name="total_duration")
-        average_duration_per_message.to_excel(writer, sheet_name="average_duration_per_message")
+        average_duration_per_message.to_excel(
+            writer, sheet_name="average_duration_per_message"
+        )
         percentage.to_excel(writer, sheet_name="percentage")
         # duration_per_area = pd.DataFrame(data={"duration": duration.sum(), "area": areas})
         # duration_per_area.to_excel(writer, sheet_name="duration_per_area")

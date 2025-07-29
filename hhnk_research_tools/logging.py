@@ -1,5 +1,8 @@
-# %%
 """
+This file is shared by:
+ - https://github.com/HHNK/hhnk-wis-dashboards/blob/main/bokeh-helpers/bokeh_helpers/logger.py
+ - https://github.com/HHNK/hhnk-research-tools/blob/main/hhnk_research_tools/logger.py
+
 These functions allow for adding logging to the console.
 This is applied by default in the __init__ of hhnk_research_tools. So when it is imported
 in a project, the logging will be set according to these rules.
@@ -11,27 +14,34 @@ from logging import config
 
 # from logging import *  # noqa: F401,F403 # type: ignore
 from logging.handlers import RotatingFileHandler
+from os import PathLike
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Literal, Optional, Union
 
 LOGFORMAT = "%(asctime)s|%(levelname)-8s| %(name)s:%(lineno)-4d| %(message)s"  # default logformat
 DATEFMT_STREAM = "%H:%M:%S"  # default dateformat for console logger
 DATEFMT_FILE = "%Y-%m-%d %H:%M:%S"  # default dateformat for file logger
+LOG_LEVEL = Literal["ERROR", "WARNING", "DEBUG", "INFO"]
 
 
-def get_logconfig_dict(level_root="WARNING", level_dict=None, log_filepath=None):
+def get_logconfig_dict(
+    level_root: LOG_LEVEL = "WARNING",
+    level_dict: Optional[dict[LOG_LEVEL, list[str]]] = None,
+    log_filepath: Optional[Union[str, PathLike]] = None,
+) -> dict[str, Any]:
     """Make a dict for the logging.
 
     Parameters
     ----------
-    level_root : str
-        Default log level, warnings are printed to console.
-    level_dict : dict[level:list]
+    level_root : Literal["WARNING", "DEBUG", "INFO"], optional
+        Default log level, warnings are printed to console. By default "WARNING"
+    level_dict : Optional[dict[Literal["WARNING", "DEBUG", "INFO"], list[str]]], optional
         e.g. {"INFO" : ['hhnk_research_tools','hhnk_threedi_tools']}
-        Apply a different loglevel for these packages.
-    log_filepath : str
-        Option to write a log_filepath.
+        Apply a different loglevel for these packages. by default None
+    log_filepath : Optional[Union[str, PathLike]], optional
+        Option to write a log_filepath. By default None
     """
+
     logconfig_dict = {
         "version": 1,
         "disable_existing_loggers": False,
@@ -40,8 +50,7 @@ def get_logconfig_dict(level_root="WARNING", level_dict=None, log_filepath=None)
                 "level": level_root,
                 "handlers": [
                     "debug_console_handler",
-                    # "stderr",
-                ],  # , 'info_rotating_file_handler'],
+                ],
             },
         },
         "handlers": {
@@ -64,10 +73,8 @@ def get_logconfig_dict(level_root="WARNING", level_dict=None, log_filepath=None)
         "formatters": {
             "time_level_name": {
                 "format": LOGFORMAT,
-                # "format": "%(asctime)s|%(levelname)-8s| %(name)s-%(process)d::%(module)s|%(lineno)-4s: %(message)s",
                 "datefmt": DATEFMT_STREAM,
             },
-            # "error": {"format": "%(asctime)s-%(levelname)s-%(name)s-%(process)d::%(module)s|%(lineno)s:: %(message)s"},
         },
     }
 
@@ -80,8 +87,6 @@ def get_logconfig_dict(level_root="WARNING", level_dict=None, log_filepath=None)
             for pkg in level_list:
                 logconfig_dict["loggers"][pkg] = {
                     "level": loglevel,
-                    # "propagate": False, # This will stop the logger from propagating to the root logger
-                    # "handlers": ["debug_console_handler"], # When propagate is False, this is needed
                 }
 
     if log_filepath:
@@ -98,9 +103,25 @@ def get_logconfig_dict(level_root="WARNING", level_dict=None, log_filepath=None)
     return logconfig_dict
 
 
-def set_default_logconfig(level_root="WARNING", level_dict=None, log_filepath=None):
+def set_default_logconfig(
+    level_root: LOG_LEVEL = "WARNING",
+    level_dict: Optional[dict[LOG_LEVEL, list[str]]] = None,
+    log_filepath: Optional[Union[str, PathLike]] = None,
+):
     """Use this to set the default config, which will log to the console.
 
+    Parameters
+    ----------
+    level_root : Literal["ERROR", "WARNING", "DEBUG", "INFO"], optional
+        Default log level, warnings are printed to console. By default "WARNING"
+    level_dict : Optional[dict[Literal["ERROR", "WARNING", "DEBUG", "INFO"], list[str]]], optional
+        e.g. {"INFO" : ['hhnk_research_tools','hhnk_threedi_tools']}
+        Apply a different loglevel for these packages. by default None
+    log_filepath : Optional[Union[str, PathLike]], optional
+        Option to write a log_filepath. By default None
+
+    Examples
+    --------
     In the __init__.py of hrt the hrt logger is initiated. We only need logging.GetLogger to add
     loggers to functions and classes. Same can be done for other packages.
     Use this in functions:
@@ -118,35 +139,50 @@ def set_default_logconfig(level_root="WARNING", level_dict=None, log_filepath=No
         },
     )
     """
-    log_config = get_logconfig_dict(level_root=level_root, level_dict=level_dict, log_filepath=log_filepath)
+    log_config = get_logconfig_dict(
+        level_root=level_root, level_dict=level_dict, log_filepath=log_filepath
+    )
 
     config.dictConfig(log_config)
 
 
 def add_file_handler(
-    logger,
+    logger: logging.Logger,
     filepath: Union[str, Path],
-    filemode="a",
-    filelevel: str = "",
-    fmt=LOGFORMAT,
-    datefmt=DATEFMT_FILE,
-    maxBytes=10 * 1024 * 1024,
-    backupCount=5,
-    rotate=False,
-    logfilter=None,
+    filemode: Literal["w", "a"] = "a",
+    filelevel: Optional[int] = None,
+    fmt: str = LOGFORMAT,
+    datefmt: str = DATEFMT_FILE,
+    maxBytes: int = 10 * 1024 * 1024,
+    backupCount: int = 5,
+    rotate: bool = False,
+    logfilter: Optional[logging.Filter] = None,
 ):
     """Add a filehandler to the logger. Removes the filehandler when it is already present
 
     Parameters
     ----------
+    logger : logging.Logger
+        logger to append file-logger to
     filepath : Union[str, Path]
         filepath to write logs to.
-    filemode : str, default is "a"
-        writemode, 'w' is write, 'a' is append.
-    filelevel : str, default is ""
-        Set a different level for writing than the console logger.
-    datefmt : str, default is "%Y-%m-%d %H:%M:%S"
-        Dateformat for the filehandler. Can differ from the console logger.
+    filemode : Literal["w", "a"], optional
+        file write-mode, 'w' is write, 'a' is append. by default "a"
+    filelevel : Optional[int], optional
+        logging Level, by default None
+    fmt : str, optional
+        default is "%(asctime)s|%(levelname)-8s| %(name)s:%(lineno)-4d| %(message)s"
+    datefmt : str, optional
+        str, default is "%H:%M:%S"
+        Change the default dateformatter to e.g. "%Y-%m-%d %H:%M:%S"
+    maxBytes : int, optional
+        max length in bytes of log-file, by default 10*1024*1024
+    backupCount : int, optional
+        logger backup count, by default 5
+    rotate : bool, optional
+        rotating file handler, by default False
+    logfilter : Optional[logging.Filter], optional
+        optional logging filter, by default None
     """
 
     # Remove filehandler when already present
@@ -154,21 +190,25 @@ def add_file_handler(
         if isinstance(handler, (logging.FileHandler, RotatingFileHandler)):
             if Path(handler.stream.name) == filepath:
                 logger.removeHandler(handler)
-                logger.debug("Removed existing FileHandler, logger probably imported multiple times")
+                logger.debug(
+                    "Removed existing FileHandler, logger probably imported multiple times"
+                )
 
     # TODO  add test that filemode is doing the correct thing
     if not rotate:
         file_handler = logging.FileHandler(str(filepath), mode=filemode)
     else:
         # TODO filemode 'w' doesnt seem to reset file on RotatingFileHandler
-        file_handler = RotatingFileHandler(str(filepath), mode=filemode, maxBytes=maxBytes, backupCount=backupCount)
+        file_handler = RotatingFileHandler(
+            str(filepath), mode=filemode, maxBytes=maxBytes, backupCount=backupCount
+        )
 
     # This formatter includes longdate.
     formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
     file_handler.setFormatter(formatter)
 
     # Set level of filehandler, can be different from logger.
-    if filelevel == "":
+    if filelevel is None:
         filelevel = logger.level
     file_handler.setLevel(filelevel)
 
@@ -278,12 +318,11 @@ def get_logger(
 
     # Change log format or datefmt
     if (fmt != LOGFORMAT) or (datefmt != DATEFMT_STREAM):
-        _add_or_update_streamhandler_format(logger, fmt=fmt, datefmt=datefmt, propagate=propagate)
+        _add_or_update_streamhandler_format(
+            logger, fmt=fmt, datefmt=datefmt, propagate=propagate
+        )
 
     if filepath:
         add_file_handler(logger=logger, filepath=filepath, **kwargs)
 
     return logger
-
-
-# %%
