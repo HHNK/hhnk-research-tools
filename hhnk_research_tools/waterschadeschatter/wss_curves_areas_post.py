@@ -19,7 +19,6 @@ import pandas as pd
 import shapely
 from tqdm import tqdm
 
-
 # Local imports
 import hhnk_research_tools.logging as logging
 from hhnk_research_tools.variables import DEFAULT_NODATA_GENERAL
@@ -85,15 +84,11 @@ class AreaDamageCurvesAggregation:
         self.dir = AreaDamageCurveFolders(self.result_path, create=True)
 
         if self.dir.output.result_lu_areas.exists():
-            self.lu_area_data = pd.read_csv(
-                self.dir.output.result_lu_areas.path, index_col=0
-            )
+            self.lu_area_data = pd.read_csv(self.dir.output.result_lu_areas.path, index_col=0)
             self.lu_area_data.fid = self.lu_area_data.fid.astype(str)
 
         if self.dir.output.result_lu_damage.exists():
-            self.lu_dmg_data = pd.read_csv(
-                self.dir.output.result_lu_damage.path, index_col=0
-            )
+            self.lu_dmg_data = pd.read_csv(self.dir.output.result_lu_damage.path, index_col=0)
             self.lu_dmg_data.fid = self.lu_dmg_data.fid.astype(str)
 
         self.drainage_areas = self.dir.input.area.load()
@@ -114,9 +109,7 @@ class AreaDamageCurvesAggregation:
         # self.time = WSSTimelog(subject=NAME, output_dir=self.dir.post_processing.path)
 
     @classmethod
-    def from_settings_json(
-        cls, settings_json_file: Union[str, Path]
-    ) -> "AreaDamageCurvesAggregation":
+    def from_settings_json(cls, settings_json_file: Union[str, Path]) -> "AreaDamageCurvesAggregation":
         """Create aggregation instance from settings JSON file."""
         with open(str(settings_json_file)) as json_file:
             settings = json.load(json_file)
@@ -148,15 +141,11 @@ class AreaDamageCurvesAggregation:
 
     @cached_property
     def damage_interpolated_curve(self) -> pd.DataFrame:
-        return self._curve_linear_interpolate(
-            curve=self.damage_curve, resolution=DEFAULT_RESOLUTION
-        )
+        return self._curve_linear_interpolate(curve=self.damage_curve, resolution=DEFAULT_RESOLUTION)
 
     @cached_property
     def vol_interpolated_curve(self) -> pd.DataFrame:
-        return self._curve_linear_interpolate(
-            curve=self.vol_curve, resolution=DEFAULT_RESOLUTION
-        )
+        return self._curve_linear_interpolate(curve=self.vol_curve, resolution=DEFAULT_RESOLUTION)
 
     @cached_property
     def damage_level_curve(self) -> pd.DataFrame:
@@ -204,19 +193,13 @@ class AreaDamageCurvesAggregation:
             selection[feature[self.field]] = areas
         return selection
 
-    def _within(
-        self, geometry: shapely.geometry.base.BaseGeometry, buffer: int = DEFAULT_BUFFER
-    ) -> gpd.GeoDataFrame:
+    def _within(self, geometry: shapely.geometry.base.BaseGeometry, buffer: int = DEFAULT_BUFFER) -> gpd.GeoDataFrame:
         buffered = geometry.buffer(buffer)
         area_within = self.drainage_areas[self.drainage_areas.geometry.within(buffered)]
         return area_within
 
-    def _curve_linear_interpolate(
-        self, curve: pd.Series, resolution: float, round: int = DEFAULT_ROUND
-    ) -> pd.Series:
-        index = np.arange(0, curve.index.values[-1] + resolution, resolution).round(
-            round
-        )
+    def _curve_linear_interpolate(self, curve: pd.Series, resolution: float, round: int = DEFAULT_ROUND) -> pd.Series:
+        index = np.arange(0, curve.index.values[-1] + resolution, resolution).round(round)
         new_index = list(set(list(index) + list(curve.index)))
         new_index.sort()
         interpolated = curve.reindex(new_index)
@@ -236,9 +219,7 @@ class AreaDamageCurvesAggregation:
         round: int = DEFAULT_ROUND,
     ) -> pd.DataFrame:
         """Curves of drainage areas from depth to level, also interpolated."""
-        d_sorted = self.drainage_areas.sort_values(
-            by=DRAINAGE_LEVEL_FIELD, ascending=True
-        )
+        d_sorted = self.drainage_areas.sort_values(by=DRAINAGE_LEVEL_FIELD, ascending=True)
 
         min_level = d_sorted.iloc[0][DRAINAGE_LEVEL_FIELD]
         max_level = d_sorted.iloc[-1][DRAINAGE_LEVEL_FIELD] + curves.index[-1]
@@ -251,12 +232,8 @@ class AreaDamageCurvesAggregation:
             if pd.isna(curve).all():
                 curve = curve.fillna(DEFAULT_NODATA_GENERAL)
             curve = curve.astype(int)
-            interpolated_curve = self._curve_linear_interpolate(
-                curve=curve, resolution=resolution
-            )
-            level = self._curve_depth_to_level(
-                curve=interpolated_curve, drainage_area=drainage_area
-            )
+            interpolated_curve = self._curve_linear_interpolate(curve=curve, resolution=resolution)
+            level = self._curve_depth_to_level(curve=interpolated_curve, drainage_area=drainage_area)
             level_curve[level.name] = level
             level_curve = level_curve.copy()  # to supress defragment warning.
 
@@ -288,9 +265,7 @@ class AreaDamageCurvesAggregation:
         """Sum land use areas data within the given areas."""
         self.agg_lu = {}
         for idx, feature, areas_within in self:
-            lu_data = self.lu_area_data[
-                self.lu_area_data.fid.isin(areas_within[ID_FIELD])
-            ]
+            lu_data = self.lu_area_data[self.lu_area_data.fid.isin(areas_within[ID_FIELD])]
             lu_areas_summed = lu_data.groupby(lu_data.index).sum()
             self.agg_lu[feature[self.field]] = lu_areas_summed
 
@@ -300,9 +275,7 @@ class AreaDamageCurvesAggregation:
         """Sum land use damage data within the given areas."""
         self.agg_lu = {}
         for idx, feature, areas_within in self:
-            lu_data = self.lu_dmg_data[
-                self.lu_dmg_data.fid.isin(areas_within[ID_FIELD])
-            ]
+            lu_data = self.lu_dmg_data[self.lu_dmg_data.fid.isin(areas_within[ID_FIELD])]
             lu_areas_summed = lu_data.groupby(lu_data.index).sum()
             self.agg_lu[feature[self.field]] = lu_areas_summed
 
@@ -324,26 +297,18 @@ class AreaDamageCurvesAggregation:
             self.agg_m3[feature[self.field]] = m3_data
         return self.agg_m3
 
-    def aggregate_rain_curve(
-        self, method="lowest_area", mm_rain=DEFAULT_RAIN
-    ) -> dict[str, pd.Series]:
+    def aggregate_rain_curve(self, method="lowest_area", mm_rain=DEFAULT_RAIN) -> dict[str, pd.Series]:
         """Different for distribution of rain in the drainage area"""
 
         output = {}
 
         for idx, feature, areas_within in self:
             if method == "lowest_area":
-                output[feature[self.field]] = self.agg_rain_lowest_area(
-                    feature, areas_within, mm_rain
-                )
+                output[feature[self.field]] = self.agg_rain_lowest_area(feature, areas_within, mm_rain)
             elif method == "equal_depth":
-                output[feature[self.field]] = self.agg_rain_equal_depth(
-                    feature, areas_within, mm_rain
-                )
+                output[feature[self.field]] = self.agg_rain_equal_depth(feature, areas_within, mm_rain)
             elif method == "equal_rain":
-                output[feature[self.field]] = self.agg_rain_own_area_retention(
-                    areas_within, mm_rain
-                )
+                output[feature[self.field]] = self.agg_rain_own_area_retention(areas_within, mm_rain)
         return output
 
     def agg_rain_lowest_area(
@@ -377,9 +342,7 @@ class AreaDamageCurvesAggregation:
 
         return agg_series
 
-    def agg_rain_equal_depth(
-        self, feature, areas_within, mm_rain=DEFAULT_RAIN
-    ) -> pd.Series:
+    def agg_rain_equal_depth(self, feature, areas_within, mm_rain=DEFAULT_RAIN) -> pd.Series:
         """
         Create a new damage curve based on equal depth at every area.
         1. Essentially a sum of all damagecurves.
@@ -403,9 +366,7 @@ class AreaDamageCurvesAggregation:
 
         return agg_series
 
-    def agg_rain_own_area_retention(
-        self, areas_within, mm_rain=DEFAULT_RAIN, int_round=1000
-    ) -> pd.Series:
+    def agg_rain_own_area_retention(self, areas_within, mm_rain=DEFAULT_RAIN, int_round=1000) -> pd.Series:
         """Compute the rain per drainage level area, retains it in its own
         place.
         1. Get volume damage curves per area
@@ -417,14 +378,10 @@ class AreaDamageCurvesAggregation:
         area_curve = []
         for idx, area in tqdm(areas_within.iterrows(), total=len(areas_within)):
             vol_curve = self.vol_interpolated_curve[area[ID_FIELD]].values.astype(int)
-            dam_curve = self.damage_interpolated_curve[area[ID_FIELD]].values.astype(
-                int
-            )
+            dam_curve = self.damage_interpolated_curve[area[ID_FIELD]].values.astype(int)
             curve = pd.DataFrame(index=vol_curve, data={area[ID_FIELD]: dam_curve})
             curve = curve[~curve.index.duplicated(keep="first")]
-            curve_interpolated = self._curve_linear_interpolate(
-                curve, int_round
-            ).astype(int)
+            curve_interpolated = self._curve_linear_interpolate(curve, int_round).astype(int)
             area_curve.append(curve_interpolated)
 
         area_curve = pd.concat(area_curve, axis=1, sort=True)
@@ -444,9 +401,7 @@ class AreaDamageCurvesAggregation:
                 if volume > area_vol_dam.index[-1]:
                     damage = area_vol_dam.values[-1]
                 else:
-                    damage = area_vol_dam[
-                        round(volume, -3)
-                    ]  # depends on the int_round value (-3 = 1000, -1= 10)
+                    damage = area_vol_dam[round(volume, -3)]  # depends on the int_round value (-3 = 1000, -1= 10)
 
                 if np.isnan(damage):
                     damage = 0
@@ -459,25 +414,17 @@ class AreaDamageCurvesAggregation:
         agg_series = pd.Series(aggregate_curve, name="damage_own_area_retention")
         return agg_series
 
-    def create_folium_html(
-        self, depth_steps=[0.5, 1, 1.5], damage_steps=[100, 1000, 10000, 100000]
-    ):
+    def create_folium_html(self, depth_steps=[0.5, 1, 1.5], damage_steps=[100, 1000, 10000, 100000]):
         """Create interactive Folium map showing damage curves and drainage areas."""
 
         fol = WSSCurvesFolium()
         fol.add_water_layer()
 
-        fdla_schade = gpd.read_file(
-            self.dir.post_processing.peilgebieden.path, layer="schadecurve"
-        )
-        agg_schade = gpd.read_file(
-            self.dir.post_processing.aggregatie.path, layer="aggregatie"
-        )
+        fdla_schade = gpd.read_file(self.dir.post_processing.peilgebieden.path, layer="schadecurve")
+        agg_schade = gpd.read_file(self.dir.post_processing.aggregatie.path, layer="aggregatie")
 
         # Split aggregation data by curve type
-        agg_landgebruik = agg_schade[
-            agg_schade["index"].str.contains("landgebruikcurve")
-        ]
+        agg_landgebruik = agg_schade[agg_schade["index"].str.contains("landgebruikcurve")]
         agg_schade_curves = agg_schade[agg_schade["index"].str.contains("schadecurve")]
         agg_berging = agg_schade[agg_schade["index"].str.contains("bergingscurve")]
         agg_aggregatie = agg_schade[agg_schade["index"].str.contains("aggregatie")]
@@ -520,17 +467,13 @@ class AreaDamageCurvesAggregation:
         )
 
         # per peilgebied
-        fol.add_border_layer(
-            "Peilgebieden: Peilvakken", fdla_schade, tooltip_fields=["pid"]
-        )
+        fol.add_border_layer("Peilgebieden: Peilvakken", fdla_schade, tooltip_fields=["pid"])
 
         # schade per peilstijging
         for idx, depth_step_data in self.damage_curve.iterrows():
             if idx not in depth_steps:
                 continue
-            ds_df = gpd.GeoDataFrame(
-                depth_step_data, geometry=self.fdla_geometry, crs="EPSG:28992"
-            )
+            ds_df = gpd.GeoDataFrame(depth_step_data, geometry=self.fdla_geometry, crs="EPSG:28992")
             fol.add_layer(
                 name=f"Peilgebieden: Schadecurve {idx}m peilstijging.",
                 gdf=ds_df,
@@ -579,12 +522,10 @@ class AreaDamageCurvesAggregation:
             )
 
             # Create a mapping of landuse IDs to their colors from the conversion table
-            lu_colors = self.lu_conversion_table.set_index(
-                self.lu_conversion_table.columns[0]
-            )["kleur"].to_dict()
-            lu_functie = self.lu_conversion_table.set_index(
-                self.lu_conversion_table.columns[0]
-            )["beschrijving"].to_dict()
+            lu_colors = self.lu_conversion_table.set_index(self.lu_conversion_table.columns[0])["kleur"].to_dict()
+            lu_functie = self.lu_conversion_table.set_index(self.lu_conversion_table.columns[0])[
+                "beschrijving"
+            ].to_dict()
             max_lu["colors"] = max_lu["Landgebruik (max)"].map(lu_colors)
             max_lu["Functie"] = max_lu["Landgebruik (max)"].map(lu_functie)
 
@@ -603,18 +544,14 @@ class AreaDamageCurvesAggregation:
             )
 
         # per aggregatie gebied
-        fol.add_border_layer(
-            "Aggregatie: Aggregatiegrenzen", agg_schade, tooltip_fields=["index"]
-        )
+        fol.add_border_layer("Aggregatie: Aggregatiegrenzen", agg_schade, tooltip_fields=["index"])
         fol.add_title("Schadecurves en aggregaties")
         fol.save(self.dir.post_processing.schadecurves_html.path)
 
     def create_figures(self):
         """Generate damage curve figures for all drainage areas."""
 
-        self.dir.post_processing.create_figure_dir(
-            self.drainage_areas[ID_FIELD].tolist()
-        )
+        self.dir.post_processing.create_figure_dir(self.drainage_areas[ID_FIELD].tolist())
         for area_id in self.drainage_areas[ID_FIELD]:
             data = self.damage_interpolated_curve[area_id]
             figure = CurveFiguur(pd.DataFrame(data))
@@ -632,9 +569,7 @@ class AreaDamageCurvesAggregation:
         ids = self.drainage_areas[ID_FIELD]
 
         schadecurves = self.drainage_areas.copy()
-        schadecurves["image_path"] = [
-            "file:///" + str(fig_dir[f"schadecurve_{i}"].path) for i in ids
-        ]
+        schadecurves["image_path"] = ["file:///" + str(fig_dir[f"schadecurve_{i}"].path) for i in ids]
         schadecurves["png_path"] = [str(fig_dir[f"schadecurve_{i}"].path) for i in ids]
         schadecurves.index = schadecurves.pid
         transposed = self.damage_curve.T
@@ -646,9 +581,7 @@ class AreaDamageCurvesAggregation:
 
         # add styling
         styling = self.create_styling(table_names=["schadecurve"])
-        gpd.GeoDataFrame(styling).to_file(
-            local_file, layer="layer_styles", driver="GPKG"
-        )
+        gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver="GPKG")
 
     def create_aggregate_gpkg(self) -> None:
         """Create GeoPackage file containing aggregated damage curves by area."""
@@ -680,9 +613,7 @@ class AreaDamageCurvesAggregation:
 
         # add styling
         styling = self.create_styling(table_names=["aggregatie"])
-        gpd.GeoDataFrame(styling).to_file(
-            local_file, layer="layer_styles", driver="GPKG"
-        )
+        gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver="GPKG")
 
     def create_aggregate_gpkg(self) -> None:
         ids = self.vector[self.field]
@@ -712,9 +643,7 @@ class AreaDamageCurvesAggregation:
 
         # add styling
         styling = self.create_styling(table_names=["aggregatie"])
-        gpd.GeoDataFrame(styling).to_file(
-            local_file, layer="layer_styles", driver="GPKG"
-        )
+        gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver="GPKG")
 
     def create_styling(self, table_names):
         qmls = [self.get_qml(name) for name in table_names]
@@ -800,9 +729,7 @@ class AreaDamageCurvesAggregation:
             v_lowest = v_lowest[~v_lowest.index.duplicated()]
             v_equal_rain = v_equal_rain[~v_equal_rain.index.duplicated()]
 
-            combined = pd.concat(
-                [v_lowest, v_equal_depth, v_equal_rain], axis=1, sort=True
-            )
+            combined = pd.concat([v_lowest, v_equal_depth, v_equal_rain], axis=1, sort=True)
             combined = combined.interpolate("linear").astype(int)
             combined.index = combined.index.astype(int)
             output[k] = combined
@@ -811,18 +738,12 @@ class AreaDamageCurvesAggregation:
 
     def run(self, aggregation=True, mm_rain=DEFAULT_RAIN, create_html=True) -> None:
         # general data
-        self.damage_interpolated_curve.to_csv(
-            self.dir.post_processing.damage_interpolated_curve.path
-        )
-        self.vol_interpolated_curve.to_csv(
-            self.dir.post_processing.volume_interpolated_curve.path
-        )
+        self.damage_interpolated_curve.to_csv(self.dir.post_processing.damage_interpolated_curve.path)
+        self.vol_interpolated_curve.to_csv(self.dir.post_processing.volume_interpolated_curve.path)
         self.damage_level_curve.to_csv(self.dir.post_processing.damage_level_curve.path)
         self.vol_level_curve.to_csv(self.dir.post_processing.vol_level_curve.path)
         self.damage_per_m3.to_csv(self.dir.post_processing.damage_per_m3.path)
-        self.damage_level_per_ha.to_csv(
-            self.dir.post_processing.damage_level_per_ha.path
-        )
+        self.damage_level_per_ha.to_csv(self.dir.post_processing.damage_level_per_ha.path)
 
         self.create_figures()
         self.create_fdla_gpkg()

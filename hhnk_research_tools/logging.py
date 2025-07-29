@@ -139,9 +139,7 @@ def set_default_logconfig(
         },
     )
     """
-    log_config = get_logconfig_dict(
-        level_root=level_root, level_dict=level_dict, log_filepath=log_filepath
-    )
+    log_config = get_logconfig_dict(level_root=level_root, level_dict=level_dict, log_filepath=log_filepath)
 
     config.dictConfig(log_config)
 
@@ -190,18 +188,14 @@ def add_file_handler(
         if isinstance(handler, (logging.FileHandler, RotatingFileHandler)):
             if Path(handler.stream.name) == filepath:
                 logger.removeHandler(handler)
-                logger.debug(
-                    "Removed existing FileHandler, logger probably imported multiple times"
-                )
+                logger.debug("Removed existing FileHandler, logger probably imported multiple times")
 
     # TODO  add test that filemode is doing the correct thing
     if not rotate:
         file_handler = logging.FileHandler(str(filepath), mode=filemode)
     else:
         # TODO filemode 'w' doesnt seem to reset file on RotatingFileHandler
-        file_handler = RotatingFileHandler(
-            str(filepath), mode=filemode, maxBytes=maxBytes, backupCount=backupCount
-        )
+        file_handler = RotatingFileHandler(str(filepath), mode=filemode, maxBytes=maxBytes, backupCount=backupCount)
 
     # This formatter includes longdate.
     formatter = logging.Formatter(fmt=fmt, datefmt=datefmt)
@@ -318,9 +312,7 @@ def get_logger(
 
     # Change log format or datefmt
     if (fmt != LOGFORMAT) or (datefmt != DATEFMT_STREAM):
-        _add_or_update_streamhandler_format(
-            logger, fmt=fmt, datefmt=datefmt, propagate=propagate
-        )
+        _add_or_update_streamhandler_format(logger, fmt=fmt, datefmt=datefmt, propagate=propagate)
 
     if filepath:
         add_file_handler(logger=logger, filepath=filepath, **kwargs)
