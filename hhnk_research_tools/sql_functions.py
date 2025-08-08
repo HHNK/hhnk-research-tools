@@ -762,11 +762,11 @@ def get_table_domains_from_oracle(
                 WHERE LOWER(DAMOTABELNAAM) = '{table_name.lower()}'
                 AND DAMODOMEINNAAM IS NOT NULL
                 """
-        domain_query = """
-                SELECT *
-                FROM DAMO_W.DAMODOMEINWAARDE
-                """
 
+        # Domein tabellen bevatten niet meer de tabelnaam, alleen nog de domeinnaam.
+        # TODO Het is efficienter om alleen de relevante domeinen op te halen, maar de database
+        # verbinding is nu snel genoeg.
+        domain_query = "SELECT * FROM DAMO_W.DAMODOMEINWAARDE"
         domain_ws_query = "SELECT * FROM GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV"
 
         # Query database
@@ -792,49 +792,34 @@ def get_table_domains_from_oracle(
                 lambda x: x.lower() if isinstance(x, str) else x
             )
 
+        # Rename columns to match DAMO_W.DAMODOMEINWAARDE
+        domain_ws_df.rename(
+            columns={
+                "domainname": "damodomeinnaam",
+                "code": "codedomeinwaarde",
+                "name": "naamdomeinwaarde",
+                "fieldtype": "fieldtype",
+            },
+            inplace=True,
+        )
+
+        # Create dataframe that holds domains
         domains = pd.DataFrame()
         for i in map_df["damodomeinnaam"].unique():
-            # Check if domain is in the domain_df
-            if i not in domain_df["damodomeinnaam"].unique():
+            if (
+                i not in domain_df["damodomeinnaam"].unique()
+                and i not in domain_ws_df["damodomeinnaam"].unique()
+            ):
                 logger.warning(
-                    f"Domain {i} not found in DAMO_W.DAMODOMEINWAARDE, trying WS domains."
-                )
-            else:
-                logger.info(f"Domain {i} found in DAMO_W.DAMODOMEINWAARDE")
-                # Select relevant domains
-                domain_rules = domain_df[domain_df["damodomeinnaam"] == i]
-                domain_rules = domain_rules[
-                    [
-                        "damodomeinnaam",
-                        "codedomeinwaarde",
-                        "naamdomeinwaarde",
-                        "fieldtype",
-                    ]
-                ]
-
-            if i not in domain_df["domainname"].unique():
-                logger.warning(
-                    f"Domain {i} not found in GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV, skipping."
+                    f"Domain {i} not found in DAMO_W.DAMODOMEINWAARDE or GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV."
                 )
                 continue
-            else:
-                logger.info(
-                    f"Domain {i} found in GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV"
-                )
-                # Select relevant domains
-                domain_rules = domain_df[domain_df["domainname"] == i]
-                # Rename columns to match DAMO_W.DAMODOMEINWAARDE
-                domain_rules.rename(
-                    columns={
-                        "domainname": "damodomeinnaam",
-                        "code": "codedomeinwaarde",
-                        "name": "naamdomeinwaarde",
-                        "fieldtype": "fieldtype",
-                    },
-                    inplace=True,
-                )
 
-                domain_rules = domain_rules[
+            # Check if domain is in the domain_df
+            if i in domain_df["damodomeinnaam"].unique():
+                logger.debug(f"Domain {i} found in DAMO_W.DAMODOMEINWAARDE.")
+                domain_damo_rules = domain_df[domain_df["damodomeinnaam"] == i]
+                domain_damo_rules = domain_damo_rules[
                     [
                         "damodomeinnaam",
                         "codedomeinwaarde",
@@ -842,6 +827,24 @@ def get_table_domains_from_oracle(
                         "fieldtype",
                     ]
                 ]
+            # Check if domain is in the domain_ws_df
+            if i in domain_ws_df["damodomeinnaam"].unique():
+                logger.debug(
+                    f"Domain {i} found in DAMO_W.GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV."
+                )
+                domain_ws_rules = domain_ws_df[domain_ws_df["damodomeinnaam"] == i]
+                domain_ws_rules = domain_ws_rules[
+                    [
+                        "damodomeinnaam",
+                        "codedomeinwaarde",
+                        "naamdomeinwaarde",
+                        "fieldtype",
+                    ]
+                ]
+            # Combine the domain rules found in both dataframes
+            domain_rules = pd.concat(
+                [domain_damo_rules, domain_ws_rules], ignore_index=True
+            )
 
             # select relevant mapping columns
             mapping = map_df[map_df["damodomeinnaam"] == i]
