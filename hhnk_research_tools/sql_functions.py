@@ -802,6 +802,9 @@ def get_table_domains_from_oracle(
             },
             inplace=True,
         )
+        # Reset Index of both domains
+        domain_df.reset_index(drop=True, inplace=True)
+        domain_ws_df.reset_index(drop=True, inplace=True)
 
         # Create dataframe that holds domains
         domains = pd.DataFrame()
