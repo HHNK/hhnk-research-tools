@@ -653,7 +653,7 @@ def get_table_columns(
     return columns_out
 
 
-def get_tables_from_oracle_db(db_dict: dict):
+def get_tables_from_oracle_db(db_dict: dict) -> pd.DataFrame:
     """
     Get list of all tables in database.
 
@@ -681,7 +681,7 @@ def get_table_domains_from_oracle(
     schema: str,
     table_name: str,
     column_list: list[str] = None,
-):
+) -> pd.DataFrame:
     """
     Get domain for DAMO_W tables.
 
@@ -733,13 +733,13 @@ def get_table_domains_from_oracle(
         domain_df.columns = domain_df.columns.str.lower()
         domain_ws_df.columns = domain_ws_df.columns.str.lower()
 
-        # select relevant domains for columns
-        map_df = map_df[map_df["damokolomnaam"].isin(column_list)]
-
         # Convert all domains to lowercase
         map_df = map_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
         domain_df = domain_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
         domain_ws_df = domain_ws_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+
+        # select relevant domains for columns
+        map_df = map_df[map_df["damokolomnaam"].isin(column_list)]
 
         # Rename columns to match DAMO_W.DAMODOMEINWAARDE
         domain_ws_df.rename(
