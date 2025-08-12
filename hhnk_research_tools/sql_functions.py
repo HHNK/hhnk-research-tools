@@ -507,8 +507,8 @@ def database_to_gdf(
 
     Returns
     -------
-    gdf : gpd.GeoDataFrame
-        gdf with data and (linear) geometry, colum names in lowercase.
+    df : gpd.GeoDataFrame
+        df or gdf with data and (linear) geometry, colum names in lowercase.
     sql : str
         The used sql in the request.
 
@@ -616,7 +616,7 @@ def get_table_columns(
     db_dict: dict,
     schema: str,
     table_name: str,
-):
+) -> list[str]:
     """
     Connect to (oracle) databaseand retrieve table columns
 
@@ -723,24 +723,23 @@ def get_table_domains_from_oracle(
         domain_query = "SELECT * FROM DAMO_W.DAMODOMEINWAARDE"
         domain_ws_query = "SELECT * FROM GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV"
 
-        # Query database
-        with oracledb.connect(**db_dict) as con:
-            cur = oracledb.Cursor(con)
-            map_df = execute_sql_selection(map_query, conn=con)
-            map_df.columns = map_df.columns.str.lower()
-            map_df = map_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
-            # select relevant domains for columns
-            map_df = map_df[map_df["damokolomnaam"].isin(column_list)]
+        # Get dataframes from database
+        map_df, map_sql = database_to_gdf(db_dict=db_dict, sql=map_query, lower_cols=True)
+        domain_df, domain_sql = database_to_gdf(db_dict=db_dict, sql=domain_query, lower_cols=True)
+        domain_ws_df, domain_ws_sql = database_to_gdf(db_dict=db_dict, sql=domain_ws_query, lower_cols=True)
 
-            # List domains from DAMO
-            domain_df = execute_sql_selection(domain_query, conn=con)
-            domain_df.columns = domain_df.columns.str.lower()
-            domain_df = domain_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+        # lowercase all columns
+        map_df.columns = map_df.columns.str.lower()
+        domain_df.columns = domain_df.columns.str.lower()
+        domain_ws_df.columns = domain_ws_df.columns.str.lower()
 
-            # List domains from DAMO WS
-            domain_ws_df = execute_sql_selection(domain_ws_query, conn=con)
-            domain_ws_df.columns = domain_ws_df.columns.str.lower()
-            domain_ws_df = domain_ws_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+        # select relevant domains for columns
+        map_df = map_df[map_df["damokolomnaam"].isin(column_list)]
+
+        # Convert all domains to lowercase
+        map_df = map_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+        domain_df = domain_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+        domain_ws_df = domain_ws_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
 
         # Rename columns to match DAMO_W.DAMODOMEINWAARDE
         domain_ws_df.rename(
