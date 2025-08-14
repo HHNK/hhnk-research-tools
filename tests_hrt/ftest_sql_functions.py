@@ -10,7 +10,6 @@ import hhnk_research_tools.logging as logging
 from hhnk_research_tools.sql_functions import (
     _remove_blob_columns,
     database_to_gdf,
-    execute_sql_selection,
     get_table_columns,
     get_table_domains_from_oracle,
     sql_builder_select_by_location,
@@ -46,16 +45,10 @@ def test_database_to_gdf_damo():
     gdf, sql2 = database_to_gdf(db_dict=db_dict, sql=sql, columns=columns, lower_cols=True, remove_blob_cols=True)
     assert gdf.loc[0, "code"] == "KGM-Q-29234"
 
-    # #Get all available tables in connection.
-    # import oracledb
-    # with oracledb.connect(**db_dict) as con:
-    #     cur = oracledb.Cursor(con)
-    #     a = execute_sql_selection("SELECT owner, table_name FROM all_tables", conn=con)
-
 
 def test_bgt_database_to_gdf_bgt():
     """test_database_to_gdf"""
-    # %%
+
     gpkg_path = TEST_DIRECTORY / r"area_test_sql_helsdeur.gpkg"
 
     db_dict = DATABASES.get("bgt_lezen", None)
@@ -83,7 +76,6 @@ def test_bgt_database_to_gdf_bgt():
 
 
 def test_database_to_gdf_no_cols():
-    # %%
     sql = """SELECT a.OBJECTID, a.CODE, a.NAAM,a.REGIEKAMER, 
                 b.NAAM as ZUIVERINGSKRING, a.SHAPE
             FROM CS_OBJECTEN.RIOOLGEMAAL_EVW a
@@ -106,7 +98,6 @@ def test_database_to_gdf_no_cols():
 
 
 def test_remove_blob_cols():
-    # %%
     db_dict = DATABASES.get("aquaprd_lezen", None)
     columns = None
     # Find code by removing where statement and; gdf[gdf['se_anno_cad_data'].notna()]['code']
@@ -146,17 +137,14 @@ def test_get_table_columns():
 
 def test_get_table_domains_from_oracle():
     """Test to get domaintable from DAMO_W."""
-    # %%
     db_dict = DATABASES.get("aquaprd_lezen", None)
     schema = "DAMO_W"
     table_name = "GEMAAL"
-    column_list = ["functieGemaal", "WS_CATEGORIE"]
 
     domains = get_table_domains_from_oracle(
         db_dict=db_dict,
         schema=schema,
         table_name=table_name,
-        column_list=column_list,
     )
     assert domains[domains["naamdomeinwaarde"] == "afvoeren"]["codedomeinwaarde"].values[0] == "2"
 

@@ -325,7 +325,7 @@ def sql_builder_select_by_location(
     epsg_code="28992",
     simplify=False,
     include_todays_mutations=False,
-):
+) -> str:
     """Create Oracle 12 SQL with intersection polygon.
 
     Parameters
@@ -385,7 +385,7 @@ def sql_builder_select_by_id_list_statement(
     sub_table: str,
     sub_id_column: str,
     include_todays_mutations=False,
-):
+) -> str:
     """Create Oracle 12 SQL using extra statement that list id's from another table.
     Created for 'Profielen' and other table from DAMO_W database.
 
@@ -418,7 +418,7 @@ WHERE {sub_id_column} IN (
     return sql
 
 
-def _oracle_curve_polygon_to_linear(blob_curvepolygon):
+def _oracle_curve_polygon_to_linear(blob_curvepolygon) -> Optional[Polygon]:
     """
     Turn curved polygon from oracle database into linear one
     (so it can be used in geopandas)
@@ -443,7 +443,7 @@ def _oracle_curve_polygon_to_linear(blob_curvepolygon):
     return g2
 
 
-def _remove_blob_columns(df):
+def _remove_blob_columns(df) -> pd.DataFrame:
     """
     Remove columns that stay in blob from oracle database.
     Blob columns prohibit further processing of the data
@@ -682,10 +682,9 @@ def get_table_domains_from_oracle(
     db_dict: dict,
     schema: str,
     table_name: str,
-    column_list: list[str] = None,
 ) -> pd.DataFrame:
     """
-    Get domain for DAMO_W tables.
+    Get domain for DAMO_W table.
 
     Parameters
     ----------
@@ -700,17 +699,9 @@ def get_table_domains_from_oracle(
         schema name
     table_name : str
         Table name
-    column_list : str
-        List of column names for which to retrieve the domains.
     """
 
     if schema == "DAMO_W":
-        if column_list is None:
-            column_list = get_table_columns(db_dict=db_dict, schema=schema, table_name=table_name)
-
-        # make all items list columnlist lowercase
-        column_list = [c.lower() for c in column_list]
-
         # query to get mapping of columns to domains (table to column to domain)
         map_query = f"""
                 SELECT *
@@ -726,6 +717,8 @@ def get_table_domains_from_oracle(
         # queries to get domain values (domain to domain values)
         domain_query = "SELECT * FROM DAMO_W.DAMODOMEINWAARDE"
         domain_ws_query = "SELECT * FROM GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV"
+
+        # TODO (#26141) GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV is niet de juiste bron voor de ws domeinen.
 
         # Retrieve dataframe with mapping of columns to domains (table to column to domain)
         map_df, map_sql = database_to_gdf(db_dict=db_dict, sql=map_query, lower_cols=True)
@@ -745,13 +738,8 @@ def get_table_domains_from_oracle(
             domain_df = domain_df.map(lambda x: x.lower() if isinstance(x, str) else x)
             domain_ws_df = domain_ws_df.map(lambda x: x.lower() if isinstance(x, str) else x)
 
-        # select relevant domains for columns
-        map_col_df = map_df[map_df["damokolomnaam"].isin(column_list)].copy()
-
-        # Check if there are no columns in the map_col_df
-        if map_col_df.empty:
-            logger.warning(f"No domains found for columns of {table_name}")
-            return pd.DataFrame()
+        # Select relevant columns from  mapping
+        map_df = map_df[["damotabelnaam", "damokolomnaam", "damodomeinnaam", "definitie"]]
 
         # Rename columns to match DAMO_W.DAMODOMEINWAARDE
         domain_ws_df.rename(
@@ -763,64 +751,25 @@ def get_table_domains_from_oracle(
             },
             inplace=True,
         )
-        # Reset Index of both domains
-        domain_df.reset_index(drop=True, inplace=True)
-        domain_ws_df.reset_index(drop=True, inplace=True)
 
-        # Create dataframe that holds domains
-        domains = pd.DataFrame()
-        for i in map_col_df["damodomeinnaam"].unique():
-            if i not in domain_df["damodomeinnaam"].unique() and i not in domain_ws_df["damodomeinnaam"].unique():
-                logger.warning(
-                    f"Domain {i} not found in DAMO_W.DAMODOMEINWAARDE or GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV."
-                )
-                continue
+        # Concatenate domain values from both dataframes
+        domain_all_df = pd.concat([domain_df, domain_ws_df], ignore_index=True).copy()
+        # Select relevant columns from domain_all_df
+        domain_all_df = domain_all_df[["damodomeinnaam", "codedomeinwaarde", "naamdomeinwaarde", "fieldtype"]]
 
-            # Check if domain is in the domain_df
-            if i in domain_df["damodomeinnaam"].unique():
-                logger.debug(f"Domain {i} found in DAMO_W.DAMODOMEINWAARDE.")
-                domain_damo_rules = domain_df[domain_df["damodomeinnaam"] == i].copy()
-                domain_damo_rules = domain_damo_rules[
-                    [
-                        "damodomeinnaam",
-                        "codedomeinwaarde",
-                        "naamdomeinwaarde",
-                        "fieldtype",
-                    ]
-                ]
-            # Check if domain is in the domain_ws_df
-            if i in domain_ws_df["damodomeinnaam"].unique():
-                logger.debug(f"Domain {i} found in DAMO_W.GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV.")
-                domain_ws_rules = domain_ws_df[domain_ws_df["damodomeinnaam"] == i].copy()
-                domain_ws_rules = domain_ws_rules[
-                    [
-                        "damodomeinnaam",
-                        "codedomeinwaarde",
-                        "naamdomeinwaarde",
-                        "fieldtype",
-                    ]
-                ]
-            # Combine the domain rules found in both dataframes
-            domain_rules = pd.concat([domain_damo_rules, domain_ws_rules], ignore_index=True).copy()
+        # select domains from domain_all_df that are in the map_df
+        domain_tablename_df = domain_all_df[domain_all_df["damodomeinnaam"].isin(map_df["damodomeinnaam"].unique())]
 
-            # select relevant mapping columns
-            mapping = map_col_df[map_col_df["damodomeinnaam"] == i]
-            mapping = mapping[
-                [
-                    "damotabelnaam",
-                    "damokolomnaam",
-                    "damodomeinnaam",
-                    "definitie",
-                ]
-            ]
+        # Check if there are no domains
+        if domain_tablename_df.empty:
+            logger.warning(f"No domains found for {table_name}")
+            return pd.DataFrame()
 
-            # join mapping and domain
-            df = mapping.merge(domain_rules, on="damodomeinnaam", how="left")
-
-            domains = pd.concat([domains, df], ignore_index=True)
+        # join mapping and domain
+        domains = map_df.merge(domain_tablename_df, on="damodomeinnaam", how="left")
 
         return domains
 
     else:
         logger.warning("Schema not supported, only DAMO_W contains domains.")
-        return None
+        return pd.DataFrame()
