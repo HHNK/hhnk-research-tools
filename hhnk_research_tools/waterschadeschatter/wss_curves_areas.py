@@ -11,7 +11,6 @@ Methodiek schade, volume en landgebruik
 4. Volume = Oppervlak pixel vermenigvuldigd met de diepte en aantal pixels.
 """
 
-# Standard library imports
 import argparse
 import datetime
 import json
@@ -24,7 +23,6 @@ from functools import cached_property, reduce
 from pathlib import Path
 from typing import Literal, Optional, Tuple, Union
 
-# Third party imports
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -33,10 +31,7 @@ from rasterio.features import rasterize
 from shapely.geometry.base import BaseGeometry
 from tqdm import tqdm
 
-# Local imports
 import hhnk_research_tools as hrt
-
-# logging
 from hhnk_research_tools.rasters.raster_class import Raster
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas_pre import (

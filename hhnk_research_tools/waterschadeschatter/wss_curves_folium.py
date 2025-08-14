@@ -1,22 +1,17 @@
 # %%
-# Standard library imports
 import base64
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-# Third party imports
+import branca
 import branca.colormap as cm
 import folium
-import geopandas as gp
-from branca.element import MacroElement
-from folium import IFrame, Map
+import geopandas as gpd
 from folium.plugins import MarkerCluster
-from geopandas import GeoDataFrame
 from jinja2 import Template
 from matplotlib import colors as mcolors
 
-# Local imports
-import hhnk_research_tools.logger as logging
+import hhnk_research_tools.logging as logging
 
 logger = logging.get_logger(__name__, level="DEBUG")
 
@@ -45,7 +40,7 @@ class WSSCurvesFolium:
         self.layers: List[folium.GeoJson] = []
         self.color_maps: List[Union[DummyColormap, cm.LinearColormap]] = []
         self.color_map_binds: List[BindColormap] = []
-        self.m: Map
+        self.m: folium.Map
 
     def create_map(self) -> None:
         """Create base Folium map with Dutch aerial imagery background."""
@@ -62,7 +57,7 @@ class WSSCurvesFolium:
         label: str,
         data_min: float,
         data_max: float,
-        gdf: GeoDataFrame,
+        gdf: gpd.GeoDataFrame,
         colormap_field: Optional[str] = None,
         colormap_name: str = "plasma",
         nr_steps: int = 5,
@@ -75,7 +70,7 @@ class WSSCurvesFolium:
             label (str): Label for the colormap
             data_min: Minimum value for numeric data
             data_max: Maximum value for numeric data
-            gdf: GeoDataFrame containing the data
+            gdf: gpd.GeoDataFrame containing the data
             colormap_field: Field to use for determining unique values
             colormap_name (str): Name of matplotlib colormap or "custom" for custom colors
             nr_steps (int): Number of steps for continuous data
@@ -112,7 +107,7 @@ class WSSCurvesFolium:
         """Add Dutch water layer as tile overlay to the map."""
         folium.TileLayer("nlmaps.water", attr="<a href=https://nlmaps.nl/>NL Maps water</a>").add_to(self.m)
 
-    def add_border_layer(self, name: str, gdf: GeoDataFrame, tooltip_fields: List[str], show: bool = True) -> None:
+    def add_border_layer(self, name: str, gdf: gpd.GeoDataFrame, tooltip_fields: List[str], show: bool = True) -> None:
         """Add border layer with transparent fill and black outline to the map."""
         border_style = {"color": "#000000", "weight": "1.5", "fillColor": "#58b5d1", "fillOpacity": 0.08}
 
@@ -135,7 +130,7 @@ class WSSCurvesFolium:
     def add_layer(
         self,
         name: str,
-        gdf: GeoDataFrame,
+        gdf: gpd.GeoDataFrame,
         datacolumn: str,
         tooltip_fields: List[str],
         data_min: float,
@@ -182,14 +177,16 @@ class WSSCurvesFolium:
             self.color_maps.append(colormap)
             self.color_map_binds.append(BindColormap(layer, colormap))
 
-    def add_graphs(self, name: str, gdf: GeoDataFrame, image_field: str, width: int = 520, height: int = 520) -> None:
+    def add_graphs(
+        self, name: str, gdf: gpd.GeoDataFrame, image_field: str, width: int = 520, height: int = 520
+    ) -> None:
         """Add interactive image popups to the map as marker clusters."""
 
         marker_cluster = MarkerCluster(name=name, overlay=True, control=True, icon_create_function=None)
 
         for idx, data in gdf.iterrows():
             centroid = data.geometry.centroid
-            point_gdf = gp.GeoDataFrame(geometry=[centroid], crs=gdf.crs)
+            point_gdf = gpd.GeoDataFrame(geometry=[centroid], crs=gdf.crs)
 
             # Reproject to WGS84
             point_wgs84 = point_gdf.to_crs(epsg=4326)
@@ -199,7 +196,7 @@ class WSSCurvesFolium:
 
             encoded = base64.b64encode(open(data[image_field], "rb").read()).decode()
             html = f'<img src="data:image/png;base64,{encoded}" width="{width}" height="{height}">'
-            iframe = IFrame(html, width=width, height=height)
+            iframe = folium.IFrame(html, width=f"{width}px", height=f"{height}px")
             popup = folium.Popup(iframe, max_width=width)
 
             icon = folium.Icon(color="red", icon="ok")
@@ -254,7 +251,7 @@ class WSSCurvesFolium:
         self.m.save(output_path)
 
 
-class BindColormap(MacroElement):  # from https://github.com/python-visualization/folium/issues/450
+class BindColormap(branca.element.MacroElement):  # from https://github.com/python-visualization/folium/issues/450
     """Binds a colormap to a given layer.
 
     Parameters
@@ -264,7 +261,7 @@ class BindColormap(MacroElement):  # from https://github.com/python-visualizatio
     """
 
     def __init__(self, layer: folium.GeoJson, colormap: Union[DummyColormap, cm.LinearColormap]) -> None:
-        super(BindColormap, self).__init__()
+        super().__init__()
         self.layer = layer
         self.colormap = colormap
         self._template = Template("""

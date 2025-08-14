@@ -5,16 +5,13 @@ Created on Fri Aug 30 14:29:47 2024
 @author: kerklaac5395
 """
 
-# Standard library imports
 from collections import namedtuple
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
-# Third party imports
 import numpy as np
 from tqdm import tqdm
 
-# Local imports
 import hhnk_research_tools.logging as logging
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter import wss_calculations, wss_loading
@@ -28,7 +25,7 @@ NAME = "WSS LookupTable"
 LU_LOOKUP_FACTOR = 100
 
 
-class DummyCaller:
+class _DummyCaller:
     """A dummy class to mock waterschadeschatter."""
 
     def __init__(self, nodata: Union[int, float]) -> None:
@@ -42,22 +39,20 @@ class WaterSchadeSchatterLookUp:
 
     bases on a configuration.
 
-    Use as follows:
-
-        wsslookup = WaterSchadeSchatterLookUp(wss_settings)
-        damage = wsslookup[depth, lu]
-
-        of
-        table = wsslookup.output
+    Example
+    -------
+    >>> wsslookup = WaterSchadeSchatterLookUp(wss_settings)
+    >>> damage = wsslookup[depth, lu]
+    >>> table = wsslookup.output
 
 
     Parameters
     ----------
     wss_settings : dict
         Dictionary met de instellingen van de waterschadeschatter.
-    depth_steps : list[float]
+    depth_steps : list[float], default is [0.1, 0.2, 0.3]
         Lijst met peilstijgingen
-    pixel_factor : float
+    pixel_factor : float, default is 0.25
         m2 per pixel
     nodata : Union[int, float]
         nodata waarde
@@ -79,7 +74,7 @@ class WaterSchadeSchatterLookUp:
         }
 
         self.pixel_factor = pixel_factor
-        self.caller = DummyCaller(nodata=nodata)
+        self.caller = _DummyCaller(nodata=nodata)
         self.depth_steps = depth_steps
         self.time = WSSTimelog(name=NAME)
         self.output = {}

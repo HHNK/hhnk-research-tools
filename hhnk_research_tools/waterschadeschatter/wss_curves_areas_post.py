@@ -1,25 +1,22 @@
-# -*- coding: utf-8 -*-
+# %%
 """
 Created on Thu Oct 10 15:27:18 2024
 
 @author: kerklaac5395
 """
 
-# Standard library imports
 import json
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 from typing import Iterator, Optional, Tuple, TypeVar, Union
 
-# Third party imports
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
 from tqdm import tqdm
 
-# Local imports
 import hhnk_research_tools.logging as logging
 from hhnk_research_tools.variables import DEFAULT_NODATA_GENERAL
 from hhnk_research_tools.waterschadeschatter.wss_curves_figures import (
@@ -375,16 +372,16 @@ class AreaDamageCurvesAggregation:
         """
 
         # interpolated volume damage curves
-        area_curve = []
+        area_curve_lst = []
         for idx, area in tqdm(areas_within.iterrows(), total=len(areas_within)):
             vol_curve = self.vol_interpolated_curve[area[ID_FIELD]].values.astype(int)
             dam_curve = self.damage_interpolated_curve[area[ID_FIELD]].values.astype(int)
             curve = pd.DataFrame(index=vol_curve, data={area[ID_FIELD]: dam_curve})
             curve = curve[~curve.index.duplicated(keep="first")]
             curve_interpolated = self._curve_linear_interpolate(curve, int_round).astype(int)
-            area_curve.append(curve_interpolated)
+            area_curve_lst.append(curve_interpolated)
 
-        area_curve = pd.concat(area_curve, axis=1, sort=True)
+        area_curve = pd.concat(area_curve_lst, axis=1, sort=True)
         area_curve = area_curve.ffill()  # all last values need to be nan
 
         area_curve.index = area_curve.index.astype(int)
@@ -589,7 +586,7 @@ class AreaDamageCurvesAggregation:
         ids = self.vector[self.field]
         figure_type = ["aggregate", "bergingscurve", "landgebruikcurve", "schadecurve"]
 
-        data = {"image_path": [], "png_path": [], "index": [], "geometry": []}
+        data: dict[str, list] = {"image_path": [], "png_path": [], "index": [], "geometry": []}
         for i in ids:
             geometry = self.vector[self.vector[self.field] == i].geometry.iloc[0]
             agg_figure_dir = self.dir.post_processing[i].figures
@@ -600,7 +597,7 @@ class AreaDamageCurvesAggregation:
                 data["index"].append(i + "_" + ftype)
                 data["geometry"].append(geometry)
 
-        output = gpd.GeoDataFrame(
+        aggregate_gdf = gpd.GeoDataFrame(
             data,
             geometry=data["geometry"],
             crs=self.vector.crs,
@@ -608,45 +605,15 @@ class AreaDamageCurvesAggregation:
             index=data["index"],
         )
 
-        local_file = self.dir.post_processing.aggregatie.path
-        output.to_file(local_file, layer="aggregatie", driver="GPKG")
+        output_file = self.dir.post_processing.aggregatie.path
+        aggregate_gdf.to_file(output_file, layer="aggregatie", driver="GPKG")
 
         # add styling
-        styling = self.create_styling(table_names=["aggregatie"])
-        gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver="GPKG")
+        styling_df = self.create_styling(table_names=["aggregatie"])
+        gpd.GeoDataFrame(styling_df).to_file(output_file, layer="layer_styles", driver="GPKG")
 
-    def create_aggregate_gpkg(self) -> None:
-        ids = self.vector[self.field]
-        figure_type = ["aggregate", "bergingscurve", "landgebruikcurve", "schadecurve"]
-
-        data = {"image_path": [], "png_path": [], "index": [], "geometry": []}
-        for i in ids:
-            geometry = self.vector[self.vector[self.field] == i].geometry.iloc[0]
-            agg_figure_dir = self.dir.post_processing[i].figures
-            for ftype in figure_type:
-                path = getattr(agg_figure_dir, ftype).path
-                data["image_path"].append("file:///" + str(path))
-                data["png_path"].append(str(path))
-                data["index"].append(i + "_" + ftype)
-                data["geometry"].append(geometry)
-
-        output = gpd.GeoDataFrame(
-            data,
-            geometry=data["geometry"],
-            crs=self.vector.crs,
-            dtype=str,
-            index=data["index"],
-        )
-
-        local_file = self.dir.post_processing.aggregatie.path
-        output.to_file(local_file, layer="aggregatie", driver="GPKG")
-
-        # add styling
-        styling = self.create_styling(table_names=["aggregatie"])
-        gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver="GPKG")
-
-    def create_styling(self, table_names):
-        qmls = [self.get_qml(name) for name in table_names]
+    def create_styling(self, table_names) -> pd.DataFrame:
+        qmls = [self._get_qml(name) for name in table_names]
         empty_str_list = [""] * len(table_names)
 
         data = {
@@ -664,13 +631,12 @@ class AreaDamageCurvesAggregation:
         }
         return pd.DataFrame(data)
 
-    def get_qml(self, layer_name):
-        QML_STYLE = f"""<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
+    def _get_qml(self, layer_name: str):
+        return f"""<!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
 <qgis version="3.22.3-Białowieża" styleCategories="MapTips">
   <mapTip>&lt;img src="[% {layer_name} %]" width=600 height=600 ></mapTip>
   <layerGeometryType>2</layerGeometryType>
 </qgis>"""
-        return QML_STYLE
 
     def create_aggregated_figures(self, agg_dir, name, feature) -> None:
         """
@@ -715,7 +681,7 @@ class AreaDamageCurvesAggregation:
             name=name,
         )
 
-    def agg_run(self, mm_rain=DEFAULT_RAIN) -> dict:
+    def agg_run(self, mm_rain: int = DEFAULT_RAIN) -> dict:
         """Create a dataframe in which methods can be compared"""
         lowest = self.aggregate_rain_curve(DEFAULT_AGG_METHODS[0], mm_rain)
         equal_depth = self.aggregate_rain_curve(DEFAULT_AGG_METHODS[1], mm_rain)
@@ -736,7 +702,7 @@ class AreaDamageCurvesAggregation:
 
         return output
 
-    def run(self, aggregation=True, mm_rain=DEFAULT_RAIN, create_html=True) -> None:
+    def run(self, aggregation: bool = True, mm_rain: int = DEFAULT_RAIN, create_html: bool = True) -> None:
         # general data
         self.damage_interpolated_curve.to_csv(self.dir.post_processing.damage_interpolated_curve.path)
         self.vol_interpolated_curve.to_csv(self.dir.post_processing.volume_interpolated_curve.path)
@@ -808,8 +774,11 @@ class AreaDamageCurvesAggregation:
             self.create_folium_html()
 
 
+# %%
 if __name__ == "__main__":
     import sys
 
     adca = AreaDamageCurvesAggregation.from_settings_json(str(sys.argv[1]))
     adca.run(aggregation=True)
+
+# %%

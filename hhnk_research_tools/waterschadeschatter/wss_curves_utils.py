@@ -1,28 +1,23 @@
-# -*- coding: utf-8 -*-
+# %%
 """
 Created on Wed Oct 16 11:07:02 2024
 
 @author: kerklaac5395
 """
 
-# Standard library imports
 import datetime
 import json
 import logging
 import math
 import os
-import pathlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-# Third party imports
-import geopandas as gp
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
-from geopandas import GeoDataFrame
 
-# Local imports
 from hhnk_research_tools import Folder
 from hhnk_research_tools.logging import get_logger
 from hhnk_research_tools.sql_functions import database_to_gdf
@@ -36,12 +31,12 @@ class AreaDamageCurveFolders(Folder):
     def __init__(self, base: Union[str, Path], create: bool = False) -> None:
         super().__init__(base, create=create)
 
-        self.input = Input(self.base, create=create)
-        self.work = Work(self.base, create=create)
-        self.output = Output(self.base, create=create)
-        self.post_processing = PostProcessing(self.base, create=create)
+        self.input = self._InputDir(self.base, create=create)
+        self.work = self._WorkDir(self.base, create=create)
+        self.output = self._OutputDir(self.base, create=create)
+        self.post_processing = self._PostProcessingDir(self.base, create=create)
 
-        if self.exists():
+        if create:
             self.create_readme()
 
     def create_readme(self) -> None:
@@ -104,137 +99,130 @@ De resultaten worden ondergebracht in een aantal mappen en bestanden:
                {self.space}└── Post (.post)
                """
 
+    class _InputDir(Folder):
+        def __init__(self, base: Union[str, Path], create: bool) -> None:
+            super().__init__(os.path.join(base, "input"), create)
+            self.add_file("dem", "dem.vrt")
+            self.add_file("lu", "lu.vrt")
+            self.add_file("lu_input", "lu_input.vrt")
+            self.add_file("area", "area.gpkg")
+            self.add_file("wss_settings", "wss_settings.json")
+            self.add_file("wss_cfg_settings", "wss_config_settings.json")
+            self.add_file("wss_curves_filter_settings", "wss_curves_filter_settings.json")
+            self.add_file("settings_json_file", "settings_json_file.json")
+            self.add_file("wss_lookup", "wss_lookup.json")
+            self.tiles = self._TilesDir(self.base, create)
+            self.custom_landuse_tiles = self._CustomLandUseTilesDir(self.base, create)
 
-class Input(Folder):
-    def __init__(self, base: Union[str, Path], create: bool) -> None:
-        super().__init__(os.path.join(base, "input"), create)
-        self.add_file("dem", "dem.vrt")
-        self.add_file("lu", "lu.vrt")
-        self.add_file("lu_input", "lu_input.vrt")
-        self.add_file("area", "area.gpkg")
-        self.add_file("wss_settings", "wss_settings.json")
-        self.add_file("wss_cfg_settings", "wss_config_settings.json")
-        self.add_file("wss_curves_filter_settings", "wss_curves_filter_settings.json")
-        self.add_file("settings_json_file", "settings_json_file.json")
-        self.add_file("wss_lookup", "wss_lookup.json")
-        self.tiles = Tiles(self.base, create)
-        self.custom_landuse_tiles = CustomLandUseTiles(self.base, create)
+        class _TilesDir(Folder):
+            def __init__(self, base: Union[str, Path], create: bool) -> None:
+                super().__init__(os.path.join(base, "tiles"), create)
 
+        class _CustomLandUseTilesDir(Folder):
+            def __init__(self, base: Union[str, Path], create: bool) -> None:
+                super().__init__(os.path.join(base, "custom_landuse_tiles"), create)
 
-class Tiles(Folder):
-    def __init__(self, base: Union[str, Path], create: bool) -> None:
-        super().__init__(os.path.join(base, "tiles"), create)
+    class _WorkDir(Folder):
+        def __init__(self, base: Union[str, Path], create: bool) -> None:
+            super().__init__(os.path.join(base, "work"), create)
+            self.run_1d = self._Run1DDir(self.base, create)
+            self.run_2d = self._Run2DDir(self.base, create)
+            self.log = self._LogDir(self.base, create)
 
+        class _Run1DDir(Folder):
+            def __init__(self, base: Union[str, Path], create: bool) -> None:
+                super().__init__(os.path.join(base, "run_1d"), create)
 
-class CustomLandUseTiles(Folder):
-    def __init__(self, base: Union[str, Path], create: bool) -> None:
-        super().__init__(os.path.join(base, "custom_landuse_tiles"), create)
+            def add_fdla_dir(self, depth_steps: List[float], name: str) -> None:
+                """Add directory fixed drainage level areas"""
+                setattr(self, f"fdla_{name}", FDLADir(self.base, False, name, depth_steps))
 
+            def add_fdla_dirs(self, depth_steps: List[float]) -> None:
+                """Add directory fixed drainage level areas"""
+                for i in self.path.glob("*"):
+                    self.add_fdla_dir(depth_steps, i.stem)
 
-class Work(Folder):
-    def __init__(self, base: Union[str, Path], create: bool) -> None:
-        super().__init__(os.path.join(base, "work"), create)
-        self.run_1d = Run1D(self.base, create)
-        self.run_2d = Run2D(self.base, create)
-        self.log = Log(self.base, create)
+            def create_fdla_dir(
+                self, name: str, depth_steps: List[float], overwrite: bool, tiled: bool = False
+            ) -> None:
+                """Create fixed drainage level areas"""
+                if (Path(self.base) / f"fdla_{name}").exists() and not overwrite:
+                    self.add_fdla_dir(depth_steps, name)
+                else:
+                    setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
 
+        class _Run2DDir(Folder):
+            def __init__(self, base: Union[str, Path], create: bool) -> None:
+                super().__init__(os.path.join(base, "run_2d"), create)
 
-class Run1D(Folder):
-    def __init__(self, base: Union[str, Path], create: bool) -> None:
-        super().__init__(os.path.join(base, "run_1d"), create)
+            def add_fdla_dir(self, depth_steps: List[float], name: str) -> None:
+                """Add directory fixed drainage level areas"""
+                setattr(self, f"fdla_{name}", FDLADir(self.base, False, name, depth_steps))
 
-    def add_fdla_dir(self, depth_steps: List[float], name: str) -> None:
-        """Add directory fixed drainage level areas"""
-        setattr(self, f"fdla_{name}", FDLADir(self.base, False, name, depth_steps))
+            def add_fdla_dirs(self, depth_steps: List[float]) -> None:
+                """Add directory fixed drainage level areas"""
+                for i in self.path.glob("*"):
+                    self.add_fdla_dir(depth_steps, i.stem)
 
-    def add_fdla_dirs(self, depth_steps: List[float]) -> None:
-        """Add directory fixed drainage level areas"""
-        for i in self.path.glob("*"):
-            self.add_fdla_dir(depth_steps, i.stem)
+            def create_fdla_dir(self, name: str, depth_steps: List[float], overwrite: bool) -> None:
+                """Create fixed drainage level areas"""
+                if (Path(self.base) / f"fdla_{name}").exists() and not overwrite:
+                    self.add_fdla_dir(depth_steps, name)
+                else:
+                    setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
 
-    def create_fdla_dir(self, name: str, depth_steps: List[float], overwrite: bool, tiled: bool = False) -> None:
-        """Create fixed drainage level areas"""
-        if (pathlib.Path(self.base) / f"fdla_{name}").exists() and not overwrite:
-            self.add_fdla_dir(depth_steps, name)
-        else:
-            setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
+        class _LogDir(Folder):
+            def __init__(self, base: Union[str, Path], create: bool) -> None:
+                super().__init__(os.path.join(base, "log"), create)
+                self.fdla = self._FDLATimeDir(self.base, create)
 
+            class _FDLATimeDir(Folder):
+                def __init__(self, base: Union[str, Path], create: bool) -> None:
+                    super().__init__(os.path.join(base, "fdla_performance"), create)
 
-class Run2D(Folder):
-    def __init__(self, base: Union[str, Path], create: bool) -> None:
-        super().__init__(os.path.join(base, "run_2d"), create)
+    class _OutputDir(Folder):
+        def __init__(self, base: Union[str, Path], create: bool) -> None:
+            super().__init__(os.path.join(base, "output"), create)
 
-    def add_fdla_dir(self, depth_steps: List[float], name: str) -> None:
-        """Add directory fixed drainage level areas"""
-        setattr(self, f"fdla_{name}", FDLADir(self.base, False, name, depth_steps))
+            self.add_file("result", "result.csv")
+            self.add_file("result_vol", "result_vol.csv")
+            self.add_file("result_lu_areas", "result_lu_areas.csv")
+            self.add_file("result_lu_damage", "result_lu_damage.csv")
+            self.add_file("failures", "failures.gpkg")
 
-    def add_fdla_dirs(self, depth_steps: List[float]) -> None:
-        """Add directory fixed drainage level areas"""
-        for i in self.path.glob("*"):
-            self.add_fdla_dir(depth_steps, i.stem)
+    class _PostProcessingDir(Folder):
+        def __init__(self, base: Union[str, Path], create: bool) -> None:
+            super().__init__(os.path.join(base, "post_processing"), create)
 
-    def create_fdla_dir(self, name: str, depth_steps: List[float], overwrite: bool) -> None:
-        """Create fixed drainage level areas"""
-        if (pathlib.Path(self.base) / f"fdla_{name}").exists() and not overwrite:
-            self.add_fdla_dir(depth_steps, name)
-        else:
-            setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
+            self.add_file("damage_interpolated_curve", "damage_interpolated_curve.csv")
+            self.add_file("volume_interpolated_curve", "volume_interpolated_curve.csv")
+            self.add_file("damage_level_curve", "damage_level_curve.csv")
+            self.add_file("vol_level_curve", "vol_level_curve.csv")
+            self.add_file("damage_per_m3", "damage_per_m3.csv")
+            self.add_file("damage_level_per_ha", "damage_level_per_ha.csv")
 
+            self.add_file("peilgebieden", "peilgebieden.gpkg")
+            self.add_file("aggregatie", "aggregatie.gpkg")
+            self.add_file("schadecurves_html", "Schadecurves.html")
 
-class Log(Folder):
-    def __init__(self, base: Union[str, Path], create: bool) -> None:
-        super().__init__(os.path.join(base, "log"), create)
-        self.fdla = FDLATime(self.base, create)
+            if create:
+                self.create_readme()
 
+        def add_aggregate_dirs(self) -> None:
+            for i in self.path.glob("*"):
+                setattr(self, i.stem, self.AggregateDir(self.base, create=True, name=i.stem))
 
-class FDLATime(Folder):
-    def __init__(self, base: Union[str, Path], create: bool) -> None:
-        super().__init__(os.path.join(base, "fdla_performance"), create)
+        def create_aggregate_dir(self, name: str):
+            directory = self.AggregateDir(self.base, create=True, name=name)
+            setattr(self, name, directory)
+            return directory
 
+        def create_figure_dir(self, fdla_ids: List[str]) -> None:
+            """Create a directory for figures for fdla's."""
+            setattr(self, "figures", self._FiguresDir(self.base, create=True, fdla_ids=fdla_ids))
 
-class Output(Folder):
-    def __init__(self, base: Union[str, Path], create: bool) -> None:
-        super().__init__(os.path.join(base, "output"), create)
-
-        self.add_file("result", "result.csv")
-        self.add_file("result_vol", "result_vol.csv")
-        self.add_file("result_lu_areas", "result_lu_areas.csv")
-        self.add_file("result_lu_damage", "result_lu_damage.csv")
-        self.add_file("failures", "failures.gpkg")
-
-
-class PostProcessing(Folder):
-    def __init__(self, base: Union[str, Path], create: bool) -> None:
-        super().__init__(os.path.join(base, "post_processing"), create)
-
-        self.add_file("damage_interpolated_curve", "damage_interpolated_curve.csv")
-        self.add_file("volume_interpolated_curve", "volume_interpolated_curve.csv")
-        self.add_file("damage_level_curve", "damage_level_curve.csv")
-        self.add_file("vol_level_curve", "vol_level_curve.csv")
-        self.add_file("damage_per_m3", "damage_per_m3.csv")
-        self.add_file("damage_level_per_ha", "damage_level_per_ha.csv")
-
-        self.add_file("peilgebieden", "peilgebieden.gpkg")
-        self.add_file("aggregatie", "aggregatie.gpkg")
-        self.add_file("schadecurves_html", "Schadecurves.html")
-
-        self.create_readme()
-
-    def add_aggregate_dirs(self) -> None:
-        for i in self.path.glob("*"):
-            setattr(self, i.stem, AggregateDir(self.base, create=True, name=i.stem))
-
-    def create_aggregate_dir(self, name: str) -> "AggregateDir":
-        directory = AggregateDir(self.base, create=True, name=name)
-        setattr(self, name, directory)
-        return directory
-
-    def create_figure_dir(self, fdla_ids: List[str]) -> None:
-        """Create a directory for figures for fdla's."""
-        setattr(self, "figures", Figures(self.base, create=True, fdla_ids=fdla_ids))
-
-    def create_readme(self) -> None:
-        readme_txt = """ 
+        def create_readme(self) -> None:
+            readme_txt = """ 
 De figures.gpkg kan gebruikt worden om grafieken te tonen in qgis.
 De volgende stappen moeten daarvoor worden uitgevoerd:
 1. Voeg de figures.gpkg toe aan QGIS.
@@ -244,7 +232,45 @@ De volgende stappen moeten daarvoor worden uitgevoerd:
 4. Zet onder view je maptips aan.
 5. Hoover over de geomtriee om de grafieken te bekijken.
 """
-        self.joinpath("read_me_qgis_grafiek_lezen.txt").write_text(readme_txt)
+            self.joinpath("read_me_qgis_grafiek_lezen.txt").write_text(readme_txt)
+
+        class AggregateDir(Folder):
+            def __init__(self, base: Union[str, Path], create: bool, name: str) -> None:
+                super().__init__(os.path.join(base, name), create)
+
+                self.add_file("agg_damage", "agg_damage.csv")
+                self.add_file("agg_landuse", "agg_landuse_area.csv")
+                self.add_file("agg_landuse_dmg", "agg_landuse_damage.csv")
+                self.add_file("agg_volume", "agg_volume.csv")
+                self.add_file("agg_damage_ha", "agg_damage_ha.csv")
+                self.add_file("agg_damage_m3", "agg_damage_m3.csv")
+                self.add_file("aggregate", "aggregate.csv")
+                self.add_file("result_lu_areas_classes", "result_lu_areas_classes.csv")
+                self.add_file("result_lu_damages_classes", "result_lu_damages_classes.csv")
+                self.add_file("selection", "selection.gpkg")
+
+            def create_figure_dir(self, name: str):
+                directory = self._AggregationFiguresDir(self.base, create=True, name=name)
+                setattr(self, "figures", directory)
+                return directory
+
+            class _AggregationFiguresDir(Folder):
+                def __init__(self, base: Union[str, Path], create: bool, name: str) -> None:
+                    super().__init__(os.path.join(base, "figures"), create)
+
+                    self.add_file("landgebruikcurve", f"landgebruikcurve_{name}.png")
+                    self.add_file("bergingscurve", f"bergingscurve_{name}.png")
+                    self.add_file("schadecurve", f"schadecurve_{name}.png")
+                    self.add_file("aggregate", f"schade_aggregate_{name}.png")
+
+        class _FiguresDir(Folder):
+            def __init__(self, base: Union[str, Path], create: bool, fdla_ids: List[str]) -> None:
+                super().__init__(os.path.join(base, "figures"), create)
+                for name in fdla_ids:
+                    self.add_file(f"landgebruikcurve_{name}", f"landgebruikcurve_{name}.png")
+                    self.add_file(f"bergingscurve_{name}", f"bergingscurve_{name}.png")
+                    self.add_file(f"schadecurve_{name}", f"schadecurve_{name}.png")
+                    self.add_file(f"aggregate_{name}", f"schade_aggregate_{name}.png")
 
 
 class FDLADir(Folder):
@@ -266,47 +292,6 @@ class FDLADir(Folder):
         #    self.add_file(f"depth_{ds}", f"depth_{ds}.tif")
         #    self.add_file(f"level_{ds}", f"level_{ds}.tif")
         #    self.add_file(f"lu_{ds}", f"lu_{ds}.tif")
-
-
-class AggregateDir(Folder):
-    def __init__(self, base: Union[str, Path], create: bool, name: str) -> None:
-        super().__init__(os.path.join(base, name), create)
-
-        self.add_file("agg_damage", "agg_damage.csv")
-        self.add_file("agg_landuse", "agg_landuse_area.csv")
-        self.add_file("agg_landuse_dmg", "agg_landuse_damage.csv")
-        self.add_file("agg_volume", "agg_volume.csv")
-        self.add_file("agg_damage_ha", "agg_damage_ha.csv")
-        self.add_file("agg_damage_m3", "agg_damage_m3.csv")
-        self.add_file("aggregate", "aggregate.csv")
-        self.add_file("result_lu_areas_classes", "result_lu_areas_classes.csv")
-        self.add_file("result_lu_damages_classes", "result_lu_damages_classes.csv")
-        self.add_file("selection", "selection.gpkg")
-
-    def create_figure_dir(self, name: str) -> "AggregationFigures":
-        directory = AggregationFigures(self.base, create=True, name=name)
-        setattr(self, "figures", directory)
-        return directory
-
-
-class AggregationFigures(Folder):
-    def __init__(self, base: Union[str, Path], create: bool, name: str) -> None:
-        super().__init__(os.path.join(base, "figures"), create)
-
-        self.add_file("landgebruikcurve", f"landgebruikcurve_{name}.png")
-        self.add_file("bergingscurve", f"bergingscurve_{name}.png")
-        self.add_file("schadecurve", f"schadecurve_{name}.png")
-        self.add_file("aggregate", f"schade_aggregate_{name}.png")
-
-
-class Figures(Folder):
-    def __init__(self, base: Union[str, Path], create: bool, fdla_ids: List[str]) -> None:
-        super().__init__(os.path.join(base, "figures"), create)
-        for name in fdla_ids:
-            self.add_file(f"landgebruikcurve_{name}", f"landgebruikcurve_{name}.png")
-            self.add_file(f"bergingscurve_{name}", f"bergingscurve_{name}.png")
-            self.add_file(f"schadecurve_{name}", f"schadecurve_{name}.png")
-            self.add_file(f"aggregate_{name}", f"schade_aggregate_{name}.png")
 
 
 class WSSTimelog:
@@ -347,20 +332,20 @@ class WSSTimelog:
 
 def write_dict(dictionary: Dict[str, Any], path: Union[str, Path], overwrite: bool = True) -> None:
     """Write dictionary to JSON file with optional overwrite protection."""
-    exists = os.path.exists(path)
-    if not exists or overwrite:
+    output_path = Path(path)
+    if not output_path.exists() or overwrite:
         with open(str(path), "w") as fp:
             json.dump(dictionary, fp)
 
 
 def pad_zeros(a: np.ndarray, shape: Tuple[int, int]) -> np.ndarray:
-    """paddes an array with zero's to shape"""
+    """Pad an array with zero's to shape"""
     z = np.zeros(shape)
     z[: a.shape[0], : a.shape[1]] = a
     return z
 
 
-def get_drainage_areas(settings_path: Union[str, Path]) -> GeoDataFrame:
+def get_drainage_areas(settings_path: Union[str, Path]) -> gpd.GeoDataFrame:
     """Load drainage areas from database using settings configuration."""
     with open(settings_path) as f:
         data = json.load(f)
@@ -371,14 +356,16 @@ def get_drainage_areas(settings_path: Union[str, Path]) -> GeoDataFrame:
     return gdf
 
 
-def fdla_performance(fdla_gdf: GeoDataFrame, tile_gdf: GeoDataFrame, fdla_time_dir: Path, folder: Path) -> None:
+def fdla_performance(
+    fdla_gdf: gpd.GeoDataFrame, tile_gdf: gpd.GeoDataFrame, fdla_time_dir: Path, folder: Path
+) -> None:
     """
     Analyze the performance of fixed drainage level areas (FDLA) by calculating the duration of processing for each area.
     """
     # Combine the tile_gdf with fdla_gdf, ensuring no duplicates based on 'pid'
     if len(tile_gdf) > 0:
         fdla_gdf = fdla_gdf[~fdla_gdf["pid"].isin(tile_gdf["ori_pid"])]
-        fdla_gdf = gp.GeoDataFrame(
+        fdla_gdf = gpd.GeoDataFrame(
             pd.concat([fdla_gdf, tile_gdf]).reset_index(),
             geometry="geometry",
             crs=fdla_gdf.crs,
@@ -420,7 +407,7 @@ def fdla_performance(fdla_gdf: GeoDataFrame, tile_gdf: GeoDataFrame, fdla_time_d
 
 def split_geometry_in_tiles(
     geometry: shapely.geometry.base.BaseGeometry, envelope_tile_size: float = 250
-) -> GeoDataFrame:
+) -> gpd.GeoDataFrame:
     """Split geometry into squares of maximum area size.
     This function takes a geometry and splits it into smaller square tiles of a specified size.
         params:
@@ -454,4 +441,4 @@ def split_geometry_in_tiles(
             if not intersection.is_empty:
                 squares.append(intersection)
 
-    return gp.GeoDataFrame(geometry=squares, crs="EPSG:28992")
+    return gpd.GeoDataFrame(geometry=squares, crs="EPSG:28992")

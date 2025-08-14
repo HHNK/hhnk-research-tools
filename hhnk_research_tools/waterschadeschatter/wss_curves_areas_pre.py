@@ -1,17 +1,12 @@
-# Standard library imports
-import pathlib
 from pathlib import Path
 from typing import Union
 
-# Third party imports
-import geopandas as gp
+import geopandas as gpd
 import numpy as np
-from geopandas import GeoSeries
 from rasterio import features
 from shapely.geometry import box
 from tqdm import tqdm
 
-# Local imports
 import hhnk_research_tools as hrt
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import split_geometry_in_tiles
@@ -50,13 +45,13 @@ class DCCustomLanduse:
         self, panden_path: Union[str, Path], landuse_raster_path: Union[str, Path], tile_size: int = 1000
     ) -> None:
         self.landuse = hrt.Raster(landuse_raster_path)
-        self.panden = gp.read_file(panden_path)
+        self.panden = gpd.read_file(panden_path)
         self.tile_size = tile_size
 
         bbox_gdal = self.landuse.metadata.bbox_gdal
-        self.extent = gp.GeoDataFrame(geometry=[box(*bbox_gdal)], crs=self.landuse.metadata.projection)
+        self.extent = gpd.GeoDataFrame(geometry=[box(*bbox_gdal)], crs=self.landuse.metadata.projection)
 
-    def tiles(self) -> GeoSeries:
+    def tiles(self) -> gpd.GeoSeries:
         """Generate tiles for processing the landuse raster in chunks."""
         return split_geometry_in_tiles(self.extent.geometry.iloc[0], envelope_tile_size=self.tile_size)
 
@@ -69,7 +64,7 @@ class DCCustomLanduse:
             tile = tiles.iloc[i]
 
             metadata = hrt.RasterMetadataV2.from_gdf(
-                gdf=gp.GeoDataFrame(tile).set_geometry(tile.name), res=self.landuse.metadata.pixel_width
+                gdf=gpd.GeoDataFrame(tile).set_geometry(tile.name), res=self.landuse.metadata.pixel_width
             )
 
             lu_array = self.landuse.read_geometry(tile.geometry, set_nan=False)
@@ -107,7 +102,7 @@ class DCCustomLanduse:
 
                     lu_array[panden_array == 1] = BAG_nummer
 
-            output_path = pathlib.Path(output_dir) / f"{PREFIX}_lu_tile_{i}.tif"
+            output_path = Path(output_dir) / f"{PREFIX}_lu_tile_{i}.tif"
             hrt.save_raster_array_to_tiff(
                 output_file=output_path,
                 raster_array=lu_array,

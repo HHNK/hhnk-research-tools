@@ -1,7 +1,7 @@
-# Standard library imports
+# %%
+from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple, Union
 
-# Third party imports
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,7 +9,6 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
-from pandas import DataFrame, Series
 
 # Globals
 STANDAARD_FIGUUR = (10, 10)
@@ -18,17 +17,21 @@ DPI = 300
 MAX_PEILVERHOGING = 2.5
 
 
+@dataclass
 class Figuur:
-    def __init__(self, figsize: Tuple[int, int] = STANDAARD_FIGUUR) -> None:
-        self.figsize = figsize
-        self.fig: Optional[Figure] = None
-        self.ax: Optional[Axes] = None
+    xlabel_description: str
+    ylabel_description: str
+    figsize: Tuple[int, int] = STANDAARD_FIGUUR
+
+    def __post_init__(self):
+        self.fig: Figure = None
+        self.ax: Axes = None
 
     def create(self) -> None:
         """Create a new figure and axis with the specified figure size."""
         self.fig, self.ax = plt.subplots(figsize=self.figsize)
 
-    def plot(self, dataframe: Union[DataFrame, Series]) -> None:
+    def plot(self, dataframe: Union[pd.DataFrame, pd.Series]) -> None:
         """Plot the given dataframe or series on the current axis."""
         if self.ax:
             self.ax.plot(dataframe)
@@ -69,8 +72,8 @@ class Figuur:
             self.ax.set_yticks(ticks, labels=labels)
 
     def set_x_y_label(self) -> None:
-        self.xlabel(self.xlabel_dsc)
-        self.ylabel(self.ylabel_dsc)
+        self.xlabel(self.xlabel_description)
+        self.ylabel(self.ylabel_description)
 
     def set_x_y_lim(self) -> None:
         self.xlim(self.xlim_min, self.xlim_max)
@@ -83,11 +86,12 @@ class Figuur:
 
 
 class CurveFiguur(Figuur):
-    def __init__(self, damage_df: DataFrame) -> None:
-        super().__init__()
+    def __init__(self, damage_df: pd.DataFrame) -> None:
+        super().__init__(
+            xlabel_description="Peilverhoging boven streefpeil (m)",
+            ylabel_description="Schadebedrag (Euro's)",
+        )
         self.df_damages = damage_df
-        self.xlabel_dsc = "Peilverhoging boven streefpeil (m)"
-        self.ylabel_dsc = "Schadebedrag (Euro's)"
 
     def run(self, output_path: str, name: str, title: str, dpi: int = DPI) -> None:
         """Generate and save a damage curve figure."""
@@ -100,15 +104,16 @@ class CurveFiguur(Figuur):
 
 class BergingsCurveFiguur(Figuur):
     def __init__(self, path: str, feature: Any) -> None:
-        super().__init__()
-        self.df_vol_level: DataFrame = pd.read_csv(path, index_col=0)
-        self.xlabel_dsc = "Waterstand (m+NAP)"
-        self.ylabel_dsc = "Volume (m3)"
+        super().__init__(
+            xlabel_description="Waterstand (m+NAP)",
+            ylabel_description="Volume (m3)",
+        )
+        self.df_vol_level: pd.DataFrame = pd.read_csv(path, index_col=0)
         self.ylabel_mm = "Berging (mm)"
         self.feature = feature
         self.ax_mm: Optional[Axes] = None
 
-    def volume2mm(self, y: NDArray) -> NDArray:
+    def volume2mm(self, y: float) -> float:
         area = self.feature.geometry.area
         return y / area * 1000
 
@@ -136,14 +141,16 @@ class BergingsCurveFiguur(Figuur):
 
 class PercentageFiguur(Figuur):
     def __init__(self, path: str, agg_dir: Any) -> None:
-        super().__init__(figsize=LANDGEBRUIK_FIGUUR)
-        self.df_lu_opp_schade: DataFrame = pd.read_csv(path, index_col=0)
+        super().__init__(
+            xlabel_description="Peilverhoging boven streefpeil (m)",
+            ylabel_description="Percentage t.o.v. totaal",
+            figsize=LANDGEBRUIK_FIGUUR,
+        )
+        self.df_lu_opp_schade: pd.DataFrame = pd.read_csv(path, index_col=0)
         self.df_lu_opp_schade.columns = pd.Series(self.df_lu_opp_schade.columns).str.split(" ").str[0]
-        self.df_sum_damages: DataFrame = pd.read_csv(agg_dir.agg_damage.path, index_col=0)
+        self.df_sum_damages: pd.DataFrame = pd.read_csv(agg_dir.agg_damage.path, index_col=0)
         self.agg_dir = agg_dir
 
-        self.xlabel_dsc: str = "Peilverhoging boven streefpeil (m)"
-        self.ylabel_dsc: str = "Percentage t.o.v. totaal"
         self.xlim_min: float = 0.1
         self.xlim_max: float = MAX_PEILVERHOGING
         self.ylim_min: float = 0
@@ -156,7 +163,7 @@ class PercentageFiguur(Figuur):
         self.xticks(self.x_ticks_list)
         self.yticks(ticks=self.y_ticks_list, labels=self.ylabels)
 
-    def handles_legend(self, lu_omzetting: DataFrame) -> None:
+    def handles_legend(self, lu_omzetting: pd.DataFrame) -> None:
         nieuwe_klasses = np.array(lu_omzetting["nieuwe_klasse"].unique())
         self.color_dict = {}
         colors = []
@@ -196,7 +203,7 @@ class PercentageFiguur(Figuur):
         self.ax2.set_ylabel("Schadebedrag (Euro's)")
         self.ax2.set_ylim(bottom=0)
 
-    def combine_classes(self, lu_omzetting: DataFrame, output_path: str) -> None:
+    def combine_classes(self, lu_omzetting: pd.DataFrame, output_path: str) -> None:
         nieuwe_klasses = np.array(lu_omzetting["nieuwe_klasse"].unique())
         samenvoeging_klasses = {
             "fid": self.df_lu_opp_schade["fid"]
@@ -217,7 +224,7 @@ class LandgebruikCurveFiguur(PercentageFiguur):
         super().__init__(path, agg_dir)
 
     def run(
-        self, lu_omzetting: DataFrame, output_path: str, name: str, schadecurve_totaal: bool = False, dpi: int = DPI
+        self, lu_omzetting: pd.DataFrame, output_path: str, name: str, schadecurve_totaal: bool = False, dpi: int = DPI
     ) -> None:
         ids = np.array(self.df_lu_opp_schade["fid"].unique())
         for id in ids:
@@ -250,7 +257,7 @@ class DamagesLuCurveFiguur(PercentageFiguur):
         super().__init__(path, agg_dir)
 
     def run(
-        self, lu_omzetting: DataFrame, output_path: str, name: str, schadecurve_totaal: bool = False, dpi: int = DPI
+        self, lu_omzetting: pd.DataFrame, output_path: str, name: str, schadecurve_totaal: bool = False, dpi: int = DPI
     ) -> None:
         ids = np.array(self.df_lu_opp_schade["fid"].unique())
         for id in ids:
@@ -282,10 +289,11 @@ class DamagesLuCurveFiguur(PercentageFiguur):
 # %%
 class DamagesAggFiguur(Figuur):
     def __init__(self, agg_csv_dir: str) -> None:
-        super().__init__()
+        super().__init__(
+            xlabel_description="Volume (m3)",
+            ylabel_description="Schadebedrag (Euro's)",
+        )
         self.df_agg_csv = pd.read_csv(agg_csv_dir)
-        self.xlabel_dsc = "Volume (m3)"
-        self.ylabel_dsc = "Schadebedrag (Euro's)"
         self.xlim_min = 0
         self.xlim_max = self.df_agg_csv["Volume [m3]"].max() * 1.1
         self.ylim_min = 0
