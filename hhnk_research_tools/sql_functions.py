@@ -2,6 +2,7 @@
 import os
 import re
 import sqlite3
+import sys
 from typing import Optional, Tuple
 
 import geopandas as gpd
@@ -324,7 +325,7 @@ def sql_builder_select_by_location(
     epsg_code="28992",
     simplify=False,
     include_todays_mutations=False,
-):
+) -> str:
     """Create Oracle 12 SQL with intersection polygon.
 
     Parameters
@@ -384,7 +385,7 @@ def sql_builder_select_by_id_list_statement(
     sub_table: str,
     sub_id_column: str,
     include_todays_mutations=False,
-):
+) -> str:
     """Create Oracle 12 SQL using extra statement that list id's from another table.
     Created for 'Profielen' and other table from DAMO_W database.
 
@@ -417,7 +418,7 @@ WHERE {sub_id_column} IN (
     return sql
 
 
-def _oracle_curve_polygon_to_linear(blob_curvepolygon):
+def _oracle_curve_polygon_to_linear(blob_curvepolygon) -> Optional[Polygon]:
     """
     Turn curved polygon from oracle database into linear one
     (so it can be used in geopandas)
@@ -442,7 +443,7 @@ def _oracle_curve_polygon_to_linear(blob_curvepolygon):
     return g2
 
 
-def _remove_blob_columns(df):
+def _remove_blob_columns(df) -> pd.DataFrame:
     """
     Remove columns that stay in blob from oracle database.
     Blob columns prohibit further processing of the data
@@ -507,8 +508,9 @@ def database_to_gdf(
 
     Returns
     -------
-    gdf : gpd.GeoDataFrame
-        gdf with data and (linear) geometry, colum names in lowercase.
+    df : pandas.DataFrame or geopandas.GeoDataFrame
+        DataFrame or GeoDataFrame containing the query results. If a geometry column is present,
+        a GeoDataFrame is returned; otherwise, a regular DataFrame.
     sql : str
         The used sql in the request.
 
@@ -616,7 +618,7 @@ def get_table_columns(
     db_dict: dict,
     schema: str,
     table_name: str,
-):
+) -> list[str]:
     """
     Connect to (oracle) databaseand retrieve table columns
 
@@ -653,7 +655,7 @@ def get_table_columns(
     return columns_out
 
 
-def get_tables_from_oracle_db(db_dict: dict):
+def get_tables_from_oracle_db(db_dict: dict) -> pd.DataFrame:
     """
     Get list of all tables in database.
 
@@ -676,14 +678,14 @@ def get_tables_from_oracle_db(db_dict: dict):
     return tables_df
 
 
-def get_table_domains_from_oracle(
+def get_table_domains_from_DAMO(
     db_dict: dict,
-    schema: str,
     table_name: str,
-    column_list: list[str] = None,
-):
+) -> pd.DataFrame:
     """
-    Get domain for DAMO_W tables.
+    Get domain for DAMO_W table.
+
+    So Only works for DAMO_W schema.
 
     Parameters
     ----------
@@ -694,76 +696,75 @@ def get_table_domains_from_oracle(
         'password': '',
         'host': '',
         'port': ''}
-    schema : str
-        schema name
+
     table_name : str
         Table name
-    column_list : str
-        List of column names for which to retrieve the domains.
     """
 
-    if schema == "DAMO_W":
-        if column_list is None:
-            column_list = get_table_columns(db_dict=db_dict, schema=schema, table_name=table_name)
+    # query to get mapping of columns to domains (table to column to domain)
+    map_query = f"""
+            SELECT *
+            FROM DAMO_W.DAMOKOLOM
+            WHERE LOWER(DAMOTABELNAAM) = '{table_name.lower()}'
+            AND DAMODOMEINNAAM IS NOT NULL
+            """
 
-        # make all items list columnlist lowercase
-        column_list = [c.lower() for c in column_list]
+    # Domein tabellen bevatten niet meer de tabelnaam, alleen nog de domeinnaam.
+    # TODO Het is efficienter om alleen de relevante domeinen op te halen, maar de database
+    # verbinding is nu snel genoeg.
 
-        # standard queries
-        map_query = f"""
-                SELECT *
-                FROM DAMO_W.DAMOKOLOM
-                WHERE LOWER(DAMOTABELNAAM) = '{table_name.lower()}'
-                AND DAMODOMEINNAAM IS NOT NULL
-                """
-        domain_query = """
-                SELECT *
-                FROM DAMO_W.DAMODOMEINWAARDE
-                """
-        # Query database
-        with oracledb.connect(**db_dict) as con:
-            cur = oracledb.Cursor(con)
-            map_df = execute_sql_selection(map_query, conn=con)
-            map_df.columns = map_df.columns.str.lower()
-            map_df = map_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
-            # select relevant domains for columns
-            map_df = map_df[map_df["damokolomnaam"].isin(column_list)]
+    # queries to get domain values (domain to domain values)
+    domain_query = "SELECT * FROM DAMO_W.DAMODOMEINWAARDE"
+    domain_ws_query = "SELECT * FROM GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV"
 
-            # List domains from DAMO
-            domain_df = execute_sql_selection(domain_query, conn=con)
-            domain_df.columns = domain_df.columns.str.lower()
-            domain_df = domain_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+    # TODO (#26141) GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV is niet de juiste bron voor de ws domeinen.
 
-        domains = pd.DataFrame()
-        for i in map_df["damodomeinnaam"].unique():
-            # Select relevant domains
-            domain_rules = domain_df[domain_df["damodomeinnaam"] == i]
-            domain_rules = domain_rules[
-                [
-                    "damodomeinnaam",
-                    "codedomeinwaarde",
-                    "naamdomeinwaarde",
-                    "fieldtype",
-                ]
-            ]
-            # select relevant mapping columns
-            mapping = map_df[map_df["damodomeinnaam"] == i]
-            mapping = mapping[
-                [
-                    "damotabelnaam",
-                    "damokolomnaam",
-                    "damodomeinnaam",
-                    "definitie",
-                ]
-            ]
+    # Retrieve dataframe with mapping of columns to domains (table to column to domain)
+    map_df, map_sql = database_to_gdf(db_dict=db_dict, sql=map_query, lower_cols=True)
 
-            # join mapping and domain
-            df = mapping.merge(domain_rules, on="damodomeinnaam", how="left")
+    # Retrieve dataframe with domain values (domain to domain values)
+    domain_df, domain_sql = database_to_gdf(db_dict=db_dict, sql=domain_query, lower_cols=True)
+    domain_ws_df, domain_ws_sql = database_to_gdf(db_dict=db_dict, sql=domain_ws_query, lower_cols=True)
 
-            domains = pd.concat([domains, df], ignore_index=True)
-
-        return domains
-
+    # Convert all domains to lowercase
+    if "3.9" in sys.version:
+        # TODO required to work with py39, remove after migration to py312 of hhnk-threedi-tools.
+        map_df = map_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+        domain_df = domain_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+        domain_ws_df = domain_ws_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
     else:
-        logger.warning("Schema not supported, only DAMO_W contains domains.")
-        return None
+        map_df = map_df.map(lambda x: x.lower() if isinstance(x, str) else x)
+        domain_df = domain_df.map(lambda x: x.lower() if isinstance(x, str) else x)
+        domain_ws_df = domain_ws_df.map(lambda x: x.lower() if isinstance(x, str) else x)
+
+    # Select relevant columns from  mapping
+    map_df = map_df[["damotabelnaam", "damokolomnaam", "damodomeinnaam", "definitie"]]
+
+    # Rename columns to match DAMO_W.DAMODOMEINWAARDE
+    domain_ws_df.rename(
+        columns={
+            "domainname": "damodomeinnaam",
+            "code": "codedomeinwaarde",
+            "name": "naamdomeinwaarde",
+            "fieldtype": "fieldtype",
+        },
+        inplace=True,
+    )
+
+    # Concatenate domain values from both dataframes
+    domain_all_df = pd.concat([domain_df, domain_ws_df], ignore_index=True).copy()
+    # Select relevant columns from domain_all_df
+    domain_all_df = domain_all_df[["damodomeinnaam", "codedomeinwaarde", "naamdomeinwaarde", "fieldtype"]]
+
+    # select domains from domain_all_df that are in the map_df
+    domain_tablename_df = domain_all_df[domain_all_df["damodomeinnaam"].isin(map_df["damodomeinnaam"].unique())]
+
+    # Check if there are no domains
+    if domain_tablename_df.empty:
+        logger.warning(f"No domains found for {table_name}")
+        return pd.DataFrame()
+
+    # join mapping and domain
+    domains = map_df.merge(domain_tablename_df, on="damodomeinnaam", how="left")
+
+    return domains
