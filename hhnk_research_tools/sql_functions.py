@@ -2,6 +2,7 @@
 import os
 import re
 import sqlite3
+import sys
 from typing import Optional, Tuple
 
 import geopandas as gpd
@@ -507,8 +508,9 @@ def database_to_gdf(
 
     Returns
     -------
-    df : gpd.GeoDataFrame
-        df or gdf with data and (linear) geometry, colum names in lowercase.
+    df : pandas.DataFrame or geopandas.GeoDataFrame
+        DataFrame or GeoDataFrame containing the query results. If a geometry column is present,
+        a GeoDataFrame is returned; otherwise, a regular DataFrame.
     sql : str
         The used sql in the request.
 
@@ -709,7 +711,7 @@ def get_table_domains_from_oracle(
         # make all items list columnlist lowercase
         column_list = [c.lower() for c in column_list]
 
-        # standard queries
+        # query to get mapping of columns to domains (table to column to domain)
         map_query = f"""
                 SELECT *
                 FROM DAMO_W.DAMOKOLOM
@@ -720,26 +722,36 @@ def get_table_domains_from_oracle(
         # Domein tabellen bevatten niet meer de tabelnaam, alleen nog de domeinnaam.
         # TODO Het is efficienter om alleen de relevante domeinen op te halen, maar de database
         # verbinding is nu snel genoeg.
+
+        # queries to get domain values (domain to domain values)
         domain_query = "SELECT * FROM DAMO_W.DAMODOMEINWAARDE"
         domain_ws_query = "SELECT * FROM GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV"
 
-        # Get dataframes from database
+        # Retrieve dataframe with mapping of columns to domains (table to column to domain)
         map_df, map_sql = database_to_gdf(db_dict=db_dict, sql=map_query, lower_cols=True)
+
+        # Retrieve dataframe with domain values (domain to domain values)
         domain_df, domain_sql = database_to_gdf(db_dict=db_dict, sql=domain_query, lower_cols=True)
         domain_ws_df, domain_ws_sql = database_to_gdf(db_dict=db_dict, sql=domain_ws_query, lower_cols=True)
 
-        # lowercase all columns
-        map_df.columns = map_df.columns.str.lower()
-        domain_df.columns = domain_df.columns.str.lower()
-        domain_ws_df.columns = domain_ws_df.columns.str.lower()
-
         # Convert all domains to lowercase
-        map_df = map_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
-        domain_df = domain_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
-        domain_ws_df = domain_ws_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+        if "3.9" in sys.version:
+            # TODO required to work with py39, remove after migration to py312 of hhnk-threedi-tools.
+            map_df = map_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+            domain_df = domain_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+            domain_ws_df = domain_ws_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+        else:
+            map_df = map_df.map(lambda x: x.lower() if isinstance(x, str) else x)
+            domain_df = domain_df.map(lambda x: x.lower() if isinstance(x, str) else x)
+            domain_ws_df = domain_ws_df.map(lambda x: x.lower() if isinstance(x, str) else x)
 
         # select relevant domains for columns
-        map_df = map_df[map_df["damokolomnaam"].isin(column_list)]
+        map_col_df = map_df[map_df["damokolomnaam"].isin(column_list)].copy()
+
+        # Check if there are no columns in the map_col_df
+        if map_col_df.empty:
+            logger.warning(f"No domains found for columns of {table_name}")
+            return pd.DataFrame()
 
         # Rename columns to match DAMO_W.DAMODOMEINWAARDE
         domain_ws_df.rename(
@@ -757,7 +769,7 @@ def get_table_domains_from_oracle(
 
         # Create dataframe that holds domains
         domains = pd.DataFrame()
-        for i in map_df["damodomeinnaam"].unique():
+        for i in map_col_df["damodomeinnaam"].unique():
             if i not in domain_df["damodomeinnaam"].unique() and i not in domain_ws_df["damodomeinnaam"].unique():
                 logger.warning(
                     f"Domain {i} not found in DAMO_W.DAMODOMEINWAARDE or GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV."
@@ -767,7 +779,7 @@ def get_table_domains_from_oracle(
             # Check if domain is in the domain_df
             if i in domain_df["damodomeinnaam"].unique():
                 logger.debug(f"Domain {i} found in DAMO_W.DAMODOMEINWAARDE.")
-                domain_damo_rules = domain_df[domain_df["damodomeinnaam"] == i]
+                domain_damo_rules = domain_df[domain_df["damodomeinnaam"] == i].copy()
                 domain_damo_rules = domain_damo_rules[
                     [
                         "damodomeinnaam",
@@ -779,7 +791,7 @@ def get_table_domains_from_oracle(
             # Check if domain is in the domain_ws_df
             if i in domain_ws_df["damodomeinnaam"].unique():
                 logger.debug(f"Domain {i} found in DAMO_W.GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV.")
-                domain_ws_rules = domain_ws_df[domain_ws_df["damodomeinnaam"] == i]
+                domain_ws_rules = domain_ws_df[domain_ws_df["damodomeinnaam"] == i].copy()
                 domain_ws_rules = domain_ws_rules[
                     [
                         "damodomeinnaam",
@@ -789,10 +801,10 @@ def get_table_domains_from_oracle(
                     ]
                 ]
             # Combine the domain rules found in both dataframes
-            domain_rules = pd.concat([domain_damo_rules, domain_ws_rules], ignore_index=True)
+            domain_rules = pd.concat([domain_damo_rules, domain_ws_rules], ignore_index=True).copy()
 
             # select relevant mapping columns
-            mapping = map_df[map_df["damodomeinnaam"] == i]
+            mapping = map_col_df[map_col_df["damodomeinnaam"] == i]
             mapping = mapping[
                 [
                     "damotabelnaam",
