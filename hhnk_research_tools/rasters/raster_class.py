@@ -452,7 +452,7 @@ class Raster(File):
     def round_nearest(self, x, a):
         return round(round(x / a) * a, -int(math.floor(math.log10(a))))
 
-    def read_geometry(self, geometry: shapely.geometry.Polygon, set_nan=True) -> np.array:
+    def read_geometry(self, geometry: shapely.geometry.Polygon, set_nan: bool = True) -> np.array:
         """
         Read data within geometry. Outside geometry is set to NaN.
 
@@ -460,6 +460,8 @@ class Raster(File):
         ----------
         geometry : shapely.geometry
             Geometry in which the data is read.
+        set_nan : bool, default=True
+            If True, outside the geometry will be set to NaN instead of nodata value.
 
         """
         resolution = self.metadata.pixel_width
