@@ -11,7 +11,7 @@ from hhnk_research_tools.sql_functions import (
     _remove_blob_columns,
     database_to_gdf,
     get_table_columns,
-    get_table_domains_from_oracle,
+    get_table_domains_from_DAMO,
     sql_builder_select_by_location,
 )
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
@@ -22,7 +22,6 @@ logger = logging.get_logger(name=__name__)
 
 def test_database_to_gdf_damo():
     """test_database_to_gdf for DAMO table"""
-    # %%
     gpkg_path = TEST_DIRECTORY / r"area_test_sql_helsdeur.gpkg"
 
     db_dict = DATABASES.get("aquaprd_lezen", None)
@@ -48,7 +47,6 @@ def test_database_to_gdf_damo():
 
 def test_bgt_database_to_gdf_bgt():
     """test_database_to_gdf"""
-
     gpkg_path = TEST_DIRECTORY / r"area_test_sql_helsdeur.gpkg"
 
     db_dict = DATABASES.get("bgt_lezen", None)
@@ -72,9 +70,6 @@ def test_bgt_database_to_gdf_bgt():
     assert gdf.loc[0, "id"] == 9728209
 
 
-# %%
-
-
 def test_database_to_gdf_no_cols():
     sql = """SELECT a.OBJECTID, a.CODE, a.NAAM,a.REGIEKAMER, 
                 b.NAAM as ZUIVERINGSKRING, a.SHAPE
@@ -94,8 +89,6 @@ def test_database_to_gdf_no_cols():
     with pytest.raises(ValueError):
         gdf, sql2 = database_to_gdf(db_dict=db_dict, sql=sql, columns=columns)
 
-    # %%
-
 
 def test_remove_blob_cols():
     db_dict = DATABASES.get("aquaprd_lezen", None)
@@ -110,7 +103,6 @@ def test_remove_blob_cols():
     gdf2 = _remove_blob_columns(gdf)
 
     display(gdf)
-    # %%
 
 
 def test_get_table_columns():
@@ -120,7 +112,6 @@ def test_get_table_columns():
     postges syntax for 'FETCH FIRST 0 ROWS ONLY' is different
     from Oracle.
     """
-    # %%
     db_dict = DATABASES.get("aquaprd_lezen", None)
 
     columns = get_table_columns(
@@ -132,23 +123,17 @@ def test_get_table_columns():
     assert "NAAM" in columns
     assert "SHAPE" in columns
 
-    # %%
 
-
-def test_get_table_domains_from_oracle():
+def test_get_table_domains_from_DAMO():
     """Test to get domaintable from DAMO_W."""
     db_dict = DATABASES.get("aquaprd_lezen", None)
-    schema = "DAMO_W"
     table_name = "GEMAAL"
 
-    domains = get_table_domains_from_oracle(
+    domains = get_table_domains_from_DAMO(
         db_dict=db_dict,
-        schema=schema,
         table_name=table_name,
     )
     assert domains[domains["naamdomeinwaarde"] == "afvoeren"]["codedomeinwaarde"].values[0] == "2"
 
-    # %%
 
-
-# NOTE remove
+# %%

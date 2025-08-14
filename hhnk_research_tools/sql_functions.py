@@ -678,13 +678,14 @@ def get_tables_from_oracle_db(db_dict: dict) -> pd.DataFrame:
     return tables_df
 
 
-def get_table_domains_from_oracle(
+def get_table_domains_from_DAMO(
     db_dict: dict,
-    schema: str,
     table_name: str,
 ) -> pd.DataFrame:
     """
     Get domain for DAMO_W table.
+
+    So Only works for DAMO_W schema.
 
     Parameters
     ----------
@@ -695,81 +696,75 @@ def get_table_domains_from_oracle(
         'password': '',
         'host': '',
         'port': ''}
-    schema : str
-        schema name
+
     table_name : str
         Table name
     """
 
-    if schema == "DAMO_W":
-        # query to get mapping of columns to domains (table to column to domain)
-        map_query = f"""
-                SELECT *
-                FROM DAMO_W.DAMOKOLOM
-                WHERE LOWER(DAMOTABELNAAM) = '{table_name.lower()}'
-                AND DAMODOMEINNAAM IS NOT NULL
-                """
+    # query to get mapping of columns to domains (table to column to domain)
+    map_query = f"""
+            SELECT *
+            FROM DAMO_W.DAMOKOLOM
+            WHERE LOWER(DAMOTABELNAAM) = '{table_name.lower()}'
+            AND DAMODOMEINNAAM IS NOT NULL
+            """
 
-        # Domein tabellen bevatten niet meer de tabelnaam, alleen nog de domeinnaam.
-        # TODO Het is efficienter om alleen de relevante domeinen op te halen, maar de database
-        # verbinding is nu snel genoeg.
+    # Domein tabellen bevatten niet meer de tabelnaam, alleen nog de domeinnaam.
+    # TODO Het is efficienter om alleen de relevante domeinen op te halen, maar de database
+    # verbinding is nu snel genoeg.
 
-        # queries to get domain values (domain to domain values)
-        domain_query = "SELECT * FROM DAMO_W.DAMODOMEINWAARDE"
-        domain_ws_query = "SELECT * FROM GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV"
+    # queries to get domain values (domain to domain values)
+    domain_query = "SELECT * FROM DAMO_W.DAMODOMEINWAARDE"
+    domain_ws_query = "SELECT * FROM GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV"
 
-        # TODO (#26141) GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV is niet de juiste bron voor de ws domeinen.
+    # TODO (#26141) GEO_DB_BEHEER.PRD_DOMAIN_NEWXMLTYPE_MV is niet de juiste bron voor de ws domeinen.
 
-        # Retrieve dataframe with mapping of columns to domains (table to column to domain)
-        map_df, map_sql = database_to_gdf(db_dict=db_dict, sql=map_query, lower_cols=True)
+    # Retrieve dataframe with mapping of columns to domains (table to column to domain)
+    map_df, map_sql = database_to_gdf(db_dict=db_dict, sql=map_query, lower_cols=True)
 
-        # Retrieve dataframe with domain values (domain to domain values)
-        domain_df, domain_sql = database_to_gdf(db_dict=db_dict, sql=domain_query, lower_cols=True)
-        domain_ws_df, domain_ws_sql = database_to_gdf(db_dict=db_dict, sql=domain_ws_query, lower_cols=True)
+    # Retrieve dataframe with domain values (domain to domain values)
+    domain_df, domain_sql = database_to_gdf(db_dict=db_dict, sql=domain_query, lower_cols=True)
+    domain_ws_df, domain_ws_sql = database_to_gdf(db_dict=db_dict, sql=domain_ws_query, lower_cols=True)
 
-        # Convert all domains to lowercase
-        if "3.9" in sys.version:
-            # TODO required to work with py39, remove after migration to py312 of hhnk-threedi-tools.
-            map_df = map_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
-            domain_df = domain_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
-            domain_ws_df = domain_ws_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
-        else:
-            map_df = map_df.map(lambda x: x.lower() if isinstance(x, str) else x)
-            domain_df = domain_df.map(lambda x: x.lower() if isinstance(x, str) else x)
-            domain_ws_df = domain_ws_df.map(lambda x: x.lower() if isinstance(x, str) else x)
-
-        # Select relevant columns from  mapping
-        map_df = map_df[["damotabelnaam", "damokolomnaam", "damodomeinnaam", "definitie"]]
-
-        # Rename columns to match DAMO_W.DAMODOMEINWAARDE
-        domain_ws_df.rename(
-            columns={
-                "domainname": "damodomeinnaam",
-                "code": "codedomeinwaarde",
-                "name": "naamdomeinwaarde",
-                "fieldtype": "fieldtype",
-            },
-            inplace=True,
-        )
-
-        # Concatenate domain values from both dataframes
-        domain_all_df = pd.concat([domain_df, domain_ws_df], ignore_index=True).copy()
-        # Select relevant columns from domain_all_df
-        domain_all_df = domain_all_df[["damodomeinnaam", "codedomeinwaarde", "naamdomeinwaarde", "fieldtype"]]
-
-        # select domains from domain_all_df that are in the map_df
-        domain_tablename_df = domain_all_df[domain_all_df["damodomeinnaam"].isin(map_df["damodomeinnaam"].unique())]
-
-        # Check if there are no domains
-        if domain_tablename_df.empty:
-            logger.warning(f"No domains found for {table_name}")
-            return pd.DataFrame()
-
-        # join mapping and domain
-        domains = map_df.merge(domain_tablename_df, on="damodomeinnaam", how="left")
-
-        return domains
-
+    # Convert all domains to lowercase
+    if "3.9" in sys.version:
+        # TODO required to work with py39, remove after migration to py312 of hhnk-threedi-tools.
+        map_df = map_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+        domain_df = domain_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+        domain_ws_df = domain_ws_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
     else:
-        logger.warning("Schema not supported, only DAMO_W contains domains.")
+        map_df = map_df.map(lambda x: x.lower() if isinstance(x, str) else x)
+        domain_df = domain_df.map(lambda x: x.lower() if isinstance(x, str) else x)
+        domain_ws_df = domain_ws_df.map(lambda x: x.lower() if isinstance(x, str) else x)
+
+    # Select relevant columns from  mapping
+    map_df = map_df[["damotabelnaam", "damokolomnaam", "damodomeinnaam", "definitie"]]
+
+    # Rename columns to match DAMO_W.DAMODOMEINWAARDE
+    domain_ws_df.rename(
+        columns={
+            "domainname": "damodomeinnaam",
+            "code": "codedomeinwaarde",
+            "name": "naamdomeinwaarde",
+            "fieldtype": "fieldtype",
+        },
+        inplace=True,
+    )
+
+    # Concatenate domain values from both dataframes
+    domain_all_df = pd.concat([domain_df, domain_ws_df], ignore_index=True).copy()
+    # Select relevant columns from domain_all_df
+    domain_all_df = domain_all_df[["damodomeinnaam", "codedomeinwaarde", "naamdomeinwaarde", "fieldtype"]]
+
+    # select domains from domain_all_df that are in the map_df
+    domain_tablename_df = domain_all_df[domain_all_df["damodomeinnaam"].isin(map_df["damodomeinnaam"].unique())]
+
+    # Check if there are no domains
+    if domain_tablename_df.empty:
+        logger.warning(f"No domains found for {table_name}")
         return pd.DataFrame()
+
+    # join mapping and domain
+    domains = map_df.merge(domain_tablename_df, on="damodomeinnaam", how="left")
+
+    return domains
