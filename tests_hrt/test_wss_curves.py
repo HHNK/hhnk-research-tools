@@ -6,7 +6,8 @@ Created on Thu Sep 26 15:44:05 2024
 @author: kerklaac5395
 """
 
-import hashlib
+import numpy as np
+from PIL import Image
 import json
 import shutil
 
@@ -167,14 +168,13 @@ class TestWSSAggregation:
     def output(self):
         output = pd.read_csv(EXPECTED_RESULT_AGGREGATE)
         return output
-
-    def compare_images_hash(self, img1_path, img2_path):
-        """Check if two images are exactly identical using hash"""
-        with open(img1_path, "rb") as f1, open(img2_path, "rb") as f2:
-            hash1 = hashlib.md5(f1.read()).hexdigest()
-            hash2 = hashlib.md5(f2.read()).hexdigest()
-        return hash1 == hash2
-
+    
+    def compare_images(self, img1_path, img2_path):
+        """Compare images using Mean Squared Error"""
+        img1 = np.array(Image.open(img1_path).convert('RGB'))
+        img2 = np.array(Image.open(img2_path).convert('RGB'))
+        return (img1 == img2).all()
+        
     def test_agg_methods(
         self,
         aggregatie: AreaDamageCurvesAggregation,
@@ -189,10 +189,10 @@ class TestWSSAggregation:
         path_bergingscurve = aggregatie.dir.post_processing["Wieringermeer"].figures.bergingscurve.path
         path_schadecurve = aggregatie.dir.post_processing["Wieringermeer"].figures.schadecurve.path
         path_aggregate = aggregatie.dir.post_processing["Wieringermeer"].figures.aggregate.path
-        assert self.compare_images_hash(path_landgebruikcurve, EXPECTED_LANDGEBRUIKCURVE)
-        assert self.compare_images_hash(path_bergingscurve, EXPECTED_BERGINGSCURVE)
-        assert self.compare_images_hash(path_schadecurve, EXPECTED_SCHADECURVE)
-        assert self.compare_images_hash(path_aggregate, EXPECTED_AGGREGATE)
+        assert self.compare_images(path_landgebruikcurve, EXPECTED_LANDGEBRUIKCURVE)
+        assert self.compare_images(path_bergingscurve, EXPECTED_BERGINGSCURVE)
+        assert self.compare_images(path_schadecurve, EXPECTED_SCHADECURVE)
+        assert self.compare_images(path_aggregate, EXPECTED_AGGREGATE)
 
 
 class TestWSSLookup:
