@@ -36,8 +36,8 @@ from hhnk_research_tools.rasters.raster_class import Raster
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas_pre import (
     PREFIX,
+    CustomLanduse,
 )
-from hhnk_research_tools.waterschadeschatter.wss_curves_areas_pre import CustomLanduse
 from hhnk_research_tools.waterschadeschatter.wss_curves_lookup import (
     LU_LOOKUP_FACTOR,
     WaterSchadeSchatterLookUp,

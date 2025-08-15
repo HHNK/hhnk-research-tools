@@ -1,6 +1,8 @@
 import math
+
 import geopandas as gpd
 import shapely
+
 
 def split_geometry_in_squares(geometry: shapely.geometry, max_area: float = 10000) -> gpd.GeoDataFrame:
     """Split geometry into squares of maximum area size."""

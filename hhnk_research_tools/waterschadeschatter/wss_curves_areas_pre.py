@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 import hhnk_research_tools as hrt
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
-from hhnk_research_tools.waterschadeschatter.wss_curves_utils import split_geometry_in_tiles, pad_zeros
+from hhnk_research_tools.waterschadeschatter.wss_curves_utils import pad_zeros, split_geometry_in_tiles
 
 # globals
 PREFIX = "damage_curve"

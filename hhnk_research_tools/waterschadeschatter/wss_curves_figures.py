@@ -2,11 +2,11 @@
 from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple, Union
 
+import geopandas as gp
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import geopandas as gp
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray

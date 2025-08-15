@@ -85,11 +85,11 @@ class WaterSchadeSchatterLookUp:
 
     def run(self, flatten: bool = True) -> None:
         """Generate lookup table for all landuse-depth combinations.
-          
-            Parameters
-            ----------
-            Flatten : bool
-                Unnests the dictionary and replaces it by a code (lu*LU_LOOKUP_FACTOR)+depth_step.
+
+        Parameters
+        ----------
+        Flatten : bool
+            Unnests the dictionary and replaces it by a code (lu*LU_LOOKUP_FACTOR)+depth_step.
         """
         self.time.log("Start generating table")
 

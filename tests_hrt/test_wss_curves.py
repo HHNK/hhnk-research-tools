@@ -5,19 +5,21 @@ Created on Thu Sep 26 15:44:05 2024
 
 @author: kerklaac5395
 """
-import shutil
+
 import hashlib
+import json
+import shutil
+
 import pandas as pd
 import pytest
-import json
 
 import hhnk_research_tools as hrt
 import hhnk_research_tools.waterschadeschatter.resources as wss_resources
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas import AreaDamageCurves
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas_post import AreaDamageCurvesAggregation
-from hhnk_research_tools.waterschadeschatter.wss_curves_utils import AreaDamageCurveFolders
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas_pre import CustomLanduse
 from hhnk_research_tools.waterschadeschatter.wss_curves_lookup import WaterSchadeSchatterLookUp
+from hhnk_research_tools.waterschadeschatter.wss_curves_utils import AreaDamageCurveFolders
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
 
 WSS_DATA = TEST_DIRECTORY / "wss_curves"
@@ -56,14 +58,16 @@ EXPECTED_LOOKUP = WSS_DATA / "wss_lookup_test.json"
 
 # %%
 
+
 class TestCustomLanduse:
     def test_custom_landuse(self):
         cl = CustomLanduse(PANDEN_PATH, LU_PATH)
         cl.run(OUTPUT_DIR)
-        
+
         o = hrt.Raster(OUTPUT_DIR / "damage_curve_lu_tile_0.tif")
         r = hrt.Raster(LU_CUSTOM_PATH)
         assert (r._read_array() == o._read_array()).all()
+
 
 class TestWSSAggregationFolders:
     """Generieke test, in onderstaande test worden ook output bestande getest"""
@@ -134,17 +138,17 @@ class TestWSSCurves:
         pd.testing.assert_frame_equal(output_optimized, test_output)
 
     def test_lookup(self, schadecurves: AreaDamageCurves):
-        lookup = WaterSchadeSchatterLookUp(wss_settings=schadecurves.wss_settings, 
-                                           depth_steps=[0,1])
+        lookup = WaterSchadeSchatterLookUp(wss_settings=schadecurves.wss_settings, depth_steps=[0, 1])
         lookup.run(flatten=True)
-        lookup.write_dict(path=OUTPUT_DIR/"wss_lookup_test.json")
+        lookup.write_dict(path=OUTPUT_DIR / "wss_lookup_test.json")
 
-        with open(str(OUTPUT_DIR/"wss_lookup_test.json")) as json_file:
+        with open(str(OUTPUT_DIR / "wss_lookup_test.json")) as json_file:
             lookup_output = json.load(json_file)
 
         with open(str(EXPECTED_LOOKUP)) as json_file:
             lookup_expected = json.load(json_file)
         assert lookup_expected == lookup_output
+
 
 class TestWSSAggregation:
     @pytest.fixture(scope="class")
@@ -163,10 +167,10 @@ class TestWSSAggregation:
     def output(self):
         output = pd.read_csv(EXPECTED_RESULT_AGGREGATE)
         return output
-    
+
     def compare_images_hash(self, img1_path, img2_path):
         """Check if two images are exactly identical using hash"""
-        with open(img1_path, 'rb') as f1, open(img2_path, 'rb') as f2:
+        with open(img1_path, "rb") as f1, open(img2_path, "rb") as f2:
             hash1 = hashlib.md5(f1.read()).hexdigest()
             hash2 = hashlib.md5(f2.read()).hexdigest()
         return hash1 == hash2
@@ -190,6 +194,7 @@ class TestWSSAggregation:
         assert self.compare_images_hash(path_schadecurve, EXPECTED_SCHADECURVE)
         assert self.compare_images_hash(path_aggregate, EXPECTED_AGGREGATE)
 
+
 class TestWSSLookup:
     @pytest.fixture(scope="class")
     def lookup(self):
@@ -201,6 +206,7 @@ class TestWSSLookup:
         )
 
         return lookup
+
 
 # %%
 if __name__ == "__main__":
