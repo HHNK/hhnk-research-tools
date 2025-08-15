@@ -9,6 +9,7 @@ Er zijn 3 manieren voor het aansturen van de scripting:
 -	Via de command line tool
 
 **python**
+
 Binnen python kun je de volgende code volgen om de module aan te zetten:
 
 ```python 
@@ -81,6 +82,7 @@ adc.run(run_1d=True, multiprocessing=True)
 ```
 
 **command line tool**
+
 Draai de volgende regel in je command line tool:
 ```
 python -m hhnk_research_tools.waterschadeschatter.wss_curves_areas run_settings.json 
@@ -91,6 +93,7 @@ python -m hhnk_research_tools.waterschadeschatter.wss_curves_areas -h
 ```
 
 **output**
+
 Door de hoofdmodule ‘wss_curves_areas’ worden 4 bestanden gegenereerd:
 1.	result.csv: Schadecurves per peilgebied 
 2.	result_lu_areas.csv: Oppervlak per landgebruik per dieptestap
@@ -104,6 +107,7 @@ De workflow volgt een aantal stappen om naar het eindresultaat te komen.
 
 ---
 **pre-processing**
+
 Als de hoofdmodule (wss_curves_areas.py) wordt aangeroepen wordt gestart met een aantal pre-processing stappen (wss_curves_areas_preprocess.py en __init__ in wss_curves_areas.py).
 1.	Als de bewerkte landgebruikskaart nog niet bestaat, wordt deze aangemaakt. 
 2.	De input landgebruikskaart en het hoogtemodel worden verwerkt tot VRT’s.
@@ -112,6 +116,7 @@ Als de hoofdmodule (wss_curves_areas.py) wordt aangeroepen wordt gestart met een
 5.	Alle input wordt geplaatst in de folder ‘input’, zodat teruggekeken kan worden wat voor settings en input er gebruikt is.
 
 **hoofdberekening**
+
 In de hoofdberekening wordt de schade per peilgebied berekend. Per peilgebied wordt de benodigde data ‘uitgeknipt’ vanuit de landgebruikskaart en hoogtekaart. Vervolgens worden de kaarten teruggeschaald naar ‘int16’ om het datagebruik te verminderen. Er worden ook filters toegepast welke je kunt selecteren in de command line tool. Er zijn hier 2 soorten filters:
 1.	‘Geen schade filter’: Bij de input wordt een vector (nodamage_file) opgegeven, welke geen schade in het gebied bevatten. Binnen deze vector wordt geen schade berekend.
 2.	‘Diepte schade filter’: Filtert de schade bij een bepaalde combinatie tussen diepte en landgebruik. In de input wordt een json opgegeven (wss_curves_filter_settings_file) waarin deze combinatie staat beschreven.
@@ -129,6 +134,7 @@ In de hoofdberekening zijn er meerdere opties toegevoegd om het proces in snelhe
 Tijdens het hoofdproces kan de voorgang bekeken worden in de command prompt of python en in het logging bestand (work/log). Na de hoofdberekening wordt de data weggeschreven in de eerder genoemde bestanden. De peilgebieden die mislukt zijn, zijn te vinden onder output/failures.gpkg.
 
 **post-processing**
+
 Als de post processing module (wss_curves_areas_post.py) wordt aangeroepen wordt de data van het hoofdproces eerst ingelezen. Vervolgens worden ook de peilgebieden, landgebruiksconversie tabel en aggregatie vector ingelezen.
 
 Vervolgens worden de output bestanden van het hoofdproces eerst nabewerkt:
