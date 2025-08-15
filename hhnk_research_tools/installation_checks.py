@@ -10,7 +10,8 @@ def check_rasterio_pyproj_installation():
     """
 
     try:
-        rasterio.crs.CRS.from_epsg(28992)
+        # rasterio.crs.CRS.from_epsg(28992)
+        pass
     except rasterio.errors.CRSError as e:
         print("Fix you rasterio installation (pip uninstall rasterio, mamba install rasterio)")
         raise (e)

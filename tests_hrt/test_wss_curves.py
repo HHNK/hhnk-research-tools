@@ -199,15 +199,17 @@ class TestWSSAggregation:
 
 class TestWSSLookup:
     @pytest.fixture(scope="class")
-    def lookup(self):
-        lookup = WaterSchadeSchatterLookUp(
-            result_path=OUTPUT_DIR,
-            aggregate_vector_path=AREA_AGGREGATE_PATH,
-            aggregate_vector_id_field=VECTOR_FIELD,
-            landuse_conversion_path=LANDUSE_CONVERSION_TABLE,
-        )
+    def test_lookup(self):
+        lookup = WaterSchadeSchatterLookUp(wss_settings=WSS_SETTINGS_FILE, depth_steps=[0, 1])
+        lookup.run(flatten=True)
+        lookup.write_dict(path=OUTPUT_DIR / "wss_lookup_test.json")
 
-        return lookup
+        with open(str(OUTPUT_DIR / "wss_lookup_test.json")) as json_file:
+            lookup_output = json.load(json_file)
+
+        with open(str(EXPECTED_LOOKUP)) as json_file:
+            lookup_expected = json.load(json_file)
+        assert lookup_expected == lookup_output
 
 
 # %%
