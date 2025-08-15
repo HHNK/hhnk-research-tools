@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 import hhnk_research_tools as hrt
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
-from hhnk_research_tools.waterschadeschatter.wss_curves_utils import split_geometry_in_tiles
+from hhnk_research_tools.waterschadeschatter.wss_curves_utils import split_geometry_in_tiles, pad_zeros
 
 # globals
 PREFIX = "damage_curve"
@@ -29,7 +29,7 @@ BAG_FUNCTIES = {
 }
 
 
-class DCCustomLanduse:
+class CustomLanduse:
     """
     Create a custom landuse based on the input landuse.
     A custom landuse needed due to differences in the buildings used in height models and creation of landuse maps.
@@ -51,7 +51,7 @@ class DCCustomLanduse:
         bbox_gdal = self.landuse.metadata.bbox_gdal
         self.extent = gpd.GeoDataFrame(geometry=[box(*bbox_gdal)], crs=self.landuse.metadata.projection)
 
-    def tiles(self) -> gpd.GeoSeries:
+    def tiles(self) -> gpd.GeoDataFrame:
         """Generate tiles for processing the landuse raster in chunks."""
         return split_geometry_in_tiles(self.extent.geometry.iloc[0], envelope_tile_size=self.tile_size)
 
@@ -95,7 +95,7 @@ class DCCustomLanduse:
                     # Rasterize panden for this tile
                     panden_array = features.rasterize(
                         [(geom, 1) for geom in tile_panden_function.geometry],
-                        out_shape=metadata.shape,
+                        out_shape=lu_array.shape,
                         transform=metadata.affine,
                         dtype=np.uint8,
                     )

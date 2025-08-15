@@ -5,15 +5,19 @@ Created on Thu Sep 26 15:44:05 2024
 
 @author: kerklaac5395
 """
-
+import shutil
+import hashlib
 import pandas as pd
 import pytest
+import json
 
 import hhnk_research_tools as hrt
 import hhnk_research_tools.waterschadeschatter.resources as wss_resources
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas import AreaDamageCurves
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas_post import AreaDamageCurvesAggregation
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import AreaDamageCurveFolders
+from hhnk_research_tools.waterschadeschatter.wss_curves_areas_pre import CustomLanduse
+from hhnk_research_tools.waterschadeschatter.wss_curves_lookup import WaterSchadeSchatterLookUp
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
 
 WSS_DATA = TEST_DIRECTORY / "wss_curves"
@@ -26,13 +30,16 @@ RUN_CURVES_FILE = WSS_DATA / "run_wss_curves_2024.json"
 AREA_PATH = WSS_DATA / "wss_curve_area.gpkg"
 AREA_AGGREGATE_PATH = WSS_DATA / "wss_curve_area_aggregate.gpkg"
 NODAMAGE_PATH = WSS_DATA / "nodamage.gpkg"
-PANDEN_PATH = WSS_DATA / "wss_curve_panden.shp"
+PANDEN_PATH = WSS_DATA / "wss_curve_panden.gpkg"
+LU_CUSTOM_PATH = WSS_DATA / "damage_curve_lu_customized.tif"
+LOOKUP_PATH = WSS_DATA / "wss_lookup.json"
 
 DEM_PATH = WSS_DATA / "wss_curve_area_dem.tif"
 LU_PATH = WSS_DATA / "wss_curve_area_lu.tif"
 AREA_ID = "peil_id"
 VECTOR_FIELD = "name"
 OUTPUT_DIR = TEMP_DIR.joinpath(f"wss_curves_{hrt.current_time(date=True)}")
+OUTPUT_DIR.mkdir(exist_ok=True)
 CURVE_STEP = 0.5
 
 CURVE_MAX = 2.5
@@ -41,8 +48,22 @@ EXPECTED_RESULT = WSS_DATA / "expected_result.csv"
 EXPECTED_RESULT_OPTIMIZED = WSS_DATA / "expected_result_optimized.csv"
 EXPECTED_RESULT_AGGREGATE = WSS_DATA / "expected_result_aggregate.csv"
 LANDUSE_CONVERSION_TABLE = hrt.get_pkg_resource_path(wss_resources, "landuse_conversion_table.csv")
+EXPECTED_LANDGEBRUIKCURVE = WSS_DATA / "landgebruikcurve_Wieringermeer.png"
+EXPECTED_BERGINGSCURVE = WSS_DATA / "bergingscurve_Wieringermeer.png"
+EXPECTED_SCHADECURVE = WSS_DATA / "schadecurve_Wieringermeer.png"
+EXPECTED_AGGREGATE = WSS_DATA / "schade_aggregate_Wieringermeer.png"
+EXPECTED_LOOKUP = WSS_DATA / "wss_lookup_test.json"
+
 # %%
 
+class TestCustomLanduse:
+    def test_custom_landuse(self):
+        cl = CustomLanduse(PANDEN_PATH, LU_PATH)
+        cl.run(OUTPUT_DIR)
+        
+        o = hrt.Raster(OUTPUT_DIR / "damage_curve_lu_tile_0.tif")
+        r = hrt.Raster(LU_CUSTOM_PATH)
+        assert (r._read_array() == o._read_array()).all()
 
 class TestWSSAggregationFolders:
     """Generieke test, in onderstaande test worden ook output bestande getest"""
@@ -75,6 +96,8 @@ class TestWSSCurves:
             panden_path=PANDEN_PATH,
         )
 
+        shutil.copy(LOOKUP_PATH, self.dir.input.wss_lookup.path)
+
         return schadecurves
 
     @pytest.fixture(scope="class")
@@ -82,22 +105,15 @@ class TestWSSCurves:
         output = pd.read_csv(EXPECTED_RESULT)
         return output
 
-    @pytest.fixture(scope="class")
-    def output_optimized(self):
-        output = pd.read_csv(EXPECTED_RESULT_OPTIMIZED)
-        return output
-
     # Note: 2D wordt eerst getest omdat result_lu_damage.csv wordt overschreven en
     # zodoende niet goed getest wordt in de validatie.
     def test_integrated_2d_mp(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
         schadecurves.run(run_2d=True, multiprocessing=True, processes=4, nodamage_filter=True)
-
         test_output = pd.read_csv(schadecurves.dir.output.result.path)
         pd.testing.assert_frame_equal(output, test_output)
 
     def test_integrated_2d(self, schadecurves: AreaDamageCurves, output: pd.DataFrame):
         schadecurves.run(run_2d=True, multiprocessing=False, processes=4, nodamage_filter=True)
-
         test_output = pd.read_csv(schadecurves.dir.output.result.path)
         pd.testing.assert_frame_equal(output, test_output)
 
@@ -111,11 +127,24 @@ class TestWSSCurves:
         test_output = pd.read_csv(schadecurves.dir.output.result.path)
         pd.testing.assert_frame_equal(output, test_output)
 
-    def test_integrated_1d_mp_optimized(self, schadecurves: AreaDamageCurves, output_optimized: pd.DataFrame):
+    def test_integrated_1d_mp_optimized(self, schadecurves: AreaDamageCurves):
         schadecurves.run_mp_optimized(limit=500, tile_size=100)
         test_output = pd.read_csv(schadecurves.dir.output.result.path)
+        output_optimized = pd.read_csv(EXPECTED_RESULT_OPTIMIZED)
         pd.testing.assert_frame_equal(output_optimized, test_output)
 
+    def test_lookup(self, schadecurves: AreaDamageCurves):
+        lookup = WaterSchadeSchatterLookUp(wss_settings=schadecurves.wss_settings, 
+                                           depth_steps=[0,1])
+        lookup.run(flatten=True)
+        lookup.write_dict(path=OUTPUT_DIR/"wss_lookup_test.json")
+
+        with open(str(OUTPUT_DIR/"wss_lookup_test.json")) as json_file:
+            lookup_output = json.load(json_file)
+
+        with open(str(EXPECTED_LOOKUP)) as json_file:
+            lookup_expected = json.load(json_file)
+        assert lookup_expected == lookup_output
 
 class TestWSSAggregation:
     @pytest.fixture(scope="class")
@@ -134,6 +163,13 @@ class TestWSSAggregation:
     def output(self):
         output = pd.read_csv(EXPECTED_RESULT_AGGREGATE)
         return output
+    
+    def compare_images_hash(self, img1_path, img2_path):
+        """Check if two images are exactly identical using hash"""
+        with open(img1_path, 'rb') as f1, open(img2_path, 'rb') as f2:
+            hash1 = hashlib.md5(f1.read()).hexdigest()
+            hash2 = hashlib.md5(f2.read()).hexdigest()
+        return hash1 == hash2
 
     def test_agg_methods(
         self,
@@ -143,16 +179,28 @@ class TestWSSAggregation:
         aggregatie.run(create_html=False)
         test_output = pd.read_csv(aggregatie.dir.post_processing["Wieringermeer"].aggregate.path)
         pd.testing.assert_frame_equal(output, test_output)
+
+    def test_images(self, aggregatie: AreaDamageCurvesAggregation):
         path_landgebruikcurve = aggregatie.dir.post_processing["Wieringermeer"].figures.landgebruikcurve.path
         path_bergingscurve = aggregatie.dir.post_processing["Wieringermeer"].figures.bergingscurve.path
         path_schadecurve = aggregatie.dir.post_processing["Wieringermeer"].figures.schadecurve.path
         path_aggregate = aggregatie.dir.post_processing["Wieringermeer"].figures.aggregate.path
+        assert self.compare_images_hash(path_landgebruikcurve, EXPECTED_LANDGEBRUIKCURVE)
+        assert self.compare_images_hash(path_bergingscurve, EXPECTED_BERGINGSCURVE)
+        assert self.compare_images_hash(path_schadecurve, EXPECTED_SCHADECURVE)
+        assert self.compare_images_hash(path_aggregate, EXPECTED_AGGREGATE)
 
-        assert path_landgebruikcurve.exists()
-        assert path_bergingscurve.exists()
-        assert path_schadecurve.exists()
-        assert path_aggregate.exists()
+class TestWSSLookup:
+    @pytest.fixture(scope="class")
+    def lookup(self):
+        lookup = WaterSchadeSchatterLookUp(
+            result_path=OUTPUT_DIR,
+            aggregate_vector_path=AREA_AGGREGATE_PATH,
+            aggregate_vector_id_field=VECTOR_FIELD,
+            landuse_conversion_path=LANDUSE_CONVERSION_TABLE,
+        )
 
+        return lookup
 
 # %%
 if __name__ == "__main__":

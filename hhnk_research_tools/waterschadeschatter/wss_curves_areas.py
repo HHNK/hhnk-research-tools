@@ -35,9 +35,9 @@ import hhnk_research_tools as hrt
 from hhnk_research_tools.rasters.raster_class import Raster
 from hhnk_research_tools.variables import DEFAULT_NODATA_VALUES
 from hhnk_research_tools.waterschadeschatter.wss_curves_areas_pre import (
-    PREFIX as CUSTOM_LU_PREFIX,
+    PREFIX,
 )
-from hhnk_research_tools.waterschadeschatter.wss_curves_areas_pre import DCCustomLanduse
+from hhnk_research_tools.waterschadeschatter.wss_curves_areas_pre import CustomLanduse
 from hhnk_research_tools.waterschadeschatter.wss_curves_lookup import (
     LU_LOOKUP_FACTOR,
     WaterSchadeSchatterLookUp,
@@ -56,7 +56,7 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
 
 # Globals
 DAMAGE_DECIMALS = 2
-MAX_PROCESSES = mp.cpu_count() - 1  # still wanna do something on the computer use minus 1
+NOT_USED_PROCESSES = 1  # still wanna do something on the computer use minus 1
 MP_ENVELOPE_AREA_LIMIT = 100000000  # m2 #1.000.000.000 kwart van HHNK
 TILE_SIZE = 5000
 BUFFER_OVERLAP = 0.25
@@ -90,7 +90,6 @@ class AreaDamageCurveMethods:
             Data for processing given by AreaDamageCurves as .area_data
         nodamage_filter : bool, default is True
             If True, the nodamage filter is applied.
-
         depth_filter : bool, default is True
             If True, the depth filter is applied.
         """
@@ -420,6 +419,19 @@ class AreaDamageCurves:
         Nodata value of rasters
     area_layer_name : str, default is None
         If type is geopackage, a layer name can be given.
+    nodamage_file : str, Path, default is None
+        File with no damage information.
+    wss_curves_filter_settings_file : str, default is None
+        Settings file depth damage filter
+    wss_config_file : str, default is None
+        WSS configuration file
+    settings_json_file : str, default is None
+        Main settings json file
+    database_file : str, default is None
+        For reading vector from a database
+    overwrite : bool, default is False
+        Overwrite existing files
+
 
     """
 
@@ -674,8 +686,8 @@ class AreaDamageCurves:
 
         local_tiles = list(self.dir.input.custom_landuse_tiles.path.glob("*.tif"))
 
-        has_local_custom_lu = all([CUSTOM_LU_PREFIX in t.stem for t in local_tiles]) and len(local_tiles) > 0
-        input_is_custom_lu = all([CUSTOM_LU_PREFIX in t.stem for t in tiles])
+        has_local_custom_lu = all([PREFIX in t.stem for t in local_tiles]) and len(local_tiles) > 0
+        input_is_custom_lu = all([PREFIX in t.stem for t in tiles])
 
         if has_local_custom_lu:
             self.time.log("Found local custom landuse.")
@@ -695,7 +707,7 @@ class AreaDamageCurves:
                 self.time.log("No panden found in area vector.")
                 path_or_dir = lu_input
             else:
-                custom_lu = DCCustomLanduse(self.panden_path, lu_input, tile_size=tile_size)
+                custom_lu = CustomLanduse(self.panden_path, lu_input, tile_size=tile_size)
                 custom_lu.run(self.dir.input.custom_landuse_tiles.path)
                 self.time.log("Creating custom landuse tiles finished!")
 
@@ -763,7 +775,7 @@ class AreaDamageCurves:
         run_1d: bool = False,
         run_2d: bool = False,
         multiprocessing: bool = True,
-        processes: Union[int, Literal["max"]] = MAX_PROCESSES,
+        processes: Union[int, Literal["max"]] = mp.cpu_count() - NOT_USED_PROCESSES,
         nodamage_filter: bool = True,
         depth_filter: bool = True,
         write: bool = True,
@@ -782,7 +794,7 @@ class AreaDamageCurves:
             raise ValueError("Expected one of [run_1d, run_2d] to be True")
 
         if processes == "max" or processes == -1:
-            processes = MAX_PROCESSES
+            processes = mp.cpu_count() - NOT_USED_PROCESSES
 
         area_data = self.area_data
         for key, value in area_data_kwargs.items():

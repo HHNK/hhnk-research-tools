@@ -647,7 +647,7 @@ class AreaDamageCurvesAggregation:
             Aggregate directory from AggregateDir in AreaDamageCurveFolders
         """
 
-        bc = BergingsCurveFiguur(path=agg_dir.agg_volume.path, feature=feature)
+        bc = BergingsCurveFiguur(agg_dir.agg_volume.path, feature)
         bc.run(output_path=agg_dir.figures.bergingscurve.path, name=name)
 
         lu_curve = LandgebruikCurveFiguur(agg_dir.agg_landuse.path, agg_dir)

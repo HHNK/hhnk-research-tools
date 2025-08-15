@@ -6,6 +6,7 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import geopandas as gp
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
@@ -103,18 +104,18 @@ class CurveFiguur(Figuur):
 
 
 class BergingsCurveFiguur(Figuur):
-    def __init__(self, path: str, feature: Any) -> None:
+    def __init__(self, volume_level_path: str, vector_area: gp.GeoSeries) -> None:
         super().__init__(
             xlabel_description="Waterstand (m+NAP)",
             ylabel_description="Volume (m3)",
         )
-        self.df_vol_level: pd.DataFrame = pd.read_csv(path, index_col=0)
+        self.df_vol_level: pd.DataFrame = pd.read_csv(volume_level_path, index_col=0)
         self.ylabel_mm = "Berging (mm)"
-        self.feature = feature
+        self.vector_area = vector_area
         self.ax_mm: Optional[Axes] = None
 
     def volume2mm(self, y: float) -> float:
-        area = self.feature.geometry.area
+        area = self.vector_area.geometry.area
         return y / area * 1000
 
     def convert_V_to_mm(self, ax: Axes) -> None:
