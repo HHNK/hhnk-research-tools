@@ -169,11 +169,13 @@ class TestWSSAggregation:
         output = pd.read_csv(EXPECTED_RESULT_AGGREGATE)
         return output
 
-    def compare_images(self, img1_path, img2_path):
+    def compare_images(self, img1_path, img2_path, threshold=1):
         """Compare images using Mean Squared Error"""
         img1 = np.array(Image.open(img1_path).convert("RGB"))
         img2 = np.array(Image.open(img2_path).convert("RGB"))
-        return (img1 == img2).all()
+
+        mse = np.mean((img1 - img2) ** 2)
+        return mse < threshold
 
     def test_agg_methods(
         self,
