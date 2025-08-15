@@ -6,13 +6,13 @@ Created on Thu Sep 26 15:44:05 2024
 @author: kerklaac5395
 """
 
-import numpy as np
-from PIL import Image
 import json
 import shutil
 
+import numpy as np
 import pandas as pd
 import pytest
+from PIL import Image
 
 import hhnk_research_tools as hrt
 import hhnk_research_tools.waterschadeschatter.resources as wss_resources
@@ -168,13 +168,13 @@ class TestWSSAggregation:
     def output(self):
         output = pd.read_csv(EXPECTED_RESULT_AGGREGATE)
         return output
-    
+
     def compare_images(self, img1_path, img2_path):
         """Compare images using Mean Squared Error"""
-        img1 = np.array(Image.open(img1_path).convert('RGB'))
-        img2 = np.array(Image.open(img2_path).convert('RGB'))
+        img1 = np.array(Image.open(img1_path).convert("RGB"))
+        img2 = np.array(Image.open(img2_path).convert("RGB"))
         return (img1 == img2).all()
-        
+
     def test_agg_methods(
         self,
         aggregatie: AreaDamageCurvesAggregation,
