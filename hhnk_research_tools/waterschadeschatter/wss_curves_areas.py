@@ -115,7 +115,8 @@ class AreaDamageCurveMethods:
         self.nodamage_file = data["nodamage_file"]
         self.overwrite = data["overwrite"]
         self.area_path = data["area_path"]  # custom due to tiled processing.
-
+        self.buildings_id_field = data["buildings_id_field"]
+        
         self.area_vector = gpd.read_file(self.area_path)
         self.lu = hrt.Raster(self.dir.input.lu.path)
         self.dem = hrt.Raster(self.dir.input.dem.path)
@@ -147,8 +148,6 @@ class AreaDamageCurveMethods:
         self.transform = self.lu.open_rio().transform
         self.nodamage_gdf = gpd.read_file(self.nodamage_file)
 
-        self.buildings_id_field = "feature_id"
-        
         self.time.log("Initializing AreaDamageCurveMethods finished!")
 
         if depth_filter:
@@ -514,7 +513,8 @@ class AreaDamageCurves:
     output_dir: Union[str, Path]
     landuse_path_dir: Union[str, Path]
     dem_path_dir: Union[str, Path]
-    panden_path: Path
+    buildings_path: Path
+    buildings_id_field: str
     wss_settings_file: Union[str, Path]
     area_path: Union[str, Path] = None
     area_id: str = "code"
@@ -530,8 +530,7 @@ class AreaDamageCurves:
     database_file: Optional[Path] = None
     overwrite: Optional[bool] = False
     area_ids: Optional[list] = None
-    update: Optional[bool] = False
-
+    
     def __post_init__(self):
         self.dir = AreaDamageCurveFolders(base=self.output_dir, create=True)
 
@@ -581,7 +580,7 @@ class AreaDamageCurves:
     
     @cached_property
     def buildings_vector(self):
-        buildings = gpd.read_file(self.panden_path)
+        buildings = gpd.read_file(self.buildings_path)
         buildings = gpd.sjoin(buildings, self.area_vector, how="inner", predicate="intersects")
         buildings.to_file(self.dir.input.buildings.path)
         return buildings
@@ -682,6 +681,7 @@ class AreaDamageCurves:
         data["log_file"] = self.time.log_file
         data["nodamage_file"] = str(self.nodamage_file)
         data["overwrite"] = self.overwrite
+        data["buildings_id_field"] = self.buildings_id_field
         return data
 
     @property
@@ -791,7 +791,7 @@ class AreaDamageCurves:
 
             self.time.log("Creating custom landuse tiles.")
             if self.buildings_vector.empty:
-                self.time.log("No panden found in area vector.")
+                self.time.log("No buildings found in area vector.")
                 path_or_dir = lu_input
             else:
                 custom_lu = CustomLanduse(self.dir.input.buildings.path, lu_input, tile_size=tile_size)
@@ -871,6 +871,7 @@ class AreaDamageCurves:
 
         if area_ids is None:
             area_ids = list(self)
+        
 
         if run_1d:
             self.run_type = "run_1d"
@@ -878,6 +879,16 @@ class AreaDamageCurves:
             self.run_type = "run_2d"
         else:
             raise ValueError("Expected one of [run_1d, run_2d] to be True")
+
+        if self.overwrite:
+            new_area_ids = area_ids
+        else:
+            new_area_ids = []
+            run_dir = self.dir.work[self.run_type]   
+            for aid in area_ids:
+                run_dir.add_fdla_dirs(self.depth_steps)
+                if not run_dir[f"fdla_{aid}"].curve.exists():
+                    new_area_ids.append(aid)
 
         if processes == "max" or processes == -1:
             processes = mp.cpu_count() - NOT_USED_PROCESSES
@@ -889,7 +900,7 @@ class AreaDamageCurves:
         if multiprocessing:
             args = [
                 [pid, area_data, run_1d, nodamage_filter, depth_filter]
-                for pid in tqdm(area_ids, "Fetching multiprocessing arguments")
+                for pid in tqdm(new_area_ids, "Fetching multiprocessing arguments")
             ]
             self.time.log(f"Fetching arguments finished {self.run_type}!")
 
@@ -910,7 +921,7 @@ class AreaDamageCurves:
 
         if not multiprocessing:
             self.time.log(f"Starting {self.run_type} without multiprocessing!")
-            for peil_id in tqdm(area_ids, f"{NAME}: Damage {self.run_type}"):
+            for peil_id in tqdm(new_area_ids, f"{NAME}: Damage {self.run_type}"):
                 with rasterio.Env(GDAL_USE_PROJ_DATA=False):  # supress warnings
                     try:
                         area_stats = AreaDamageCurveMethods(
@@ -1038,7 +1049,7 @@ class AreaDamageCurves:
             return
 
         pd.concat(total).to_csv(output_file)
-        self.time.log(f"Writing {curve_type} land-use files finished")
+        self.time.log(f"Writing {extra_type} {curve_type} files finished!")
 
     def write_failures(self, tile_output: dict = {}) -> None:
         """Write failures to a file."""
@@ -1064,13 +1075,12 @@ class AreaDamageCurves:
             for tile_id in tiles:
                 self.dir.work[self.run_type].add_fdla_dir(self.depth_steps, str(tile_id))
        
-
         self.write_curves(self.dir.output.result.path, fid_list, tile_output, curve_type="Damage")
         self.write_curves(self.dir.output.result_vol.path, fid_list, tile_output, curve_type="Volume")
         self.write_extra_curves(self.dir.output.result_lu_damage.path, fid_list, tile_output, curve_type="Damage", extra_type="Land-use")
         self.write_extra_curves(self.dir.output.result_lu_areas.path, fid_list, tile_output, curve_type="Count", extra_type="Land-use")
         self.write_extra_curves(self.dir.output.result_bu_damage.path, fid_list, tile_output, curve_type="Damage", extra_type="Buildings")
-        self.write_extra_curves(self.dir.output.result_bu_areas.path, fid_list, tile_output, curve_type="Count", extra_type="Buildings")
+        #self.write_extra_curves(self.dir.output.result_bu_areas.path, fid_list, tile_output, curve_type="Count", extra_type="Buildings")
         self.write_failures(tile_output)
 
         fdla_performance(

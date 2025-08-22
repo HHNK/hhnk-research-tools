@@ -266,7 +266,7 @@ class BindColormap(branca.element.MacroElement):  # from https://github.com/pyth
         self.colormap = colormap
         self._template = Template("""
         {% macro script(this, kwargs) %}
-            {{this.colormap.get_name()}}.svg[0][0].style.display = 'block';
+            {{this.colormap.get_name()}}.svg[0][0].style.display = 'none';
             {{this._parent.get_name()}}.on('overlayadd', function (eventLayer) {
                 if (eventLayer.layer == {{this.layer.get_name()}}) {
                     {{this.colormap.get_name()}}.svg[0][0].style.display = 'block';

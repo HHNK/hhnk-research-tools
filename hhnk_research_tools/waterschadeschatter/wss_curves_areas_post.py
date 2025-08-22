@@ -88,9 +88,9 @@ class AreaDamageCurvesAggregation:
             self.lu_dmg_data = pd.read_csv(self.dir.output.result_lu_damage.path, index_col=0)
             self.lu_dmg_data.fid = self.lu_dmg_data.fid.astype(str)
 
-        if self.dir.output.result_bu_areas.exists():
-            self.bu_area_data = pd.read_csv(self.dir.output.result_bu_areas.path, index_col=0)
-            self.bu_area_data.fid = self.bu_area_data.fid.astype(str)
+        #if self.dir.output.result_bu_areas.exists():
+        #    self.bu_area_data = pd.read_csv(self.dir.output.result_bu_areas.path, index_col=0)
+        #    self.bu_area_data.fid = self.bu_area_data.fid.astype(str)
 
         if self.dir.output.result_bu_damage.exists():
             self.bu_dmg_data = pd.read_csv(self.dir.output.result_bu_damage.path, index_col=0)
@@ -452,7 +452,7 @@ class AreaDamageCurvesAggregation:
         agg_landgebruik = agg_schade[agg_schade["index"].str.contains("landgebruikcurve")]
         agg_schade_curves = agg_schade[agg_schade["index"].str.contains("schadecurve")]
         agg_berging = agg_schade[agg_schade["index"].str.contains("bergingscurve")]
-        agg_aggregatie = agg_schade[agg_schade["index"].str.contains("aggregatie")]
+        agg_aggregatie = agg_schade[agg_schade["index"].str.contains("aggregate")]
 
         # grafieken
         fol.add_graphs(
@@ -509,6 +509,7 @@ class AreaDamageCurvesAggregation:
                 colormap_name="plasma",
                 colormap_type="continuous",
                 show=False,
+                show_colormap=True
             )
 
         # peilstijging per schade
@@ -532,6 +533,7 @@ class AreaDamageCurvesAggregation:
                 colormap_name="plasma",
                 colormap_type="continuous",
                 show=False,
+                show_colormap=True
             )
 
         for depth_step in depth_steps:
@@ -577,21 +579,30 @@ class AreaDamageCurvesAggregation:
         """Generate damage curve figures for all drainage areas."""
 
         self.dir.post_processing.create_figure_dir(self.drainage_areas[ID_FIELD].tolist())
-        for area_id in self.drainage_areas[ID_FIELD]:
+        for area_id in tqdm(self.drainage_areas[ID_FIELD], "Create basic figures"):
+            
+            path = self.dir.post_processing.figures[f"schadecurve_{area_id}"].path
+            if path.exists():
+                continue
+
             data = self.damage_interpolated_curve[area_id]
             figure = CurveFiguur(pd.DataFrame(data))
-            path = self.dir.post_processing.figures[f"schadecurve_{area_id}"].path
             figure.run(name=area_id, output_path=path, title="Schadecurve")
 
+            path = self.dir.post_processing.figures[f"bergingscurve_{area_id}"].path
+            if path.exists():
+                continue
             data = self.vol_interpolated_curve[area_id]
             figure = CurveFiguur(pd.DataFrame(data))
-            path = self.dir.post_processing.figures[f"bergingscurve_{area_id}"].path
             figure.run(name=area_id, output_path=path, title="Bergingscurve")
 
+            path = self.dir.post_processing.figures[f"panden_{area_id}"].path
+            if path.exists():
+                continue
             bu_area_data = self.bu_dmg_data[self.bu_dmg_data.fid == area_id]
             bu_area_data = bu_area_data.drop("fid", axis=1)
+            bu_area_data = bu_area_data.dropna(axis=1)
             figure = CurveFiguur(pd.DataFrame(bu_area_data))
-            path = self.dir.post_processing.figures[f"panden_{area_id}"].path
             figure.run(name=area_id, output_path=path, title="Schade aan panden")
 
 
@@ -758,7 +769,7 @@ class AreaDamageCurvesAggregation:
             agg_volume = self.agg_volume()
             agg_landuse = self.agg_landuse()
             agg_landuse_dmg = self.agg_landuse_dmg()
-            agg_building = self.agg_buildings()
+            #agg_building = self.agg_buildings()
             agg_building_dmg = self.agg_buildings_dmg()
 
             agg_damage_ha = self.agg_damage_level_per_ha()
@@ -796,11 +807,6 @@ class AreaDamageCurvesAggregation:
                 agg_ld.index.name = "Peilstijging [m]"
                 agg_ld = agg_ld.add_suffix(" [euro]")
                 agg_ld.to_csv(agg_dir.agg_landuse_dmg.path)
-
-                agg_b = agg_building[name]
-                agg_b.index.name = "Peilstijging [m]"
-                agg_b = agg_b.add_suffix(" [m2]")
-                agg_b.to_csv(agg_dir.agg_building.path)
 
                 agg_bd = agg_building_dmg[name]
                 agg_bd.index.name = "Peilstijging [m]"
