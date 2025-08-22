@@ -106,6 +106,7 @@ De resultaten worden ondergebracht in een aantal mappen en bestanden:
             self.add_file("lu", "lu.vrt")
             self.add_file("lu_input", "lu_input.vrt")
             self.add_file("area", "area.gpkg")
+            self.add_file("buildings", "buildings.gpkg")
             self.add_file("wss_settings", "wss_settings.json")
             self.add_file("wss_cfg_settings", "wss_config_settings.json")
             self.add_file("wss_curves_filter_settings", "wss_curves_filter_settings.json")
@@ -188,7 +189,10 @@ De resultaten worden ondergebracht in een aantal mappen en bestanden:
             self.add_file("result_vol", "result_vol.csv")
             self.add_file("result_lu_areas", "result_lu_areas.csv")
             self.add_file("result_lu_damage", "result_lu_damage.csv")
+            self.add_file("result_bu_areas", "result_bu_areas.csv")
+            self.add_file("result_bu_damage", "result_bu_damage.csv")
             self.add_file("failures", "failures.gpkg")
+
 
     class _PostProcessingDir(Folder):
         def __init__(self, base: Union[str, Path], create: bool) -> None:
@@ -241,6 +245,8 @@ De volgende stappen moeten daarvoor worden uitgevoerd:
                 self.add_file("agg_damage", "agg_damage.csv")
                 self.add_file("agg_landuse", "agg_landuse_area.csv")
                 self.add_file("agg_landuse_dmg", "agg_landuse_damage.csv")
+                self.add_file("agg_building", "agg_building_area.csv")
+                self.add_file("agg_building_dmg", "agg_building_damage.csv")
                 self.add_file("agg_volume", "agg_volume.csv")
                 self.add_file("agg_damage_ha", "agg_damage_ha.csv")
                 self.add_file("agg_damage_m3", "agg_damage_m3.csv")
@@ -262,6 +268,7 @@ De volgende stappen moeten daarvoor worden uitgevoerd:
                     self.add_file("bergingscurve", f"bergingscurve_{name}.png")
                     self.add_file("schadecurve", f"schadecurve_{name}.png")
                     self.add_file("aggregate", f"schade_aggregate_{name}.png")
+                    self.add_file("panden", f"panden_aggregate_{name}.png")
 
         class _FiguresDir(Folder):
             def __init__(self, base: Union[str, Path], create: bool, fdla_ids: List[str]) -> None:
@@ -271,7 +278,8 @@ De volgende stappen moeten daarvoor worden uitgevoerd:
                     self.add_file(f"bergingscurve_{name}", f"bergingscurve_{name}.png")
                     self.add_file(f"schadecurve_{name}", f"schadecurve_{name}.png")
                     self.add_file(f"aggregate_{name}", f"schade_aggregate_{name}.png")
-
+                    self.add_file(f"panden_percentueel_{name}", f"panden_percentueel_{name}.png")
+                    self.add_file(f"panden_{name}", f"panden_{name}.png")
 
 class FDLADir(Folder):
     """Folder/directory for fixed drainage level areas."""
@@ -283,15 +291,19 @@ class FDLADir(Folder):
         self.add_file("curve_vol", "curve_vol.csv")
         self.add_file("counts_lu", "counts_lu.csv")
         self.add_file("damage_lu", "damage_lu.csv")
+        self.add_file("counts_bu", "counts_bu.csv")
+        self.add_file("damage_bu", "damage_bu.csv")
         self.add_file("depth_filter", "depth_filtered.gpkg")
         self.add_file("nodamage_filtered", "nodamage_filtered.gpkg")
         self.add_file("time", "time.csv")
 
         for ds in depth_steps:
             self.add_file(f"damage_{ds}", f"damage_{ds}.tif")
-        #    self.add_file(f"depth_{ds}", f"depth_{ds}.tif")
-        #    self.add_file(f"level_{ds}", f"level_{ds}.tif")
-        #    self.add_file(f"lu_{ds}", f"lu_{ds}.tif")
+            self.add_file(f"depth_{ds}", f"depth_{ds}.tif")
+            self.add_file(f"level_{ds}", f"level_{ds}.tif")
+            self.add_file(f"volume_{ds}", f"volume_{ds}.tif")
+            self.add_file(f"lu_{ds}", f"lu_{ds}.tif")
+            self.add_file(f"bu_{ds}", f"bu_{ds}.tif")
 
 
 class WSSTimelog:

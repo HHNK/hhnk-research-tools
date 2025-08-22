@@ -1,4 +1,4 @@
-# Module WaterSchadeSchatter Curves
+# Module WaterSchadeSchatterCurves
 
 De module ‘Waterschadeschatter Curves’ is uitgebreide toolset voor het berekenen en naverwerken van schadecurves per peilgebied. Het systeem berekent per peilgebied schade, schade per volume en schade per type en oppervlak landgebruik op basis van verschillende waterstanden en genereert ruwe data in de vorm van csv’s, maar ook visualisaties in de vorm van interactieve folium kaarten, GIS-bestanden en figuren.
 
