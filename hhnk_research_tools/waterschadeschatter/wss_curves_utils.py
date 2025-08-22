@@ -193,7 +193,6 @@ De resultaten worden ondergebracht in een aantal mappen en bestanden:
             self.add_file("result_bu_damage", "result_bu_damage.csv")
             self.add_file("failures", "failures.gpkg")
 
-
     class _PostProcessingDir(Folder):
         def __init__(self, base: Union[str, Path], create: bool) -> None:
             super().__init__(os.path.join(base, "post_processing"), create)
@@ -280,6 +279,7 @@ De volgende stappen moeten daarvoor worden uitgevoerd:
                     self.add_file(f"aggregate_{name}", f"schade_aggregate_{name}.png")
                     self.add_file(f"panden_percentueel_{name}", f"panden_percentueel_{name}.png")
                     self.add_file(f"panden_{name}", f"panden_{name}.png")
+
 
 class FDLADir(Folder):
     """Folder/directory for fixed drainage level areas."""

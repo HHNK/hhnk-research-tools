@@ -88,7 +88,7 @@ class AreaDamageCurvesAggregation:
             self.lu_dmg_data = pd.read_csv(self.dir.output.result_lu_damage.path, index_col=0)
             self.lu_dmg_data.fid = self.lu_dmg_data.fid.astype(str)
 
-        #if self.dir.output.result_bu_areas.exists():
+        # if self.dir.output.result_bu_areas.exists():
         #    self.bu_area_data = pd.read_csv(self.dir.output.result_bu_areas.path, index_col=0)
         #    self.bu_area_data.fid = self.bu_area_data.fid.astype(str)
 
@@ -285,7 +285,7 @@ class AreaDamageCurvesAggregation:
             self.agg_lu[feature[self.field]] = lu_areas_summed
 
         return self.agg_lu
-    
+
     def agg_buildings(self) -> dict[str, pd.Series]:
         """Sum land use areas data within the given areas."""
         self.agg_bu = {}
@@ -509,7 +509,7 @@ class AreaDamageCurvesAggregation:
                 colormap_name="plasma",
                 colormap_type="continuous",
                 show=False,
-                show_colormap=True
+                show_colormap=True,
             )
 
         # peilstijging per schade
@@ -533,7 +533,7 @@ class AreaDamageCurvesAggregation:
                 colormap_name="plasma",
                 colormap_type="continuous",
                 show=False,
-                show_colormap=True
+                show_colormap=True,
             )
 
         for depth_step in depth_steps:
@@ -580,7 +580,6 @@ class AreaDamageCurvesAggregation:
 
         self.dir.post_processing.create_figure_dir(self.drainage_areas[ID_FIELD].tolist())
         for area_id in tqdm(self.drainage_areas[ID_FIELD], "Create basic figures"):
-            
             path = self.dir.post_processing.figures[f"schadecurve_{area_id}"].path
             if path.exists():
                 continue
@@ -604,7 +603,6 @@ class AreaDamageCurvesAggregation:
             bu_area_data = bu_area_data.dropna(axis=1)
             figure = CurveFiguur(pd.DataFrame(bu_area_data))
             figure.run(name=area_id, output_path=path, title="Schade aan panden")
-
 
     def create_fdla_gpkg(self) -> None:
         """Create GeoPackage file containing drainage area geometries with damage curve data."""
@@ -729,7 +727,6 @@ class AreaDamageCurvesAggregation:
             name=name,
         )
 
-      
     def agg_run(self, mm_rain: int = DEFAULT_RAIN) -> dict:
         """Create a dataframe in which methods can be compared"""
         lowest = self.aggregate_rain_curve(DEFAULT_AGG_METHODS[0], mm_rain)
@@ -769,7 +766,7 @@ class AreaDamageCurvesAggregation:
             agg_volume = self.agg_volume()
             agg_landuse = self.agg_landuse()
             agg_landuse_dmg = self.agg_landuse_dmg()
-            #agg_building = self.agg_buildings()
+            # agg_building = self.agg_buildings()
             agg_building_dmg = self.agg_buildings_dmg()
 
             agg_damage_ha = self.agg_damage_level_per_ha()

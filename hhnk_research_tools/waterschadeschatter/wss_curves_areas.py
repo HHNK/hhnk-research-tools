@@ -22,12 +22,13 @@ from dataclasses import dataclass
 from functools import cached_property, reduce
 from pathlib import Path
 from typing import Literal, Optional, Tuple, Union
-from scipy import ndimage
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
 from rasterio.features import rasterize
+from scipy import ndimage
 from shapely.geometry.base import BaseGeometry
 from tqdm import tqdm
 
@@ -116,14 +117,14 @@ class AreaDamageCurveMethods:
         self.overwrite = data["overwrite"]
         self.area_path = data["area_path"]  # custom due to tiled processing.
         self.buildings_id_field = data["buildings_id_field"]
-        
+
         self.area_vector = gpd.read_file(self.area_path)
         self.lu = hrt.Raster(self.dir.input.lu.path)
         self.dem = hrt.Raster(self.dir.input.dem.path)
         self.convert_factor = 10**DAMAGE_DECIMALS
 
         steps = self.depth_steps + [self.filter_settings["depth"]]
-        
+
         self.dir.work[self.run_type].create_fdla_dir(str(peilgebied_id), steps, self.overwrite)
         self.fdla_dir = self.dir.work[self.run_type][f"fdla_{peilgebied_id}"]
 
@@ -157,26 +158,26 @@ class AreaDamageCurveMethods:
 
     @cached_property
     def buildings_array(self):
-        """ Read and create a buildings array by the shape of lu and give group number. """
+        """Read and create a buildings array by the shape of lu and give group number."""
         self.time.log("Reading buildings.")
         buildings = gpd.read_file(self.dir.input.buildings.path)
         buildings = buildings[buildings.geometry.intersects(self.area_gdf.geometry.iloc[0])]
         self._buildings_array = np.full(self._lu_array.shape, self.building_nodata_value, dtype=BUILDING_DTYPE)
 
-        if len(buildings) == 0: 
+        if len(buildings) == 0:
             return self._buildings_array
 
         buildings_meta = hrt.RasterMetadataV2.from_gdf(gdf=buildings, res=self.metadata.pixel_width)
         shapes = [(building.geometry, int(building[self.buildings_id_field])) for _, building in buildings.iterrows()]
 
         rasterize(
-                shapes=shapes,
-                out=self._buildings_array,
-                transform=buildings_meta.to_rio_profile(0)['transform'],
-                dtype=BUILDING_DTYPE,
-                fill=self.building_nodata_value,  # Set background to building nodata value
-                merge_alg=rasterio.enums.MergeAlg.replace,
-                all_touched=True,
+            shapes=shapes,
+            out=self._buildings_array,
+            transform=buildings_meta.to_rio_profile(0)["transform"],
+            dtype=BUILDING_DTYPE,
+            fill=self.building_nodata_value,  # Set background to building nodata value
+            merge_alg=rasterio.enums.MergeAlg.replace,
+            all_touched=True,
         )
 
         self.time.log("Reading buildings finished!")
@@ -313,9 +314,8 @@ class AreaDamageCurveMethods:
             lu_array = lu_array[~nodata_mask_1d]
             dem_array = dem_array[~nodata_mask_1d]
             building_array = building_array[~nodata_mask_1d]
-                        
-            dem_array[dem_array < area_start_level] = area_start_level
 
+            dem_array[dem_array < area_start_level] = area_start_level
 
         if run_2d:  # retains nodata values
             nodata_mask_2d = dem_array == self.dem_nodata_value
@@ -432,17 +432,17 @@ class AreaDamageCurveMethods:
         self.time.write()
 
         return curve, curve_vol
-    
+
     def fast_unique_counts(self, array: np.ndarray, nodata_value) -> dict:
         """
         Optimized unique counts for building data with known nodata value
         """
         # Remove nodata values first (they're typically the majority)
         valid_data = array[array != nodata_value]
-        
+
         if len(valid_data) == 0:
             return np.array([]), np.array([])
-        
+
         # Use bincount if values are in reasonable range
         if valid_data.min() >= 0:  # Reasonable range
             counts = np.bincount(valid_data)
@@ -530,7 +530,7 @@ class AreaDamageCurves:
     database_file: Optional[Path] = None
     overwrite: Optional[bool] = False
     area_ids: Optional[list] = None
-    
+
     def __post_init__(self):
         self.dir = AreaDamageCurveFolders(base=self.output_dir, create=True)
 
@@ -577,7 +577,7 @@ class AreaDamageCurves:
         with open(str(settings_json_file)) as json_file:
             settings = json.load(json_file)
         return cls(**settings, settings_json_file=settings_json_file)
-    
+
     @cached_property
     def buildings_vector(self):
         buildings = gpd.read_file(self.buildings_path)
@@ -594,7 +594,7 @@ class AreaDamageCurves:
         else:
             self.time.log(f"Reading vector from database: {self.database_file}")
             vector = get_drainage_areas(self.database_file)
-        
+
         if self.area_ids is not None:
             self.time.log(f"Selecting subset of areas {self.area_ids}")
             vector = vector[vector[self.area_id].isin(self.area_ids)]
@@ -871,7 +871,6 @@ class AreaDamageCurves:
 
         if area_ids is None:
             area_ids = list(self)
-        
 
         if run_1d:
             self.run_type = "run_1d"
@@ -884,7 +883,7 @@ class AreaDamageCurves:
             new_area_ids = area_ids
         else:
             new_area_ids = []
-            run_dir = self.dir.work[self.run_type]   
+            run_dir = self.dir.work[self.run_type]
             for aid in area_ids:
                 run_dir.add_fdla_dirs(self.depth_steps)
                 if not run_dir[f"fdla_{aid}"].curve.exists():
@@ -956,13 +955,13 @@ class AreaDamageCurves:
         curve.name = str(fid)
         return curve
 
-    def read_extra_output(self, fid: int, curve_type: str, extra_type:str) -> pd.DataFrame | None:
+    def read_extra_output(self, fid: int, curve_type: str, extra_type: str) -> pd.DataFrame | None:
         """Read land-use output for a given fid.
-            Curve_type: 'Damage' or 'Count'
-            Extra_type: 'Buildings' or 'Land-use'
+        Curve_type: 'Damage' or 'Count'
+        Extra_type: 'Buildings' or 'Land-use'
         """
         fdla_dir = self.dir.work[self.run_type][f"fdla_{fid}"]
-        if extra_type == 'Buildings':
+        if extra_type == "Buildings":
             file = fdla_dir.counts_bu.path
             if curve_type == "Damage":
                 file = fdla_dir.damage_bu.path
@@ -1018,7 +1017,9 @@ class AreaDamageCurves:
         output.to_csv(output_file)
         self.time.log(f"Writing {curve_type} curves finished!")
 
-    def write_extra_curves(self, output_file: Path, fid_list: list, tile_output: dict = {}, curve_type="Count", extra_type="Land-use") -> None:
+    def write_extra_curves(
+        self, output_file: Path, fid_list: list, tile_output: dict = {}, curve_type="Count", extra_type="Land-use"
+    ) -> None:
         """Write land-use curves for a given fid."""
 
         if curve_type not in ["Damage", "Count"]:
@@ -1074,13 +1075,19 @@ class AreaDamageCurves:
         for k, tiles in tile_output.items():
             for tile_id in tiles:
                 self.dir.work[self.run_type].add_fdla_dir(self.depth_steps, str(tile_id))
-       
+
         self.write_curves(self.dir.output.result.path, fid_list, tile_output, curve_type="Damage")
         self.write_curves(self.dir.output.result_vol.path, fid_list, tile_output, curve_type="Volume")
-        self.write_extra_curves(self.dir.output.result_lu_damage.path, fid_list, tile_output, curve_type="Damage", extra_type="Land-use")
-        self.write_extra_curves(self.dir.output.result_lu_areas.path, fid_list, tile_output, curve_type="Count", extra_type="Land-use")
-        self.write_extra_curves(self.dir.output.result_bu_damage.path, fid_list, tile_output, curve_type="Damage", extra_type="Buildings")
-        #self.write_extra_curves(self.dir.output.result_bu_areas.path, fid_list, tile_output, curve_type="Count", extra_type="Buildings")
+        self.write_extra_curves(
+            self.dir.output.result_lu_damage.path, fid_list, tile_output, curve_type="Damage", extra_type="Land-use"
+        )
+        self.write_extra_curves(
+            self.dir.output.result_lu_areas.path, fid_list, tile_output, curve_type="Count", extra_type="Land-use"
+        )
+        self.write_extra_curves(
+            self.dir.output.result_bu_damage.path, fid_list, tile_output, curve_type="Damage", extra_type="Buildings"
+        )
+        # self.write_extra_curves(self.dir.output.result_bu_areas.path, fid_list, tile_output, curve_type="Count", extra_type="Buildings")
         self.write_failures(tile_output)
 
         fdla_performance(
