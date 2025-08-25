@@ -880,12 +880,14 @@ class AreaDamageCurves:
             raise ValueError("Expected one of [run_1d, run_2d] to be True")
 
         if self.overwrite:
+            self.time.log("Find overwrite is True, thus overwriting all.")
             new_area_ids = area_ids
         else:
+            self.time.log("Find overwrite is False, checking for existing files.")
             new_area_ids = []
             run_dir = self.dir.work[self.run_type]
-            for aid in area_ids:
-                run_dir.add_fdla_dirs(self.depth_steps)
+            for aid in tqdm(area_ids, "Checking existing files"):
+                run_dir.add_fdla_dir(self.depth_steps, str(aid))
                 if not run_dir[f"fdla_{aid}"].curve.exists():
                     new_area_ids.append(aid)
 

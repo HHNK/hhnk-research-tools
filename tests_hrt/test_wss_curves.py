@@ -40,6 +40,7 @@ LOOKUP_PATH = WSS_DATA / "wss_lookup.json"
 DEM_PATH = WSS_DATA / "wss_curve_area_dem.tif"
 LU_PATH = WSS_DATA / "wss_curve_area_lu.tif"
 AREA_ID = "peil_id"
+BUILDINGS_ID_FIELD = "feature_id"
 VECTOR_FIELD = "name"
 OUTPUT_DIR = TEMP_DIR.joinpath(f"wss_curves_{hrt.current_time(date=True)}")
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -98,7 +99,8 @@ class TestWSSCurves:
             area_start_level_field=AREA_START_LEVEL,
             wss_config_file=WSS_CFG_FILE,
             wss_curves_filter_settings_file=WSS_CURVE_FILTER_SETTINGS_FILE,
-            panden_path=PANDEN_PATH,
+            buildings_path=PANDEN_PATH,
+            buildings_id_field=BUILDINGS_ID_FIELD,
         )
 
         shutil.copy(LOOKUP_PATH, self.dir.input.wss_lookup.path)
