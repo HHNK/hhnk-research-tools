@@ -24,7 +24,7 @@ class Figuur:
     ylabel_description: str
     figsize: Tuple[int, int] = STANDAARD_FIGUUR
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.fig: Figure = None
         self.ax: Axes = None
 
