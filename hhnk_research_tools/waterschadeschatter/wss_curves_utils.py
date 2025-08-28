@@ -134,21 +134,24 @@ De resultaten worden ondergebracht in een aantal mappen en bestanden:
             def __init__(self, base: Union[str, Path], create: bool) -> None:
                 super().__init__(os.path.join(base, "run_1d"), create)
 
-            def add_fdla_dir(self, depth_steps: List[float], name: str) -> None:
+            def fdla_result_exists(self, name):
+                return (Path(self.base) / name / "curve.csv").exists()
+                
+            def add_fdla_dir(self, name: str, depth_steps: List[float] = []) -> None:
                 """Add directory fixed drainage level areas"""
                 setattr(self, f"fdla_{name}", FDLADir(self.base, False, name, depth_steps))
 
             def add_fdla_dirs(self, depth_steps: List[float]) -> None:
                 """Add directory fixed drainage level areas"""
                 for i in self.path.glob("*"):
-                    self.add_fdla_dir(depth_steps, i.stem)
+                    self.add_fdla_dir(i.stem, depth_steps)
 
             def create_fdla_dir(
                 self, name: str, depth_steps: List[float], overwrite: bool, tiled: bool = False
             ) -> None:
                 """Create fixed drainage level areas"""
                 if (Path(self.base) / f"fdla_{name}").exists() and not overwrite:
-                    self.add_fdla_dir(depth_steps, name)
+                    self.add_fdla_dir(name, depth_steps)
                 else:
                     setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
 
@@ -156,19 +159,22 @@ De resultaten worden ondergebracht in een aantal mappen en bestanden:
             def __init__(self, base: Union[str, Path], create: bool) -> None:
                 super().__init__(os.path.join(base, "run_2d"), create)
 
-            def add_fdla_dir(self, depth_steps: List[float], name: str) -> None:
+            def fdla_result_exists(self, name):
+                return (Path(self.base) / name / "curve.csv").exists()
+            
+            def add_fdla_dir(self, name: str, depth_steps: List[float]) -> None:
                 """Add directory fixed drainage level areas"""
                 setattr(self, f"fdla_{name}", FDLADir(self.base, False, name, depth_steps))
 
             def add_fdla_dirs(self, depth_steps: List[float]) -> None:
                 """Add directory fixed drainage level areas"""
                 for i in self.path.glob("*"):
-                    self.add_fdla_dir(depth_steps, i.stem)
+                    self.add_fdla_dir(i.stem, depth_steps)
 
             def create_fdla_dir(self, name: str, depth_steps: List[float], overwrite: bool) -> None:
                 """Create fixed drainage level areas"""
                 if (Path(self.base) / f"fdla_{name}").exists() and not overwrite:
-                    self.add_fdla_dir(depth_steps, name)
+                    self.add_fdla_dir(name, depth_steps)
                 else:
                     setattr(self, f"fdla_{name}", FDLADir(self.base, True, name, depth_steps))
 
