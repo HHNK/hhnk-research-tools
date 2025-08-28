@@ -21,11 +21,11 @@ import hhnk_research_tools.logging as logging
 from hhnk_research_tools.variables import DEFAULT_NODATA_GENERAL
 from hhnk_research_tools.waterschadeschatter.wss_curves_figures import (
     BergingsCurveFiguur,
+    BuildingsSchadeFiguur,
     CurveFiguur,
     DamagesAggFiguur,
     DamagesLuCurveFiguur,
     LandgebruikCurveFiguur,
-    BuildingsSchadeFiguur,
 )
 from hhnk_research_tools.waterschadeschatter.wss_curves_folium import WSSCurvesFolium
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
