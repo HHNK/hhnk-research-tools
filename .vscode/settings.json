@@ -1,5 +1,6 @@
 {
     "notebook.formatOnSave.enabled": true,
+    "python.defaultInterpreterPath": "E:\github\ckerklaan\hhnk-research-tools\.pixi\envs\default\python.exe",
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.formatOnSave": true,

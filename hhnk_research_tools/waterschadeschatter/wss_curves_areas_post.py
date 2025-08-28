@@ -21,6 +21,7 @@ import hhnk_research_tools.logging as logging
 from hhnk_research_tools.variables import DEFAULT_NODATA_GENERAL
 from hhnk_research_tools.waterschadeschatter.wss_curves_figures import (
     BergingsCurveFiguur,
+    BuildingsSchadeFiguur,
     CurveFiguur,
     DamagesAggFiguur,
     DamagesLuCurveFiguur,
@@ -725,6 +726,14 @@ class AreaDamageCurvesAggregation:
         damages_agg.run(
             output_path=agg_dir.figures.aggregate.path,
             name=name,
+        )
+
+        building_damages = BuildingsSchadeFiguur(agg_dir.agg_building_dmg.path, agg_dir)
+        building_damages.run(
+            output_path=agg_dir.figures.panden.path,
+            name=name,
+            schadecurve_totaal=True,
+            schadebuildings_totaal=True,
         )
 
     def agg_run(self, mm_rain: int = DEFAULT_RAIN) -> dict:

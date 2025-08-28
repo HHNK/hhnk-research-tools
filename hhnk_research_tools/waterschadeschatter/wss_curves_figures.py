@@ -1,8 +1,9 @@
 # %%
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Literal, Optional, Tuple, Union
 
 import geopandas as gp
+import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,6 +17,7 @@ STANDAARD_FIGUUR = (10, 10)
 LANDGEBRUIK_FIGUUR = (20, 10)
 DPI = 300
 MAX_PEILVERHOGING = 2.5
+COLORS = np.random.rand(50, 3)
 
 
 @dataclass
@@ -90,7 +92,6 @@ class CurveFiguur(Figuur):
     def __init__(self, damage_df: pd.DataFrame) -> None:
         super().__init__(
             xlabel_description="Peilverhoging boven streefpeil (m)",
-            ylabel_description="Schadebedrag (Euro's)",
         )
         self.df_damages = damage_df
 
@@ -98,8 +99,13 @@ class CurveFiguur(Figuur):
         """Generate and save a damage curve figure."""
         self.create()
         self.plot(self.df_damages)
+        if "Berging" or "berging" in title:
+            self.ylabel_description = "Volume (m3)"
+        if "Schade" or "schade" in title:
+            self.ylabel_description = "Schadebedrag (Euro's)"
         self.set_x_y_label()
         self.title(f"{title} voor {name}")
+        self.grid()
         self.write(output_path, dpi=dpi)
 
 
@@ -150,6 +156,8 @@ class PercentageFiguur(Figuur):
         self.df_lu_opp_schade: pd.DataFrame = pd.read_csv(path, index_col=0)
         self.df_lu_opp_schade.columns = pd.Series(self.df_lu_opp_schade.columns).str.split(" ").str[0]
         self.df_sum_damages: pd.DataFrame = pd.read_csv(agg_dir.agg_damage.path, index_col=0)
+        self.df_building_damage: pd.DataFrame = pd.read_csv(agg_dir.agg_building_dmg.path, index_col=0)
+        self.df_building_damage.columns = pd.Series(self.df_building_damage.columns).str.split(" ").str[0]
         self.agg_dir = agg_dir
 
         self.xlim_min: float = 0.1
@@ -168,7 +176,7 @@ class PercentageFiguur(Figuur):
         nieuwe_klasses = np.array(lu_omzetting["nieuwe_klasse"].unique())
         self.color_dict = {}
         colors = []
-        self.handels = []
+        self.handles = []
         self.labels = []
         for klasse in nieuwe_klasses:
             label = lu_omzetting.where(lu_omzetting["nieuwe_klasse"] == klasse)["beschrijving"].dropna().unique()[0]
@@ -177,8 +185,16 @@ class PercentageFiguur(Figuur):
             colors.append(color)
         for i in range(0, len(colors)):
             handle = mpatches.Patch(color=colors[i])
-            self.handels.append(handle)
+            self.handles.append(handle)
             self.color_dict[str(nieuwe_klasses[i])] = colors[i]
+
+    def handles_legend_buildings(self) -> None:
+        colors_b = COLORS[0 : len(self.df_building_dmg_perc_filtered.columns)]
+        self.colors_b = [tuple(color) for color in colors_b]
+        self.labels_b = list(self.df_building_dmg_perc_filtered.columns)
+        self.handles_b = []
+        for i in range(0, len(self.colors_b)):
+            self.handles_b.append(mpatches.Patch(color=self.colors_b[i]))
 
     def lu_verdeling_peilgebied(self, id: int) -> None:
         self.df_peilgebied = self.df_lu_opp_schade.loc[self.df_lu_opp_schade["fid"] == id].dropna(axis=1)
@@ -192,17 +208,36 @@ class PercentageFiguur(Figuur):
             self.lu.append(self.df_peilgebied_perc[col])
             self.lu_ids.append(col)
 
+    def schade_buildings_verdeling_peilgebied(self, id: int) -> None:
+        self.df_building_damage_2 = self.df_building_damage.loc[self.df_building_damage["fid"] == id].dropna(axis=1)
+        self.df_building_damage_2 = self.df_building_damage_2.drop("fid", axis=1)
+        self.df_building_damage_perc = self.df_building_damage_2.divide(self.df_building_damage_2.sum(axis=1), axis=0)
+        self.df_building_dmg_perc_filtered = self.df_building_damage_perc.loc[
+            :, (self.df_building_damage_perc > 0.01).any(axis=0)
+        ]
+        self.df_building_dmg_perc_filtered.columns = [str(int(x)) for x in self.df_building_dmg_perc_filtered]
+
+        self.schade_building = []
+        self.building_nr = []
+        for col in self.df_building_dmg_perc_filtered.columns:
+            self.schade_building.append(self.df_building_dmg_perc_filtered[col])
+            self.building_nr.append(col)
+
     # def sum_damages(self):
     #     self.df_sum_damages = self.df_lu_opp_schade.copy()
     #     self.df_sum_damages['totaal'] = self.df_sum_damages.drop('fid', axis=1).sum(axis=1)
 
     # .index.where(self.df_lu_opp_schade['fid'] == id).dropna(), self.df_sum_damages['totaal'].where(self.df_sum_damages['fid'] == id).dropna()
 
-    def plot_schadecurve_totaal(self, id: int) -> None:
+    def plot_schadecurve_totaal(self) -> None:
         self.ax2 = self.ax.twinx()
         self.ax2.plot(self.df_sum_damages, color="black", linewidth=2)
         self.ax2.set_ylabel("Schadebedrag (Euro's)")
         self.ax2.set_ylim(bottom=0)
+
+    def plot_schade_buildings_totaal(self) -> None:
+        self.df_tot_buildings = self.df_building_damage_2.sum(axis=1)
+        self.ax2.plot(self.df_tot_buildings, color="red", linewidth=2)
 
     def combine_classes(self, lu_omzetting: pd.DataFrame, output_path: str) -> None:
         nieuwe_klasses = np.array(lu_omzetting["nieuwe_klasse"].unique())
@@ -239,7 +274,10 @@ class LandgebruikCurveFiguur(PercentageFiguur):
             )
             if schadecurve_totaal:
                 # self.sum_damages()
-                self.plot_schadecurve_totaal(id)
+                self.plot_schadecurve_totaal()
+                self.handles.append(mlines.Line2D([], [], color="black", linewidth=2))
+                self.labels.append("Totale schade")
+            self.ylabel_description = self.ylabel_description + " landgebruik"
             self.set_x_y_label()
             self.set_x_y_lim()
             self.set_x_y_ticks()
@@ -247,7 +285,7 @@ class LandgebruikCurveFiguur(PercentageFiguur):
             self.title(f"landgebruikverdeling voor {name}")
 
             self.ax.legend(
-                handles=self.handels, labels=self.labels, bbox_to_anchor=(0.05, -0.05), loc="upper left", ncols=8
+                handles=self.handles, labels=self.labels, bbox_to_anchor=(0.05, -0.05), loc="upper left", ncols=8
             )
 
             self.write(output_path, dpi=dpi)
@@ -273,7 +311,10 @@ class DamagesLuCurveFiguur(PercentageFiguur):
             )
             if schadecurve_totaal:
                 # self.sum_damages()
-                self.plot_schadecurve_totaal(id)
+                self.plot_schadecurve_totaal()
+                self.handles.append(mlines.Line2D([], [], color="black", linewidth=2))
+                self.labels.append("Totale schade")
+            self.ylabel_description = self.ylabel_description + " schade"
             self.set_x_y_label()
             self.set_x_y_lim()
             self.set_x_y_ticks()
@@ -281,8 +322,59 @@ class DamagesLuCurveFiguur(PercentageFiguur):
             self.title(f"schadeverdeling voor {name}")
 
             self.ax.legend(
-                handles=self.handels, labels=self.labels, bbox_to_anchor=(0.05, -0.05), loc="upper left", ncols=8
+                handles=self.handles, labels=self.labels, bbox_to_anchor=(0.05, -0.05), loc="upper left", ncols=8
             )
+
+            self.write(output_path, dpi=dpi)
+
+
+class BuildingsSchadeFiguur(PercentageFiguur):
+    def __init__(self, path: str, agg_dir: Any) -> None:
+        super().__init__(path, agg_dir)
+
+    def run(
+        self,
+        output_path: str,
+        name: str,
+        schadecurve_totaal: bool = False,
+        schadebuildings_totaal: bool = False,
+        dpi: int = DPI,
+    ) -> None:
+        ids = np.array(self.df_lu_opp_schade["fid"].unique())
+        for id in ids:
+            # self.lu_verdeling_peilgebied(id)
+            self.schade_buildings_verdeling_peilgebied(id)
+
+            self.handles_legend_buildings()
+            self.create()
+            # self.handles_legend(lu_omzetting)
+            self.ax.stackplot(
+                self.df_building_dmg_perc_filtered.index,
+                self.schade_building,
+                colors=self.colors_b,
+            )
+            if schadecurve_totaal:
+                # self.sum_damages()
+                self.plot_schadecurve_totaal()
+                self.handles_b.append(mlines.Line2D([], [], color="black", linewidth=2))
+                self.labels_b.append("Totale schade")
+            if schadebuildings_totaal:  # werkt alleen als schadecurve_totaal ook aan staat ivm met ax2
+                self.plot_schade_buildings_totaal()
+                self.handles_b.append(mlines.Line2D([], [], color="red", linewidth=2))
+                self.labels_b.append("Totale schade panden")
+            self.ylabel_description = self.ylabel_description + " panden schade \n (pand meegenomen vanaf 1% schade)"
+            self.set_x_y_label()
+            self.set_x_y_lim()
+            self.set_x_y_ticks()
+            self.grid()
+            self.title(f"schadeverdeling panden voor {name}")
+
+            self.ax.legend(
+                handles=self.handles_b, labels=self.labels_b, bbox_to_anchor=(0.05, -0.05), loc="upper left", ncols=8
+            )
+            # self.ax.legend(
+            #     handles=self.handels, labels=self.labels, bbox_to_anchor=(0.05, -0.05), loc="upper left", ncols=8
+            # )
 
             self.write(output_path, dpi=dpi)
 
@@ -300,7 +392,7 @@ class DamagesAggFiguur(Figuur):
         self.ylim_min = 0
         self.ylim_max = self.df_agg_csv.iloc[:, 1:].max().max() * 1.1
         self.x_ticks_list = np.arange(0, self.xlim_max, 500000)
-        self.y_ticks_list = np.arange(0, self.ylim_max, 500000)
+        self.y_ticks_list = np.arange(0, self.ylim_max, 50000)
 
     def run(self, output_path: str, name: str, dpi: int = DPI) -> None:
         self.create()

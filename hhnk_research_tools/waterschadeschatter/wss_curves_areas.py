@@ -753,9 +753,9 @@ class AreaDamageCurves:
             )
 
         return vrt
-    
+
     def load_dem(self, path_or_dir: Union[Path, list]):
-        """ loads dem to vrt"""
+        """loads dem to vrt"""
         self.time.log("Loading dem vrt")
         if self.overwrite or not self.dir.input.dem.exists():
             self.dem = self._input_to_vrt(path_or_dir, self.dir.input.dem.path)
@@ -809,7 +809,7 @@ class AreaDamageCurves:
                 custom_lu.run(self.dir.input.custom_landuse_tiles.path)
                 self.time.log("Creating custom landuse tiles finished!")
                 path_or_dir = self.dir.input.custom_landuse_tiles.path
-        
+
         if self.overwrite or not self.dir.input.lu.exists():
             self.lu = self._input_to_vrt(path_or_dir, self.dir.input.lu.path)
         else:
@@ -868,7 +868,6 @@ class AreaDamageCurves:
                 **kwargs,
             )
 
-
         self.write(tile_output=tile_ids)
 
     def run(
@@ -905,6 +904,8 @@ class AreaDamageCurves:
             for aid in tqdm(area_ids, "Checking FDLA directories"):
                 if not run_dir.fdla_result_exists(str(aid)):
                     new_area_ids.append(aid)
+
+        self.time.log(f"Found {len(new_area_ids)} new area ids.")
 
         if processes == "max" or processes == -1:
             processes = mp.cpu_count() - NOT_USED_PROCESSES
@@ -1099,13 +1100,17 @@ class AreaDamageCurves:
 
         if self.overwrite or not self.dir.output.result.exists():
             self.write_curves(self.dir.output.result.path, fid_list, tile_output, curve_type="Damage")
-        
+
         if self.overwrite or not self.dir.output.result_vol.exists():
             self.write_curves(self.dir.output.result_vol.path, fid_list, tile_output, curve_type="Volume")
-        
-        if self.overwrite or not dir.output.result_lu_damage.exists():
+
+        if self.overwrite or not self.dir.output.result_lu_damage.exists():
             self.write_extra_curves(
-                self.dir.output.result_lu_damage.path, fid_list, tile_output, curve_type="Damage", extra_type="Land-use"
+                self.dir.output.result_lu_damage.path,
+                fid_list,
+                tile_output,
+                curve_type="Damage",
+                extra_type="Land-use",
             )
         if self.overwrite or not self.dir.output.result_lu_areas.exists():
             self.write_extra_curves(
@@ -1113,7 +1118,11 @@ class AreaDamageCurves:
             )
         if self.overwrite or not self.dir.output.result_bu_damage.exists():
             self.write_extra_curves(
-                self.dir.output.result_bu_damage.path, fid_list, tile_output, curve_type="Damage", extra_type="Buildings"
+                self.dir.output.result_bu_damage.path,
+                fid_list,
+                tile_output,
+                curve_type="Damage",
+                extra_type="Buildings",
             )
 
         self.write_failures(tile_output)
@@ -1219,7 +1228,6 @@ def parse_run_cmd():
         help=f"Tile size of subprocesses when mp_envelope_area_limit is reached. Default: {TILE_SIZE} m.",
     )
 
-
     parser.set_defaults(
         overwrite=False,
         run_1d=True,
@@ -1231,14 +1239,14 @@ def parse_run_cmd():
         dd_filter=True,
         nd_filter=True,
         mp_envelope_area_limit=MP_ENVELOPE_AREA_LIMIT,
-        tile_size=TILE_SIZE
+        tile_size=TILE_SIZE,
     )
 
     args = parser.parse_args()
     print(" ".join(f"{k}={v}" for k, v in vars(args).items()))
 
     adc = hrt.AreaDamageCurves.from_settings_json(Path(str(args.settings)))
-    adc.overwrite=args.overwrite
+    adc.overwrite = args.overwrite
 
     if args.run_mp_optimized:
         adc.run_mp_optimized(
