@@ -25,6 +25,7 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_figures import (
     DamagesAggFiguur,
     DamagesLuCurveFiguur,
     LandgebruikCurveFiguur,
+    BuildingsSchadeFiguur,
 )
 from hhnk_research_tools.waterschadeschatter.wss_curves_folium import WSSCurvesFolium
 from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
@@ -725,6 +726,14 @@ class AreaDamageCurvesAggregation:
         damages_agg.run(
             output_path=agg_dir.figures.aggregate.path,
             name=name,
+        )
+
+        building_damages = BuildingsSchadeFiguur(agg_dir.agg_building_dmg.path, agg_dir)
+        building_damages.run(
+            output_path=agg_dir.figures.panden.path,
+            name=name,
+            schadecurve_totaal=True,
+            schadebuildings_totaal=True,
         )
 
     def agg_run(self, mm_rain: int = DEFAULT_RAIN) -> dict:
