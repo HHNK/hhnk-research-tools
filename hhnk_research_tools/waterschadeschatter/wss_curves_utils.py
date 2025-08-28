@@ -136,7 +136,7 @@ De resultaten worden ondergebracht in een aantal mappen en bestanden:
 
             def fdla_result_exists(self, name):
                 return (Path(self.base) / name / "curve.csv").exists()
-                
+
             def add_fdla_dir(self, name: str, depth_steps: List[float] = []) -> None:
                 """Add directory fixed drainage level areas"""
                 setattr(self, f"fdla_{name}", FDLADir(self.base, False, name, depth_steps))
@@ -161,7 +161,7 @@ De resultaten worden ondergebracht in een aantal mappen en bestanden:
 
             def fdla_result_exists(self, name):
                 return (Path(self.base) / name / "curve.csv").exists()
-            
+
             def add_fdla_dir(self, name: str, depth_steps: List[float]) -> None:
                 """Add directory fixed drainage level areas"""
                 setattr(self, f"fdla_{name}", FDLADir(self.base, False, name, depth_steps))

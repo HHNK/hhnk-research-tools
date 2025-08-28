@@ -1,9 +1,9 @@
+import argparse
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Tuple, Union
 
-import argparse
 import geopandas as gpd
 import matplotlib.figure
 import matplotlib.pyplot as plt
@@ -567,69 +567,47 @@ def parse_run_cmd() -> None:
     None
         This function parses arguments and executes the post-processing analysis.
     """
-    parser = argparse.ArgumentParser(
-        description="WSS Post-processing: Generate damage analysis charts and statistics"
-    )
-    
+    parser = argparse.ArgumentParser(description="WSS Post-processing: Generate damage analysis charts and statistics")
+
     # Required arguments
+    parser.add_argument("-damage_raster", type=str, required=True, help="Path to damage raster file")
+    parser.add_argument("-landuse_raster", type=str, required=True, help="Path to landuse raster file")
+    parser.add_argument("-output_dir", type=str, required=True, help="Output directory for results")
+
+    parser.add_argument("-buildings_vector", type=str, required=True, help="Path to buildings vector file")
     parser.add_argument(
-        "-damage_raster", 
-        type=str, 
-        required=True, 
-        help="Path to damage raster file"
-    )
-    parser.add_argument(
-        "-landuse_raster", 
-        type=str, 
-        required=True, 
-        help="Path to landuse raster file"
-    )
-    parser.add_argument(
-        "-output_dir", 
-        type=str, 
-        required=True, 
-        help="Output directory for results"
-    )
-    
-    parser.add_argument(
-        "-buildings_vector", 
-        type=str, 
-        required=True, 
-        help="Path to buildings vector file"
-    )
-    parser.add_argument(
-        "--damage_threshold", 
-        type=float, 
-        required=False, 
+        "--damage_threshold",
+        type=float,
+        required=False,
         default=1000.0,
-        help="Minimum damage threshold for building analysis. Default: 1000"
+        help="Minimum damage threshold for building analysis. Default: 1000",
     )
-    
+
     # Analysis options
     parser.add_argument(
-        "--run_landuse_analysis", 
-        action=argparse.BooleanOptionalAction, 
+        "--run_landuse_analysis",
+        action=argparse.BooleanOptionalAction,
         default=True,
-        help="Run landuse damage analysis. Default: True"
+        help="Run landuse damage analysis. Default: True",
     )
     parser.add_argument(
-        "--run_building_analysis", 
-        action=argparse.BooleanOptionalAction, 
+        "--run_building_analysis",
+        action=argparse.BooleanOptionalAction,
         default=True,
-        help="Run building damage analysis. Default: True"
+        help="Run building damage analysis. Default: True",
     )
     parser.add_argument(
-        "--create_boxplots", 
-        action=argparse.BooleanOptionalAction, 
+        "--create_boxplots",
+        action=argparse.BooleanOptionalAction,
         default=True,
-        help="Create boxplot visualizations. Default: True"
+        help="Create boxplot visualizations. Default: True",
     )
     parser.add_argument(
-        "--use_label", 
-        type=str, 
-        required=False, 
+        "--use_label",
+        type=str,
+        required=False,
         default="gebruiksdoel",
-        help="Building label field to use. Default: 'gebruiksdoel'"
+        help="Building label field to use. Default: 'gebruiksdoel'",
     )
 
     args = parser.parse_args()
@@ -638,60 +616,56 @@ def parse_run_cmd() -> None:
     try:
         # Initialize WSSPost object
         wss_post = WSSPost(
-
             damage_path=hrt.Raster(args.damage_raster),
             landuse_path=hrt.Raster(args.landuse_raster),
             buildings_path=hrt.Raster(args.buildings_vector) if args.buildings_vector else None,
-            output_dir=Path(args.output_dir)
+            output_dir=Path(args.output_dir),
         )
-        
+
         # Create output directory
         wss_post.output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         print(f"Starting WSS post-processing analysis...")
         print(f"Damage raster: {args.damage_raster}")
         print(f"Landuse raster: {args.landuse_raster}")
         print(f"Buildings raster: {args.buildings_vector or 'None'}")
         print(f"Output directory: {args.output_dir}")
-        
+
         # Run landuse analysis if requested
         if args.run_landuse_analysis:
             print("\n=== Running Landuse Analysis ===")
-            
+
             # Generate landuse area chart
             print("Creating landuse area chart...")
             wss_post.run_barchart_total_landuse_area()
-            
-            # Generate landuse damage chart  
+
+            # Generate landuse damage chart
             print("Creating landuse damage chart...")
             wss_post.run_barchart_damage_per_landuse()
-            
+
             # Generate combined landuse chart
             print("Creating combined landuse chart...")
             wss_post.run_barchart_landuse()
-            
+
         # Run building analysis if requested and data available
         if args.run_building_analysis:
             print("\n=== Running Building Analysis ===")
-            
+
             # Generate building damage chart
             print("Creating building damage chart...")
-            wss_post.run_barchart_damage_per_building(
-                damage_threshold=args.damage_threshold,
-                use_label=args.use_label
-            )
-            
+            wss_post.run_barchart_damage_per_building(damage_threshold=args.damage_threshold, use_label=args.use_label)
+
             # Generate building boxplot if requested
             if args.create_boxplots:
                 print("Creating building damage boxplot...")
                 wss_post.run_boxplot_damage_per_building(use_label=args.use_label)
-                
+
         elif args.run_building_analysis:
             print("WARNING: Building analysis requested but no building data provided")
-            
+
         print("\n=== Analysis Complete ===")
         print(f"Results saved to: {args.output_dir}")
-        
+
     except Exception as e:
         print(f"Error during analysis: {str(e)}")
         raise
