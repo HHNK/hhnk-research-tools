@@ -1080,8 +1080,7 @@ class AreaDamageCurves:
             self.time.log("Found no results for damage curves")
             return
 
-        pd.DataFrame(total).to_csv(output_file)
-        # pd.concat(total).to_csv(output_file)
+        pd.DataFrame(total, index=self.depth_steps).to_csv(output_file)
         self.time.log(f"Writing {extra_type} {curve_type} files finished!")
 
     def write_failures(self, tile_output: dict = {}) -> None:

@@ -101,6 +101,7 @@ class TestWSSCurves:
             wss_curves_filter_settings_file=WSS_CURVE_FILTER_SETTINGS_FILE,
             buildings_path=PANDEN_PATH,
             buildings_id_field=BUILDINGS_ID_FIELD,
+            overwrite=True,
         )
 
         shutil.copy(LOOKUP_PATH, self.dir.input.wss_lookup.path)

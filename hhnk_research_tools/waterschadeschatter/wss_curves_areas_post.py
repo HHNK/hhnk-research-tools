@@ -83,15 +83,15 @@ class AreaDamageCurvesAggregation:
 
         if self.dir.output.result_lu_areas.exists():
             self.lu_area_data = pd.read_csv(self.dir.output.result_lu_areas.path, index_col=0)
-            self.lu_area_data.fid = self.lu_area_data.fid.astype(str)
+            # self.lu_area_data.fid = self.lu_area_data.fid.astype(str)
 
         if self.dir.output.result_lu_damage.exists():
             self.lu_dmg_data = pd.read_csv(self.dir.output.result_lu_damage.path, index_col=0)
-            self.lu_dmg_data.fid = self.lu_dmg_data.fid.astype(str)
+            # self.lu_dmg_data.fid = self.lu_dmg_data.fid.astype(str)
 
         if self.dir.output.result_bu_damage.exists():
             self.bu_dmg_data = pd.read_csv(self.dir.output.result_bu_damage.path, index_col=0)
-            self.bu_dmg_data.fid = self.bu_dmg_data.fid.astype(str)
+            # self.bu_dmg_data.fid = self.bu_dmg_data.fid.astype(str)
 
         self.drainage_areas = self.dir.input.area.load()
         self.drainage_areas[ID_FIELD] = self.drainage_areas[ID_FIELD].astype(str)
@@ -124,6 +124,10 @@ class AreaDamageCurvesAggregation:
             areas = predicate_func(feature.geometry)
             if len(areas) > 0:
                 yield idx, feature, areas
+
+    def _fid_columns(self, fids: list, df: pd.DataFrame) -> pd.Series:
+        """retrieve column in df where fid is present and second element of underscore"""
+        return df.columns[df.columns.str.split("_").str[1].isin(fids)]
 
     @cached_property
     def damage_curve(self) -> pd.DataFrame:
@@ -245,7 +249,7 @@ class AreaDamageCurvesAggregation:
         """Sum damage curves within the given areas."""
 
         self.agg_sum_curves_output = {}
-        for idx, feature, areas_within in self:
+        for _, feature, areas_within in self:
             damage_curves = self.damage_curve[areas_within[ID_FIELD]]
             d = pd.Series(damage_curves.sum(axis=1), name=feature[self.field])
             self.agg_sum_curves_output[feature[self.field]] = d
@@ -256,7 +260,7 @@ class AreaDamageCurvesAggregation:
         """Sum damage curves within the given areas."""
 
         agg_volume = {}
-        for idx, feature, areas_within in self:
+        for _, feature, areas_within in self:
             vol_curves = self.vol_curve[areas_within[ID_FIELD]]
             d = pd.Series(vol_curves.sum(axis=1), name=feature[self.field])
             agg_volume[feature[self.field]] = d
@@ -266,8 +270,9 @@ class AreaDamageCurvesAggregation:
     def agg_landuse(self) -> dict[str, pd.Series]:
         """Sum land use areas data within the given areas."""
         self.agg_lu = {}
-        for idx, feature, areas_within in self:
-            lu_data = self.lu_area_data[self.lu_area_data.fid.isin(areas_within[ID_FIELD])]
+        for _, feature, areas_within in self:
+            lu_data = self.lu_area_data[self._fid_columns(areas_within[ID_FIELD], self.lu_area_data)]
+            lu_data.columns = lu_data.columns.str.split("_").str[0]
             lu_areas_summed = lu_data.groupby(lu_data.index).sum()
             self.agg_lu[feature[self.field]] = lu_areas_summed
 
@@ -276,8 +281,9 @@ class AreaDamageCurvesAggregation:
     def agg_landuse_dmg(self) -> dict[str, pd.Series]:
         """Sum land use damage data within the given areas."""
         self.agg_lu = {}
-        for idx, feature, areas_within in self:
-            lu_data = self.lu_dmg_data[self.lu_dmg_data.fid.isin(areas_within[ID_FIELD])]
+        for _, feature, areas_within in self:
+            lu_data = self.lu_dmg_data[self._fid_columns(areas_within[ID_FIELD], self.lu_dmg_data)]
+            lu_data.columns = lu_data.columns.str.split("_").str[0]
             lu_areas_summed = lu_data.groupby(lu_data.index).sum()
             self.agg_lu[feature[self.field]] = lu_areas_summed
 
@@ -286,8 +292,9 @@ class AreaDamageCurvesAggregation:
     def agg_buildings(self) -> dict[str, pd.Series]:
         """Sum land use areas data within the given areas."""
         self.agg_bu = {}
-        for idx, feature, areas_within in self:
-            bu_data = self.bu_area_data[self.bu_area_data.fid.isin(areas_within[ID_FIELD])]
+        for _, feature, areas_within in self:
+            bu_data = self.bu_area_data[self._fid_columns(areas_within[ID_FIELD], self.bu_area_data)]
+            bu_data.columns = bu_data.columns.str.split("_").str[0]
             bu_areas_summed = bu_data.groupby(bu_data.index).sum()
             self.agg_bu[feature[self.field]] = bu_areas_summed
 
@@ -296,8 +303,9 @@ class AreaDamageCurvesAggregation:
     def agg_buildings_dmg(self) -> dict[str, pd.Series]:
         """Sum land use damage data within the given areas."""
         self.agg_bu_dmg = {}
-        for idx, feature, areas_within in self:
-            bu_data = self.bu_dmg_data[self.bu_dmg_data.fid.isin(areas_within[ID_FIELD])]
+        for _, feature, areas_within in self:
+            bu_data = self.bu_dmg_data[self._fid_columns(areas_within[ID_FIELD], self.bu_dmg_data)]
+            bu_data.columns = bu_data.columns.str.split("_").str[0]
             bu_areas_summed = bu_data.groupby(bu_data.index).sum()
             self.agg_bu_dmg[feature[self.field]] = bu_areas_summed
 
@@ -588,6 +596,7 @@ class AreaDamageCurvesAggregation:
             path = self.dir.post_processing.figures[f"bergingscurve_{area_id}"].path
             if path.exists():
                 continue
+
             data = self.vol_interpolated_curve[area_id]
             figure = CurveFiguur(pd.DataFrame(data))
             figure.run(name=area_id, output_path=path, title="Bergingscurve")
@@ -595,8 +604,9 @@ class AreaDamageCurvesAggregation:
             path = self.dir.post_processing.figures[f"panden_{area_id}"].path
             if path.exists():
                 continue
-            bu_area_data = self.bu_dmg_data[self.bu_dmg_data.fid == area_id]
-            bu_area_data = bu_area_data.drop("fid", axis=1)
+
+            bu_area_data = self.bu_dmg_data[self._fid_columns([area_id], self.bu_dmg_data)]
+            bu_area_data.columns = bu_area_data.columns.str.split("_").str[0]
             bu_area_data = bu_area_data.dropna(axis=1)
             figure = CurveFiguur(pd.DataFrame(bu_area_data))
             figure.run(name=area_id, output_path=path, title="Schade aan panden")
