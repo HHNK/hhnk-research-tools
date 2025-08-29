@@ -89,10 +89,6 @@ class AreaDamageCurvesAggregation:
             self.lu_dmg_data = pd.read_csv(self.dir.output.result_lu_damage.path, index_col=0)
             self.lu_dmg_data.fid = self.lu_dmg_data.fid.astype(str)
 
-        # if self.dir.output.result_bu_areas.exists():
-        #    self.bu_area_data = pd.read_csv(self.dir.output.result_bu_areas.path, index_col=0)
-        #    self.bu_area_data.fid = self.bu_area_data.fid.astype(str)
-
         if self.dir.output.result_bu_damage.exists():
             self.bu_dmg_data = pd.read_csv(self.dir.output.result_bu_damage.path, index_col=0)
             self.bu_dmg_data.fid = self.bu_dmg_data.fid.astype(str)

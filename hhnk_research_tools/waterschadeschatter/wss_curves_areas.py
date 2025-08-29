@@ -995,7 +995,11 @@ class AreaDamageCurves:
             return
 
         curve_extra = pd.read_csv(file, index_col=0)
-        curve_extra = curve_extra.fillna(0) * self.resolution**2
+        curve_extra = curve_extra.fillna(0)
+
+        if curve_type == "Count":
+            curve_extra = curve_extra * self.resolution**2
+
         curve_extra["fid"] = str(fid)
         curve_extra.index = self.depth_steps
         return curve_extra
@@ -1049,7 +1053,7 @@ class AreaDamageCurves:
             raise ValueError("extra_type must be either 'Land-use' or 'Buildings'")
 
         self.time.log(f"Writing combined {extra_type} {curve_type} files")
-        total = []
+        total = {}
         for fid in tqdm(fid_list, f"{extra_type} {curve_type}"):
             if fid not in tile_output:
                 output = self.read_extra_output(fid, curve_type, extra_type)
@@ -1062,7 +1066,13 @@ class AreaDamageCurves:
                     output["fid"] = str(fid)
 
             if output is not None:
-                total.append(output.astype(int))
+                # Reduce size by adding to axis
+                c = [f"{c}_{output.fid.iloc[0]}" for c in output.columns if c != "fid"] + ["fid"]
+                output.columns = c
+                output.drop(columns=["fid"], axis=1, inplace=True)
+                for column in output:
+                    total[column] = output[column].to_numpy()
+
             else:
                 self.time.log(f"Tile {fid} has no damage curves, skipping.")
 
@@ -1070,7 +1080,8 @@ class AreaDamageCurves:
             self.time.log("Found no results for damage curves")
             return
 
-        pd.concat(total).to_csv(output_file)
+        pd.DataFrame(total).to_csv(output_file)
+        # pd.concat(total).to_csv(output_file)
         self.time.log(f"Writing {extra_type} {curve_type} files finished!")
 
     def write_failures(self, tile_output: dict = {}) -> None:
