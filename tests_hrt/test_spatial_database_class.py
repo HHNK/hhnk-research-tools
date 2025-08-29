@@ -29,3 +29,9 @@ def test_spatial_database_class():
     # Load the layer with SpatialDatabaseLayer
     layer: SpatialDatabaseLayer = getattr(db.layers, layer_name)
     assert isinstance(layer.load(), pd.DataFrame)
+
+
+# %% Run test
+if __name__ == "__main__":
+    test_spatial_database_class()
+# %%
