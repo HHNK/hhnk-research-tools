@@ -28,7 +28,6 @@ import numpy as np
 import pandas as pd
 import rasterio
 from rasterio.features import rasterize
-from scipy import ndimage
 from shapely.geometry.base import BaseGeometry
 from tqdm import tqdm
 

@@ -5,6 +5,7 @@ Created on Thu Oct 10 15:27:18 2024
 @author: kerklaac5395
 """
 
+import datetime
 import json
 from dataclasses import dataclass
 from functools import cached_property
@@ -34,6 +35,7 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     DRAINAGE_LEVEL_FIELD,
     ID_FIELD,
     AreaDamageCurveFolders,
+    WSSTimelog,
 )
 
 # Type variables for generics
@@ -85,18 +87,29 @@ class AreaDamageCurvesAggregation:
     ):
         self.dir = AreaDamageCurveFolders(self.result_path, create=True)
 
+        time_now = datetime.datetime.now().strftime("%Y%m%d%H%M")
+        log_file = self.dir.work.log.joinpath(f"log_{time_now}.log")
+        self.time = WSSTimelog(name=NAME, log_file=log_file)
+
+        self.time.log("Initializing!")
+
         if self.dir.output.result_lu_areas.exists():
+            self.time.log("Reading landuse-area data")
             self.lu_area_data = pd.read_csv(self.dir.output.result_lu_areas.path, index_col=0)
 
         if self.dir.output.result_lu_damage.exists():
+            self.time.log("Reading landuse-damage data")
             self.lu_dmg_data = pd.read_csv(self.dir.output.result_lu_damage.path, index_col=0)
 
         if self.dir.output.result_bu_damage.exists():
+            self.time.log("Reading building-damage data")
             self.bu_dmg_data = pd.read_csv(self.dir.output.result_bu_damage.path, index_col=0)
 
+        self.time.log("Reading drainage areas")
         self.drainage_areas = self.dir.input.area.load()
         self.drainage_areas[ID_FIELD] = self.drainage_areas[ID_FIELD].astype(str)
 
+        self.time.log("Reading aggregate vector")
         if self.aggregate_vector_path:
             self.vector = gpd.read_file(
                 self.aggregate_vector_path,
@@ -105,10 +118,11 @@ class AreaDamageCurvesAggregation:
             )
             self.field = self.aggregate_vector_id_field
 
+        self.time.log("Reading landuse conversion table")
         self.lu_conversion_table = pd.read_csv(self.landuse_conversion_path)
 
         self.predicate = DEFAULT_PREDICATE
-        # self.time = WSSTimelog(subject=NAME, output_dir=self.dir.post_processing.path)
+        self.time.log("Finished initializing!")
 
     @classmethod
     def from_settings_json(cls, settings_json_file: Union[str, Path]) -> "AreaDamageCurvesAggregation":
@@ -252,7 +266,6 @@ class AreaDamageCurvesAggregation:
 
     def agg_volume(self, feature, areas_within) -> dict[str, pd.Series]:
         """Sum volume curves within the given areas."""
-
         vol_curves = self.vol_curve[areas_within[ID_FIELD]]
         return pd.Series(vol_curves.sum(axis=1), name=feature[self.field])
 
@@ -260,20 +273,13 @@ class AreaDamageCurvesAggregation:
         """Sum land use areas data within the given areas."""
         lu_data = self.lu_area_data[self._fid_columns(areas_within[ID_FIELD], self.lu_area_data)]
         lu_data.columns = lu_data.columns.str.split("_").str[0]
-        return lu_data.groupby(lu_data.index).sum()
+        return lu_data.groupby(lu_data.columns, axis=1).sum()
 
     def agg_landuse_dmg(self, feature, areas_within) -> dict[str, pd.Series]:
         """Sum land use damage data within the given areas."""
-
         lu_data = self.lu_dmg_data[self._fid_columns(areas_within[ID_FIELD], self.lu_dmg_data)]
         lu_data.columns = lu_data.columns.str.split("_").str[0]
-        return lu_data.groupby(lu_data.index).sum()
-
-    def agg_buildings(self, feature, areas_within) -> dict[str, pd.Series]:
-        """Sum land use areas data within the given areas."""
-        bu_data = self.bu_area_data[self._fid_columns(areas_within[ID_FIELD], self.bu_area_data)]
-        bu_data.columns = bu_data.columns.str.split("_").str[0]
-        return bu_data.groupby(bu_data.index).sum()
+        return lu_data.groupby(lu_data.columns, axis=1).sum()
 
     def agg_buildings_dmg(self, feature, areas_within) -> dict[str, pd.Series]:
         """Sum land use damage data within the given areas."""
@@ -293,12 +299,14 @@ class AreaDamageCurvesAggregation:
         self, feature, areas_within, method="lowest_area", mm_rain=DEFAULT_RAIN
     ) -> dict[str, pd.Series]:
         """Different for distribution of rain in the drainage area"""
+        self.time.log(f"Creating aggregation with method: {method}.")
         if method == "lowest_area":
             output = self.agg_rain_lowest_area(feature, areas_within, mm_rain)
         elif method == "equal_depth":
             output = self.agg_rain_equal_depth(feature, areas_within, mm_rain)
         elif method == "equal_rain":
             output = self.agg_rain_own_area_retention(areas_within, mm_rain)
+        self.time.log(f"Creating aggregation with method: {method} finished!")
         return output
 
     def agg_rain_lowest_area(
@@ -406,7 +414,7 @@ class AreaDamageCurvesAggregation:
 
     def create_folium_html(self, depth_steps=[0.5, 1, 1.5], damage_steps=[100, 1000, 10000, 100000]):
         """Create interactive Folium map showing damage curves and drainage areas."""
-
+        self.time.log("Creating folium html.")
         fol = WSSCurvesFolium()
         fol.add_water_layer()
 
@@ -539,10 +547,11 @@ class AreaDamageCurvesAggregation:
         fol.add_border_layer("Aggregatie: Aggregatiegrenzen", agg_schade, tooltip_fields=["index"])
         fol.add_title("Schadecurves en aggregaties")
         fol.save(self.dir.post_processing.schadecurves_html.path)
+        self.time.log("Creating folium html finished!")
 
     def create_figures(self):
         """Generate damage curve figures for all drainage areas."""
-
+        self.time.log("Creating basic figures.")
         self.dir.post_processing.create_figure_dir(self.drainage_areas[ID_FIELD].tolist())
         for area_id in tqdm(self.drainage_areas[ID_FIELD], "Create basic figures"):
             path = self.dir.post_processing.figures[f"schadecurve_{area_id}"].path
@@ -570,10 +579,11 @@ class AreaDamageCurvesAggregation:
             bu_area_data = bu_area_data.dropna(axis=1)
             figure = CurveFiguur(pd.DataFrame(bu_area_data))
             figure.run(name=area_id, output_path=path, title="Schade aan panden")
+        self.time.log("Creating basic figures finished.")
 
     def create_fdla_gpkg(self) -> None:
         """Create GeoPackage file containing drainage area geometries with damage curve data."""
-
+        self.time.log("Creating basic FDLA geopackage.")
         local_file = self.dir.post_processing.peilgebieden.path
         if local_file.exists():
             return
@@ -595,10 +605,11 @@ class AreaDamageCurvesAggregation:
         # add styling
         styling = self.create_styling(table_names=["schadecurve"])
         gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver="GPKG")
+        self.time.log("Creating basic FDLA geopackage finished.")
 
     def create_aggregate_gpkg(self) -> None:
         """Create GeoPackage file containing aggregated damage curves by area."""
-
+        self.time.log("Creating aggregated geopackage.")
         ids = self.vector[self.field]
         figure_type = ["aggregate", "bergingscurve", "landgebruikcurve", "schadecurve"]
 
@@ -629,6 +640,7 @@ class AreaDamageCurvesAggregation:
         # add styling
         styling_df = self.create_styling(table_names=["aggregatie"])
         gpd.GeoDataFrame(styling_df).to_file(output_file, layer="layer_styles", driver="GPKG")
+        self.time.log("Creating aggregated geopackage finished!")
 
     def create_styling(self, table_names) -> pd.DataFrame:
         qmls = [self._get_qml(name) for name in table_names]
@@ -664,6 +676,7 @@ class AreaDamageCurvesAggregation:
         agg_dir : AggregateDir(Folder)
             Aggregate directory from AggregateDir in AreaDamageCurveFolders
         """
+        self.time.log("Creating aggregated figures.")
 
         bc = BergingsCurveFiguur(agg_dir.agg_volume.path, feature)
         bc.run(output_path=agg_dir.figures.bergingscurve.path, name=name)
@@ -706,6 +719,7 @@ class AreaDamageCurvesAggregation:
             schadecurve_totaal=True,
             schadebuildings_totaal=True,
         )
+        self.time.log("Creating aggregated figures finished!")
 
     def agg_run(self, feature, areas_within, mm_rain: int = DEFAULT_RAIN) -> dict:
         """Create a dataframe in which methods can be compared"""
@@ -723,6 +737,7 @@ class AreaDamageCurvesAggregation:
         return combined
 
     def run(self, aggregation: bool = True, mm_rain: int = DEFAULT_RAIN, create_html: bool = True) -> None:
+        self.time.log(f"Started run with {mm_rain} mm rain.")
         if not self.dir.post_processing.damage_interpolated_curve.exists():
             self.damage_interpolated_curve.to_csv(self.dir.post_processing.damage_interpolated_curve.path)
         if not self.dir.post_processing.volume_interpolated_curve.exists():
@@ -740,6 +755,7 @@ class AreaDamageCurvesAggregation:
         self.create_fdla_gpkg()
 
         if aggregation:
+            self.time.log("Starting aggregation calculation.")
             for _, feature, areas_within in self:
                 name = feature[self.field]
                 agg_dir = self.dir.post_processing.create_aggregate_dir(name)
@@ -797,6 +813,7 @@ class AreaDamageCurvesAggregation:
 
                 agg_dir.create_figure_dir(name)
                 self.create_aggregated_figures(agg_dir, name, feature)
+            self.time.log("Aggregation calculations finished!")
 
         self.create_aggregate_gpkg()
         if create_html:
