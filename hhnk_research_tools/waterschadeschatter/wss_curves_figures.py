@@ -8,6 +8,7 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import matplotlib
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
@@ -19,6 +20,8 @@ DPI = 300
 MAX_PEILVERHOGING = 2.5
 COLORS = np.random.rand(50, 3)
 
+# use to prevent memory leak
+matplotlib.use('agg')
 
 @dataclass
 class Figuur:
@@ -84,8 +87,13 @@ class Figuur:
 
     def write(self, path: str, dpi: int = DPI) -> None:
         """Save the figure to file and close the plot."""
-        plt.savefig(path, dpi=dpi)
-        plt.close()
+        if self.fig:
+            self.fig.savefig(path, dpi=dpi)
+            plt.close(self.fig)
+            self.fig = None
+            self.ax = None
+        else:
+            plt.close('all')
 
 
 class CurveFiguur(Figuur):

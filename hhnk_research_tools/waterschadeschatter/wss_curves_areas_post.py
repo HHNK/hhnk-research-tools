@@ -613,6 +613,11 @@ class AreaDamageCurvesAggregation:
 
     def create_fdla_gpkg(self) -> None:
         """Create GeoPackage file containing drainage area geometries with damage curve data."""
+        
+        local_file = self.dir.post_processing.peilgebieden.path
+        if local_file.exists():
+            return
+        
         fig_dir = self.dir.post_processing.figures
         ids = self.drainage_areas[ID_FIELD]
 
@@ -765,12 +770,18 @@ class AreaDamageCurvesAggregation:
 
     def run(self, aggregation: bool = True, mm_rain: int = DEFAULT_RAIN, create_html: bool = True) -> None:
         # general data
-        self.damage_interpolated_curve.to_csv(self.dir.post_processing.damage_interpolated_curve.path)
-        self.vol_interpolated_curve.to_csv(self.dir.post_processing.volume_interpolated_curve.path)
-        self.damage_level_curve.to_csv(self.dir.post_processing.damage_level_curve.path)
-        self.vol_level_curve.to_csv(self.dir.post_processing.vol_level_curve.path)
-        self.damage_per_m3.to_csv(self.dir.post_processing.damage_per_m3.path)
-        self.damage_level_per_ha.to_csv(self.dir.post_processing.damage_level_per_ha.path)
+        if not self.dir.post_processing.damage_interpolated_curve.exists():    
+            self.damage_interpolated_curve.to_csv(self.dir.post_processing.damage_interpolated_curve.path)
+        if not self.dir.post_processing.volume_interpolated_curve.exists():
+            self.vol_interpolated_curve.to_csv(self.dir.post_processing.volume_interpolated_curve.path)
+        if not self.dir.post_processing.damage_level_curve.exists():
+            self.damage_level_curve.to_csv(self.dir.post_processing.damage_level_curve.path)
+        if not self.dir.post_processing.vol_level_curve.exists():
+            self.vol_level_curve.to_csv(self.dir.post_processing.vol_level_curve.path)
+        if not self.dir.post_processing.damage_per_m3.exists():
+            self.damage_per_m3.to_csv(self.dir.post_processing.damage_per_m3.path)
+        if not self.dir.post_processing.damage_level_per_ha.exists():
+            self.damage_level_per_ha.to_csv(self.dir.post_processing.damage_level_per_ha.path)
 
         self.create_figures()
         self.create_fdla_gpkg()
