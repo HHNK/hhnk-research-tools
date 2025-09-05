@@ -285,7 +285,7 @@ class AreaDamageCurvesAggregation:
         """Sum land use damage data within the given areas."""
         bu_data = self.bu_dmg_data[self._fid_columns(areas_within[ID_FIELD], self.bu_dmg_data)]
         bu_data.columns = bu_data.columns.str.split("_").str[0]
-        return bu_data.groupby(bu_data.index).sum()
+        return bu_data.groupby(bu_data.columns, axis=1).sum()
 
     def agg_damage_level_per_ha(self, feature, areas_within) -> dict[str, pd.DataFrame]:
         """Damage level per ha within the given areas."""
@@ -509,10 +509,12 @@ class AreaDamageCurvesAggregation:
                 show_colormap=True,
             )
 
+        fids= self._fid_columns(self.fdla_geometry.index, self.lu_area_data)
+        lu_data = self.lu_area_data
+        lu_data.columns = self.lu_dmg_data.columns.str.split("_").str[0]
         for depth_step in depth_steps:
-            depth_data = self.lu_dmg_data.loc[depth_step]
-            depth_data.index = depth_data.fid
-            depth_data.drop(columns=["fid"], inplace=True)
+            depth_data = lu_data.loc[int(depth_step*10)]
+            depth_data.index = fids
             depth_data.fillna(DEFAULT_NODATA_GENERAL, inplace=True)
             lu_max_dmg_per_step = depth_data.idxmax(axis=1).astype(float)
             max_lu = gpd.GeoDataFrame(
@@ -610,6 +612,12 @@ class AreaDamageCurvesAggregation:
     def create_aggregate_gpkg(self) -> None:
         """Create GeoPackage file containing aggregated damage curves by area."""
         self.time.log("Creating aggregated geopackage.")
+
+        output_file = self.dir.post_processing.aggregatie.path
+        if output_file.exists():
+            self.time.log("Aggregated geopackage exists! Skipping!")
+            return
+
         ids = self.vector[self.field]
         figure_type = ["aggregate", "bergingscurve", "landgebruikcurve", "schadecurve"]
 
@@ -618,6 +626,8 @@ class AreaDamageCurvesAggregation:
             if not hasattr(self.dir.post_processing, i):
                 continue
             geometry = self.vector[self.vector[self.field] == i].geometry.iloc[0]
+            if not hasattr(self.dir.post_processing[i], "figures"):
+                continue
             agg_figure_dir = self.dir.post_processing[i].figures
             for ftype in figure_type:
                 path = getattr(agg_figure_dir, ftype).path
@@ -634,7 +644,7 @@ class AreaDamageCurvesAggregation:
             index=data["index"],
         )
 
-        output_file = self.dir.post_processing.aggregatie.path
+        
         aggregate_gdf.to_file(output_file, layer="aggregatie", driver="GPKG")
 
         # add styling
@@ -677,48 +687,51 @@ class AreaDamageCurvesAggregation:
             Aggregate directory from AggregateDir in AreaDamageCurveFolders
         """
         self.time.log("Creating aggregated figures.")
+        if not agg_dir.figures.bergingscurve.path.exists():
+            bc = BergingsCurveFiguur(agg_dir.agg_volume.path, feature)
+            bc.run(output_path=agg_dir.figures.bergingscurve.path, name=name)
 
-        bc = BergingsCurveFiguur(agg_dir.agg_volume.path, feature)
-        bc.run(output_path=agg_dir.figures.bergingscurve.path, name=name)
+        if not agg_dir.figures.landgebruikcurve.path.exists():
+            lu_curve = LandgebruikCurveFiguur(agg_dir.agg_landuse.path, agg_dir)
+            lu_curve.combine_classes(
+                lu_omzetting=self.lu_conversion_table,
+                output_path=agg_dir.result_lu_areas_classes.path,
+            )
 
-        lu_curve = LandgebruikCurveFiguur(agg_dir.agg_landuse.path, agg_dir)
-        lu_curve.combine_classes(
-            lu_omzetting=self.lu_conversion_table,
-            output_path=agg_dir.result_lu_areas_classes.path,
-        )
+            lu_curve.run(
+                lu_omzetting=self.lu_conversion_table,
+                name=name,
+                output_path=agg_dir.figures.landgebruikcurve.path,
+                schadecurve_totaal=True,
+            )
 
-        lu_curve.run(
-            lu_omzetting=self.lu_conversion_table,
-            name=name,
-            output_path=agg_dir.figures.landgebruikcurve.path,
-            schadecurve_totaal=True,
-        )
-
-        damages = DamagesLuCurveFiguur(agg_dir.agg_landuse_dmg.path, agg_dir)
-        damages.combine_classes(
-            lu_omzetting=self.lu_conversion_table,
-            output_path=agg_dir.result_lu_damages_classes.path,
-        )
-        damages.run(
-            lu_omzetting=self.lu_conversion_table,
-            output_path=agg_dir.figures.schadecurve.path,
-            name=name,
-            schadecurve_totaal=True,
-        )
-
-        damages_agg = DamagesAggFiguur(agg_dir.aggregate.path)
-        damages_agg.run(
-            output_path=agg_dir.figures.aggregate.path,
-            name=name,
-        )
-
-        building_damages = BuildingsSchadeFiguur(agg_dir.agg_building_dmg.path, agg_dir)
-        building_damages.run(
-            output_path=agg_dir.figures.panden.path,
-            name=name,
-            schadecurve_totaal=True,
-            schadebuildings_totaal=True,
-        )
+        if not agg_dir.figures.schadecurve.path.exists():
+            damages = DamagesLuCurveFiguur(agg_dir.agg_landuse_dmg.path, agg_dir)
+            damages.combine_classes(
+                lu_omzetting=self.lu_conversion_table,
+                output_path=agg_dir.result_lu_damages_classes.path,
+            )
+            damages.run(
+                lu_omzetting=self.lu_conversion_table,
+                output_path=agg_dir.figures.schadecurve.path,
+                name=name,
+                schadecurve_totaal=True,
+            )
+        
+        if not agg_dir.figures.aggregate.path.exists():
+            damages_agg = DamagesAggFiguur(agg_dir.aggregate.path)
+            damages_agg.run(
+                output_path=agg_dir.figures.aggregate.path,
+                name=name,
+            )
+        if not agg_dir.figures.panden.path.exists():
+            building_damages = BuildingsSchadeFiguur(agg_dir.agg_building_dmg.path, agg_dir)
+            building_damages.run(
+                output_path=agg_dir.figures.panden.path,
+                name=name,
+                schadecurve_totaal=True,
+                schadebuildings_totaal=True,
+            )
         self.time.log("Creating aggregated figures finished!")
 
     def agg_run(self, feature, areas_within, mm_rain: int = DEFAULT_RAIN) -> dict:
@@ -735,89 +748,109 @@ class AreaDamageCurvesAggregation:
         combined = combined.interpolate("linear").astype(int)
         combined.index = combined.index.astype(int)
         return combined
+    
+    def run_aggregate_feature(self, feature, areas_within, mm_rain):
+        name = feature[self.field]
+        agg_dir = self.dir.post_processing.create_aggregate_dir(name)
+
+        if not agg_dir.selection.path.exists():
+            self.selection[name].to_file(agg_dir.selection.path)
+
+        if not agg_dir.aggregate.path.exists():
+            aggregate = self.agg_run(feature, areas_within, mm_rain)
+            aggregate.index.name = "Volume [m3]"
+            aggregate = aggregate.add_suffix(" [eur]")
+            aggregate.to_csv(agg_dir.aggregate.path)
+
+        if not agg_dir.agg_damage.path.exists():
+            agg_damage = self.agg_damage(feature, areas_within)
+            agg_damage.index.name = "Peilstijging [m]"
+            agg_damage.name = agg_damage.name + " [euro]"
+            agg_damage.to_csv(agg_dir.agg_damage.path)
+
+        if not agg_dir.agg_volume.path.exists():
+            agg_volume = self.agg_volume(feature, areas_within)
+            agg_volume.index.name = "Peilstijging [m]"
+            agg_volume.name = agg_volume.name + " [m3]"
+            agg_volume.to_csv(agg_dir.agg_volume.path)
+
+        if not agg_dir.agg_landuse.path.exists():
+            agg_landuse = self.agg_landuse(feature, areas_within)
+            agg_landuse.index.name = "Peilstijging [m]"
+            agg_landuse = agg_landuse.add_suffix(" [m2]")
+            agg_landuse.to_csv(agg_dir.agg_landuse.path)
+
+        if not agg_dir.agg_landuse_dmg.path.exists():
+            agg_landuse_dmg = self.agg_landuse_dmg(feature, areas_within)
+            agg_landuse_dmg.index.name = "Peilstijging [m]"
+            agg_landuse_dmg = agg_landuse_dmg.add_suffix(" [euro]")
+            agg_landuse_dmg.to_csv(agg_dir.agg_landuse_dmg.path)
+
+        if not agg_dir.agg_building_dmg.path.exists():
+            agg_building_dmg = self.agg_buildings_dmg(feature, areas_within)
+            agg_building_dmg.index.name = "Peilstijging [m]"
+            agg_building_dmg = agg_building_dmg.add_suffix(" [euro]")
+            agg_building_dmg.to_csv(agg_dir.agg_building_dmg.path)
+
+        if not agg_dir.agg_damage_ha.path.exists():
+            agg_damage_ha = self.agg_damage_level_per_ha(feature, areas_within)
+            agg_damage_ha.index.name = "Peilstijging [m]"
+            agg_damage_ha = agg_damage_ha.add_suffix(" [euro/ha]")
+            agg_damage_ha.to_csv(agg_dir.agg_damage_ha.path)
+
+        if not agg_dir.agg_damage_m3.path.exists():
+            agg_damage_m3 = self.agg_damage_level_per_m3(feature, areas_within)
+            agg_damage_m3.index.name = "Peilstijging [m]"
+            agg_damage_m3 = agg_damage_m3.add_suffix(" [euro/m3]")
+            agg_damage_m3.to_csv(agg_dir.agg_damage_m3.path)
+
+        agg_dir.create_figure_dir(name)
+        self.create_aggregated_figures(agg_dir, name, feature)
+
 
     def run(self, aggregation: bool = True, mm_rain: int = DEFAULT_RAIN, create_html: bool = True) -> None:
-        self.time.log(f"Started run with {mm_rain} mm rain.")
-        if not self.dir.post_processing.damage_interpolated_curve.exists():
-            self.damage_interpolated_curve.to_csv(self.dir.post_processing.damage_interpolated_curve.path)
-        if not self.dir.post_processing.volume_interpolated_curve.exists():
-            self.vol_interpolated_curve.to_csv(self.dir.post_processing.volume_interpolated_curve.path)
-        if not self.dir.post_processing.damage_level_curve.exists():
-            self.damage_level_curve.to_csv(self.dir.post_processing.damage_level_curve.path)
-        if not self.dir.post_processing.vol_level_curve.exists():
-            self.vol_level_curve.to_csv(self.dir.post_processing.vol_level_curve.path)
-        if not self.dir.post_processing.damage_per_m3.exists():
-            self.damage_per_m3.to_csv(self.dir.post_processing.damage_per_m3.path)
-        if not self.dir.post_processing.damage_level_per_ha.exists():
-            self.damage_level_per_ha.to_csv(self.dir.post_processing.damage_level_per_ha.path)
+        try:
+            self.time.log(f"Started run with {mm_rain} mm rain.")
+            if not self.dir.post_processing.damage_interpolated_curve.exists():
+                self.damage_interpolated_curve.to_csv(self.dir.post_processing.damage_interpolated_curve.path)
+            if not self.dir.post_processing.volume_interpolated_curve.exists():
+                self.vol_interpolated_curve.to_csv(self.dir.post_processing.volume_interpolated_curve.path)
+            if not self.dir.post_processing.damage_level_curve.exists():
+                self.damage_level_curve.to_csv(self.dir.post_processing.damage_level_curve.path)
+            if not self.dir.post_processing.vol_level_curve.exists():
+                self.vol_level_curve.to_csv(self.dir.post_processing.vol_level_curve.path)
+            if not self.dir.post_processing.damage_per_m3.exists():
+                self.damage_per_m3.to_csv(self.dir.post_processing.damage_per_m3.path)
+            if not self.dir.post_processing.damage_level_per_ha.exists():
+                self.damage_level_per_ha.to_csv(self.dir.post_processing.damage_level_per_ha.path)
 
-        self.create_figures()
-        self.create_fdla_gpkg()
+            self.create_figures()
+            self.create_fdla_gpkg()
 
-        if aggregation:
-            self.time.log("Starting aggregation calculation.")
-            for _, feature, areas_within in self:
-                name = feature[self.field]
-                agg_dir = self.dir.post_processing.create_aggregate_dir(name)
+            if aggregation:
+                self.time.log("Starting aggregation calculation.")
+                for _, feature, areas_within in self:
+                    self.time.log(f"Starting aggregation for {feature[self.field]}.")
+                    
+                    try:
+                        self.run_aggregate_feature(feature, areas_within, mm_rain)
+                    except Exception as e:
+                        self.time.log(f"Failure for {feature[self.field]}")
+                        self.time.log(f"Traceback: {e}")
+                    
+                self.time.log("Aggregation calculations finished!")
 
-                if not agg_dir.selection.path.exists():
-                    self.selection[name].to_file(agg_dir.selection.path)
+            self.create_aggregate_gpkg()
+            if create_html:
+                try:
+                    self.create_folium_html()
+                except Exception as e:
+                    self.time.log("Folium html failure")
+                    self.time.log(f"Traceback: {e}")  
 
-                if not agg_dir.aggregate.path.exists():
-                    aggregate = self.agg_run(feature, areas_within, mm_rain)
-                    aggregate.index.name = "Volume [m3]"
-                    aggregate = aggregate.add_suffix(" [eur]")
-                    aggregate.to_csv(agg_dir.aggregate.path)
-
-                if not agg_dir.agg_damage.path.exists():
-                    agg_damage = self.agg_damage(feature, areas_within)
-                    agg_damage.index.name = "Peilstijging [m]"
-                    agg_damage.name = agg_damage.name + " [euro]"
-                    agg_damage.to_csv(agg_dir.agg_damage.path)
-
-                if not agg_dir.agg_volume.path.exists():
-                    agg_volume = self.agg_volume(feature, areas_within)
-                    agg_volume.index.name = "Peilstijging [m]"
-                    agg_volume.name = agg_volume.name + " [m3]"
-                    agg_volume.to_csv(agg_dir.agg_volume.path)
-
-                if not agg_dir.agg_landuse.path.exists():
-                    agg_landuse = self.agg_landuse(feature, areas_within)
-                    agg_landuse.index.name = "Peilstijging [m]"
-                    agg_landuse = agg_landuse.add_suffix(" [m2]")
-                    agg_landuse.to_csv(agg_dir.agg_landuse.path)
-
-                if not agg_dir.agg_landuse_dmg.path.exists():
-                    agg_landuse_dmg = self.agg_landuse_dmg(feature, areas_within)
-                    agg_landuse_dmg.index.name = "Peilstijging [m]"
-                    agg_landuse_dmg = agg_landuse_dmg.add_suffix(" [euro]")
-                    agg_landuse_dmg.to_csv(agg_dir.agg_landuse_dmg.path)
-
-                if not agg_dir.agg_building_dmg.path.exists():
-                    agg_building_dmg = self.agg_buildings_dmg(feature, areas_within)
-                    agg_building_dmg.index.name = "Peilstijging [m]"
-                    agg_building_dmg = agg_building_dmg.add_suffix(" [euro]")
-                    agg_building_dmg.to_csv(agg_dir.agg_building_dmg.path)
-
-                if not agg_dir.agg_damage_ha.path.exists():
-                    agg_damage_ha = self.agg_damage_level_per_ha(feature, areas_within)
-                    agg_damage_ha.index.name = "Peilstijging [m]"
-                    agg_damage_ha = agg_damage_ha.add_suffix(" [euro/ha]")
-                    agg_damage_ha.to_csv(agg_dir.agg_damage_ha.path)
-
-                if not agg_dir.agg_damage_m3.path.exists():
-                    agg_damage_m3 = self.agg_damage_level_per_m3(feature, areas_within)
-                    agg_damage_m3.index.name = "Peilstijging [m]"
-                    agg_damage_m3 = agg_damage_m3.add_suffix(" [euro/m3]")
-                    agg_damage_m3.to_csv(agg_dir.agg_damage_m3.path)
-
-                agg_dir.create_figure_dir(name)
-                self.create_aggregated_figures(agg_dir, name, feature)
-            self.time.log("Aggregation calculations finished!")
-
-        self.create_aggregate_gpkg()
-        if create_html:
-            self.create_folium_html()
+        except Exception as e:
+            self.time.log("Aggregation run failure")
+            self.time.log(f"Traceback: {e}")           
 
 
 # %%
