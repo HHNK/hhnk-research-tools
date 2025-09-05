@@ -582,23 +582,30 @@ class AreaDamageCurvesAggregation:
         self.dir.post_processing.create_figure_dir(self.drainage_areas[ID_FIELD].tolist())
         for area_id in tqdm(self.drainage_areas[ID_FIELD], "Create basic figures"):
             path = self.dir.post_processing.figures[f"schadecurve_{area_id}"].path
-            if path.exists():
-                continue
+            # if path.exists():
+            #     continue
 
             data = self.damage_interpolated_curve[area_id]
             figure = CurveFiguur(pd.DataFrame(data))
             figure.run(name=area_id, output_path=path, title="Schadecurve")
 
+            # path = self.dir.post_processing.figures[f"bergingscurve_{area_id}"].path
+            # # if path.exists():
+            # #     continue
+            # data = self.vol_interpolated_curve[area_id]
+            # figure = CurveFiguur(pd.DataFrame(data))
+            # figure.run(name=area_id, output_path=path, title="Bergingscurve")
+
             path = self.dir.post_processing.figures[f"bergingscurve_{area_id}"].path
-            if path.exists():
-                continue
+            # if path.exists():
+            #     continue
             data = self.vol_interpolated_curve[area_id]
-            figure = CurveFiguur(pd.DataFrame(data))
-            figure.run(name=area_id, output_path=path, title="Bergingscurve")
+            figure = BergingsCurveFiguur(pd.DataFrame(data), self.drainage_areas[self.drainage_areas[ID_FIELD] == area_id])
+            figure.run(name=area_id, output_path=path)
 
             path = self.dir.post_processing.figures[f"panden_{area_id}"].path
-            if path.exists():
-                continue
+            # if path.exists():
+            #     continue
             bu_area_data = self.bu_dmg_data[self.bu_dmg_data.fid == area_id]
             bu_area_data = bu_area_data.drop("fid", axis=1)
             bu_area_data = bu_area_data.dropna(axis=1)

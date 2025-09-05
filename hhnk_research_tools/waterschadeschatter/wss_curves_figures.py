@@ -11,6 +11,7 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
+from pathlib import Path, WindowsPath
 
 # Globals
 STANDAARD_FIGUUR = (10, 10)
@@ -92,6 +93,7 @@ class CurveFiguur(Figuur):
     def __init__(self, damage_df: pd.DataFrame) -> None:
         super().__init__(
             xlabel_description="Peilverhoging boven streefpeil (m)",
+            ylabel_description = "Volume (m3)"
         )
         self.df_damages = damage_df
 
@@ -99,9 +101,9 @@ class CurveFiguur(Figuur):
         """Generate and save a damage curve figure."""
         self.create()
         self.plot(self.df_damages)
-        if "Berging" or "berging" in title:
+        if ("Berging" or "berging") in title:
             self.ylabel_description = "Volume (m3)"
-        if "Schade" or "schade" in title:
+        if ("Schade" or "schade") in title:
             self.ylabel_description = "Schadebedrag (Euro's)"
         self.set_x_y_label()
         self.title(f"{title} voor {name}")
@@ -110,12 +112,15 @@ class CurveFiguur(Figuur):
 
 
 class BergingsCurveFiguur(Figuur):
-    def __init__(self, volume_level_path: str, vector_area: gp.GeoSeries) -> None:
+    def __init__(self, volume_level_path: Union[WindowsPath, pd.DataFrame], vector_area: gp.GeoSeries) -> None:
         super().__init__(
             xlabel_description="Waterstand (m+NAP)",
             ylabel_description="Volume (m3)",
         )
-        self.df_vol_level: pd.DataFrame = pd.read_csv(volume_level_path, index_col=0)
+        if type(volume_level_path) == WindowsPath:
+            self.df_vol_level = pd.read_csv(volume_level_path, index_col=0)
+        if type(volume_level_path) == pd.DataFrame:
+            self.df_vol_level = volume_level_path.copy()
         self.ylabel_mm = "Berging (mm)"
         self.vector_area = vector_area
         self.ax_mm: Optional[Axes] = None
