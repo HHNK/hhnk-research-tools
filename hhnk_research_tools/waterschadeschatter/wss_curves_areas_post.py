@@ -569,8 +569,8 @@ class AreaDamageCurvesAggregation:
                 continue
 
             data = self.vol_interpolated_curve[area_id]
-            figure = CurveFiguur(pd.DataFrame(data))
-            figure.run(name=area_id, output_path=path, title="Bergingscurve")
+            figure = BergingsCurveFiguur(pd.DataFrame(data), self.drainage_areas[self.drainage_areas[ID_FIELD] == area_id])
+            figure.run(name=area_id, output_path=path)
 
             path = self.dir.post_processing.figures[f"panden_{area_id}"].path
             if path.exists():
