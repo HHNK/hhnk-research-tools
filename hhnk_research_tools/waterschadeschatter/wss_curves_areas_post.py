@@ -5,6 +5,7 @@ Created on Thu Oct 10 15:27:18 2024
 @author: kerklaac5395
 """
 
+import datetime
 import json
 from dataclasses import dataclass
 from functools import cached_property
@@ -17,7 +18,9 @@ import pandas as pd
 import shapely
 from tqdm import tqdm
 
+import hhnk_research_tools as hrt
 import hhnk_research_tools.logging as logging
+import hhnk_research_tools.waterschadeschatter.resources as wss_resources
 from hhnk_research_tools.variables import DEFAULT_NODATA_GENERAL
 from hhnk_research_tools.waterschadeschatter.wss_curves_figures import (
     BergingsCurveFiguur,
@@ -32,6 +35,7 @@ from hhnk_research_tools.waterschadeschatter.wss_curves_utils import (
     DRAINAGE_LEVEL_FIELD,
     ID_FIELD,
     AreaDamageCurveFolders,
+    WSSTimelog,
 )
 
 # Type variables for generics
@@ -43,6 +47,8 @@ logger = logging.get_logger(__name__)
 
 # Globals
 NAME = "AreaDamageCurves Aggregation"
+
+LANDUSE_CONVERSION_TABLE = hrt.get_pkg_resource_path(wss_resources, "landuse_conversion_table.csv")
 
 # Defaults
 DEFAULT_RAIN = 200  # mm
@@ -74,32 +80,36 @@ class AreaDamageCurvesAggregation:
     aggregate_vector_path: Union[str, Path, None] = None
     aggregate_vector_id_field: Optional[str] = None
     aggregate_vector_layer_name: Optional[str] = None
-    landuse_conversion_path: Union[str, Path, None] = None
+    landuse_conversion_path: Union[str, Path, None] = LANDUSE_CONVERSION_TABLE
 
     def __post_init__(
         self,
     ):
         self.dir = AreaDamageCurveFolders(self.result_path, create=True)
 
+        time_now = datetime.datetime.now().strftime("%Y%m%d%H%M")
+        log_file = self.dir.work.log.joinpath(f"log_{time_now}.log")
+        self.time = WSSTimelog(name=NAME, log_file=log_file)
+
+        self.time.log("Initializing!")
+
         if self.dir.output.result_lu_areas.exists():
+            self.time.log("Reading landuse-area data")
             self.lu_area_data = pd.read_csv(self.dir.output.result_lu_areas.path, index_col=0)
-            self.lu_area_data.fid = self.lu_area_data.fid.astype(str)
 
         if self.dir.output.result_lu_damage.exists():
+            self.time.log("Reading landuse-damage data")
             self.lu_dmg_data = pd.read_csv(self.dir.output.result_lu_damage.path, index_col=0)
-            self.lu_dmg_data.fid = self.lu_dmg_data.fid.astype(str)
-
-        # if self.dir.output.result_bu_areas.exists():
-        #    self.bu_area_data = pd.read_csv(self.dir.output.result_bu_areas.path, index_col=0)
-        #    self.bu_area_data.fid = self.bu_area_data.fid.astype(str)
 
         if self.dir.output.result_bu_damage.exists():
+            self.time.log("Reading building-damage data")
             self.bu_dmg_data = pd.read_csv(self.dir.output.result_bu_damage.path, index_col=0)
-            self.bu_dmg_data.fid = self.bu_dmg_data.fid.astype(str)
 
+        self.time.log("Reading drainage areas")
         self.drainage_areas = self.dir.input.area.load()
         self.drainage_areas[ID_FIELD] = self.drainage_areas[ID_FIELD].astype(str)
 
+        self.time.log("Reading aggregate vector")
         if self.aggregate_vector_path:
             self.vector = gpd.read_file(
                 self.aggregate_vector_path,
@@ -108,11 +118,11 @@ class AreaDamageCurvesAggregation:
             )
             self.field = self.aggregate_vector_id_field
 
-        if self.landuse_conversion_path:
-            self.lu_conversion_table = pd.read_csv(self.landuse_conversion_path)
+        self.time.log("Reading landuse conversion table")
+        self.lu_conversion_table = pd.read_csv(self.landuse_conversion_path)
 
         self.predicate = DEFAULT_PREDICATE
-        # self.time = WSSTimelog(subject=NAME, output_dir=self.dir.post_processing.path)
+        self.time.log("Finished initializing!")
 
     @classmethod
     def from_settings_json(cls, settings_json_file: Union[str, Path]) -> "AreaDamageCurvesAggregation":
@@ -128,6 +138,10 @@ class AreaDamageCurvesAggregation:
             areas = predicate_func(feature.geometry)
             if len(areas) > 0:
                 yield idx, feature, areas
+
+    def _fid_columns(self, fids: list, df: pd.DataFrame) -> pd.Series:
+        """retrieve column in df where fid is present and second element of underscore"""
+        return df.columns[df.columns.str.split("_").str[1].isin(fids)]
 
     @cached_property
     def damage_curve(self) -> pd.DataFrame:
@@ -245,96 +259,54 @@ class AreaDamageCurvesAggregation:
 
         return level_curve
 
-    def agg_damage(self) -> dict[str, pd.Series]:
+    def agg_damage(self, feature, areas_within) -> dict[str, pd.Series]:
         """Sum damage curves within the given areas."""
+        damage_curves = self.damage_curve[areas_within[ID_FIELD]]
+        return pd.Series(damage_curves.sum(axis=1), name=feature[self.field])
 
-        self.agg_sum_curves_output = {}
-        for idx, feature, areas_within in self:
-            damage_curves = self.damage_curve[areas_within[ID_FIELD]]
-            d = pd.Series(damage_curves.sum(axis=1), name=feature[self.field])
-            self.agg_sum_curves_output[feature[self.field]] = d
+    def agg_volume(self, feature, areas_within) -> dict[str, pd.Series]:
+        """Sum volume curves within the given areas."""
+        vol_curves = self.vol_curve[areas_within[ID_FIELD]]
+        return pd.Series(vol_curves.sum(axis=1), name=feature[self.field])
 
-        return self.agg_sum_curves_output
-
-    def agg_volume(self) -> dict[str, pd.Series]:
-        """Sum damage curves within the given areas."""
-
-        agg_volume = {}
-        for idx, feature, areas_within in self:
-            vol_curves = self.vol_curve[areas_within[ID_FIELD]]
-            d = pd.Series(vol_curves.sum(axis=1), name=feature[self.field])
-            agg_volume[feature[self.field]] = d
-
-        return agg_volume
-
-    def agg_landuse(self) -> dict[str, pd.Series]:
+    def agg_landuse(self, feature, areas_within) -> dict[str, pd.Series]:
         """Sum land use areas data within the given areas."""
-        self.agg_lu = {}
-        for idx, feature, areas_within in self:
-            lu_data = self.lu_area_data[self.lu_area_data.fid.isin(areas_within[ID_FIELD])]
-            lu_areas_summed = lu_data.groupby(lu_data.index).sum()
-            self.agg_lu[feature[self.field]] = lu_areas_summed
+        lu_data = self.lu_area_data[self._fid_columns(areas_within[ID_FIELD], self.lu_area_data)]
+        lu_data.columns = lu_data.columns.str.split("_").str[0]
+        return lu_data.groupby(lu_data.columns, axis=1).sum()
 
-        return self.agg_lu
-
-    def agg_landuse_dmg(self) -> dict[str, pd.Series]:
+    def agg_landuse_dmg(self, feature, areas_within) -> dict[str, pd.Series]:
         """Sum land use damage data within the given areas."""
-        self.agg_lu = {}
-        for idx, feature, areas_within in self:
-            lu_data = self.lu_dmg_data[self.lu_dmg_data.fid.isin(areas_within[ID_FIELD])]
-            lu_areas_summed = lu_data.groupby(lu_data.index).sum()
-            self.agg_lu[feature[self.field]] = lu_areas_summed
+        lu_data = self.lu_dmg_data[self._fid_columns(areas_within[ID_FIELD], self.lu_dmg_data)]
+        lu_data.columns = lu_data.columns.str.split("_").str[0]
+        return lu_data.groupby(lu_data.columns, axis=1).sum()
 
-        return self.agg_lu
-
-    def agg_buildings(self) -> dict[str, pd.Series]:
-        """Sum land use areas data within the given areas."""
-        self.agg_bu = {}
-        for idx, feature, areas_within in self:
-            bu_data = self.bu_area_data[self.bu_area_data.fid.isin(areas_within[ID_FIELD])]
-            bu_areas_summed = bu_data.groupby(bu_data.index).sum()
-            self.agg_bu[feature[self.field]] = bu_areas_summed
-
-        return self.agg_bu
-
-    def agg_buildings_dmg(self) -> dict[str, pd.Series]:
+    def agg_buildings_dmg(self, feature, areas_within) -> dict[str, pd.Series]:
         """Sum land use damage data within the given areas."""
-        self.agg_bu_dmg = {}
-        for idx, feature, areas_within in self:
-            bu_data = self.bu_dmg_data[self.bu_dmg_data.fid.isin(areas_within[ID_FIELD])]
-            bu_areas_summed = bu_data.groupby(bu_data.index).sum()
-            self.agg_bu_dmg[feature[self.field]] = bu_areas_summed
+        bu_data = self.bu_dmg_data[self._fid_columns(areas_within[ID_FIELD], self.bu_dmg_data)]
+        bu_data.columns = bu_data.columns.str.split("_").str[0]
+        return bu_data.groupby(bu_data.index).sum()
 
-        return self.agg_bu_dmg
-
-    def agg_damage_level_per_ha(self) -> dict[str, pd.DataFrame]:
+    def agg_damage_level_per_ha(self, feature, areas_within) -> dict[str, pd.DataFrame]:
         """Damage level per ha within the given areas."""
-        self.agg_ha = {}
-        for idx, feature, areas_within in self:
-            ha_data = self.damage_level_per_ha[areas_within[ID_FIELD]]
-            self.agg_ha[feature[self.field]] = ha_data
-        return self.agg_ha
+        return self.damage_level_per_ha[areas_within[ID_FIELD]]
 
-    def agg_damage_level_per_m3(self) -> dict[str, pd.DataFrame]:
+    def agg_damage_level_per_m3(self, feature, areas_within) -> dict[str, pd.DataFrame]:
         """Damage level per m3 within the given areas."""
-        self.agg_m3 = {}
-        for idx, feature, areas_within in self:
-            m3_data = self.damage_level_per_ha[areas_within[ID_FIELD]]
-            self.agg_m3[feature[self.field]] = m3_data
-        return self.agg_m3
+        return self.damage_per_m3[areas_within[ID_FIELD]]
 
-    def aggregate_rain_curve(self, method="lowest_area", mm_rain=DEFAULT_RAIN) -> dict[str, pd.Series]:
+    def aggregate_rain_curve(
+        self, feature, areas_within, method="lowest_area", mm_rain=DEFAULT_RAIN
+    ) -> dict[str, pd.Series]:
         """Different for distribution of rain in the drainage area"""
-
-        output = {}
-
-        for idx, feature, areas_within in self:
-            if method == "lowest_area":
-                output[feature[self.field]] = self.agg_rain_lowest_area(feature, areas_within, mm_rain)
-            elif method == "equal_depth":
-                output[feature[self.field]] = self.agg_rain_equal_depth(feature, areas_within, mm_rain)
-            elif method == "equal_rain":
-                output[feature[self.field]] = self.agg_rain_own_area_retention(areas_within, mm_rain)
+        self.time.log(f"Creating aggregation with method: {method}.")
+        if method == "lowest_area":
+            output = self.agg_rain_lowest_area(feature, areas_within, mm_rain)
+        elif method == "equal_depth":
+            output = self.agg_rain_equal_depth(feature, areas_within, mm_rain)
+        elif method == "equal_rain":
+            output = self.agg_rain_own_area_retention(areas_within, mm_rain)
+        self.time.log(f"Creating aggregation with method: {method} finished!")
         return output
 
     def agg_rain_lowest_area(
@@ -442,7 +414,7 @@ class AreaDamageCurvesAggregation:
 
     def create_folium_html(self, depth_steps=[0.5, 1, 1.5], damage_steps=[100, 1000, 10000, 100000]):
         """Create interactive Folium map showing damage curves and drainage areas."""
-
+        self.time.log("Creating folium html.")
         fol = WSSCurvesFolium()
         fol.add_water_layer()
 
@@ -575,45 +547,47 @@ class AreaDamageCurvesAggregation:
         fol.add_border_layer("Aggregatie: Aggregatiegrenzen", agg_schade, tooltip_fields=["index"])
         fol.add_title("Schadecurves en aggregaties")
         fol.save(self.dir.post_processing.schadecurves_html.path)
+        self.time.log("Creating folium html finished!")
 
     def create_figures(self):
         """Generate damage curve figures for all drainage areas."""
-
+        self.time.log("Creating basic figures.")
         self.dir.post_processing.create_figure_dir(self.drainage_areas[ID_FIELD].tolist())
         for area_id in tqdm(self.drainage_areas[ID_FIELD], "Create basic figures"):
             path = self.dir.post_processing.figures[f"schadecurve_{area_id}"].path
-            # if path.exists():
-            #     continue
+            if path.exists():
+                continue
 
             data = self.damage_interpolated_curve[area_id]
             figure = CurveFiguur(pd.DataFrame(data))
             figure.run(name=area_id, output_path=path, title="Schadecurve")
 
-            # path = self.dir.post_processing.figures[f"bergingscurve_{area_id}"].path
-            # # if path.exists():
-            # #     continue
-            # data = self.vol_interpolated_curve[area_id]
-            # figure = CurveFiguur(pd.DataFrame(data))
-            # figure.run(name=area_id, output_path=path, title="Bergingscurve")
-
             path = self.dir.post_processing.figures[f"bergingscurve_{area_id}"].path
-            # if path.exists():
-            #     continue
+            if path.exists():
+                continue
+
             data = self.vol_interpolated_curve[area_id]
             figure = BergingsCurveFiguur(pd.DataFrame(data), self.drainage_areas[self.drainage_areas[ID_FIELD] == area_id])
             figure.run(name=area_id, output_path=path)
 
             path = self.dir.post_processing.figures[f"panden_{area_id}"].path
-            # if path.exists():
-            #     continue
-            bu_area_data = self.bu_dmg_data[self.bu_dmg_data.fid == area_id]
-            bu_area_data = bu_area_data.drop("fid", axis=1)
+            if path.exists():
+                continue
+
+            bu_area_data = self.bu_dmg_data[self._fid_columns([area_id], self.bu_dmg_data)]
+            bu_area_data.columns = bu_area_data.columns.str.split("_").str[0]
             bu_area_data = bu_area_data.dropna(axis=1)
             figure = CurveFiguur(pd.DataFrame(bu_area_data))
             figure.run(name=area_id, output_path=path, title="Schade aan panden")
+        self.time.log("Creating basic figures finished.")
 
     def create_fdla_gpkg(self) -> None:
         """Create GeoPackage file containing drainage area geometries with damage curve data."""
+        self.time.log("Creating basic FDLA geopackage.")
+        local_file = self.dir.post_processing.peilgebieden.path
+        if local_file.exists():
+            return
+
         fig_dir = self.dir.post_processing.figures
         ids = self.drainage_areas[ID_FIELD]
 
@@ -631,10 +605,11 @@ class AreaDamageCurvesAggregation:
         # add styling
         styling = self.create_styling(table_names=["schadecurve"])
         gpd.GeoDataFrame(styling).to_file(local_file, layer="layer_styles", driver="GPKG")
+        self.time.log("Creating basic FDLA geopackage finished.")
 
     def create_aggregate_gpkg(self) -> None:
         """Create GeoPackage file containing aggregated damage curves by area."""
-
+        self.time.log("Creating aggregated geopackage.")
         ids = self.vector[self.field]
         figure_type = ["aggregate", "bergingscurve", "landgebruikcurve", "schadecurve"]
 
@@ -665,6 +640,7 @@ class AreaDamageCurvesAggregation:
         # add styling
         styling_df = self.create_styling(table_names=["aggregatie"])
         gpd.GeoDataFrame(styling_df).to_file(output_file, layer="layer_styles", driver="GPKG")
+        self.time.log("Creating aggregated geopackage finished!")
 
     def create_styling(self, table_names) -> pd.DataFrame:
         qmls = [self._get_qml(name) for name in table_names]
@@ -700,6 +676,7 @@ class AreaDamageCurvesAggregation:
         agg_dir : AggregateDir(Folder)
             Aggregate directory from AggregateDir in AreaDamageCurveFolders
         """
+        self.time.log("Creating aggregated figures.")
 
         bc = BergingsCurveFiguur(agg_dir.agg_volume.path, feature)
         bc.run(output_path=agg_dir.figures.bergingscurve.path, name=name)
@@ -742,102 +719,101 @@ class AreaDamageCurvesAggregation:
             schadecurve_totaal=True,
             schadebuildings_totaal=True,
         )
+        self.time.log("Creating aggregated figures finished!")
 
-    def agg_run(self, mm_rain: int = DEFAULT_RAIN) -> dict:
+    def agg_run(self, feature, areas_within, mm_rain: int = DEFAULT_RAIN) -> dict:
         """Create a dataframe in which methods can be compared"""
-        lowest = self.aggregate_rain_curve(DEFAULT_AGG_METHODS[0], mm_rain)
-        equal_depth = self.aggregate_rain_curve(DEFAULT_AGG_METHODS[1], mm_rain)
-        equal_rain = self.aggregate_rain_curve(DEFAULT_AGG_METHODS[2], mm_rain)
-        output = {}
-        for k, v_lowest in lowest.items():
-            v_equal_depth = equal_depth[k]
-            v_equal_rain = equal_rain[k]
+        v_lowest = self.aggregate_rain_curve(feature, areas_within, DEFAULT_AGG_METHODS[0], mm_rain)
+        v_equal_depth = self.aggregate_rain_curve(feature, areas_within, DEFAULT_AGG_METHODS[1], mm_rain)
+        v_equal_rain = self.aggregate_rain_curve(feature, areas_within, DEFAULT_AGG_METHODS[2], mm_rain)
 
-            v_equal_depth = v_equal_depth[~v_equal_depth.index.duplicated()]
-            v_lowest = v_lowest[~v_lowest.index.duplicated()]
-            v_equal_rain = v_equal_rain[~v_equal_rain.index.duplicated()]
+        v_equal_depth = v_equal_depth[~v_equal_depth.index.duplicated()]
+        v_lowest = v_lowest[~v_lowest.index.duplicated()]
+        v_equal_rain = v_equal_rain[~v_equal_rain.index.duplicated()]
 
-            combined = pd.concat([v_lowest, v_equal_depth, v_equal_rain], axis=1, sort=True)
-            combined = combined.interpolate("linear").astype(int)
-            combined.index = combined.index.astype(int)
-            output[k] = combined
-
-        return output
+        combined = pd.concat([v_lowest, v_equal_depth, v_equal_rain], axis=1, sort=True)
+        combined = combined.interpolate("linear").astype(int)
+        combined.index = combined.index.astype(int)
+        return combined
 
     def run(self, aggregation: bool = True, mm_rain: int = DEFAULT_RAIN, create_html: bool = True) -> None:
-        # general data
-        self.damage_interpolated_curve.to_csv(self.dir.post_processing.damage_interpolated_curve.path)
-        self.vol_interpolated_curve.to_csv(self.dir.post_processing.volume_interpolated_curve.path)
-        self.damage_level_curve.to_csv(self.dir.post_processing.damage_level_curve.path)
-        self.vol_level_curve.to_csv(self.dir.post_processing.vol_level_curve.path)
-        self.damage_per_m3.to_csv(self.dir.post_processing.damage_per_m3.path)
-        self.damage_level_per_ha.to_csv(self.dir.post_processing.damage_level_per_ha.path)
+        self.time.log(f"Started run with {mm_rain} mm rain.")
+        if not self.dir.post_processing.damage_interpolated_curve.exists():
+            self.damage_interpolated_curve.to_csv(self.dir.post_processing.damage_interpolated_curve.path)
+        if not self.dir.post_processing.volume_interpolated_curve.exists():
+            self.vol_interpolated_curve.to_csv(self.dir.post_processing.volume_interpolated_curve.path)
+        if not self.dir.post_processing.damage_level_curve.exists():
+            self.damage_level_curve.to_csv(self.dir.post_processing.damage_level_curve.path)
+        if not self.dir.post_processing.vol_level_curve.exists():
+            self.vol_level_curve.to_csv(self.dir.post_processing.vol_level_curve.path)
+        if not self.dir.post_processing.damage_per_m3.exists():
+            self.damage_per_m3.to_csv(self.dir.post_processing.damage_per_m3.path)
+        if not self.dir.post_processing.damage_level_per_ha.exists():
+            self.damage_level_per_ha.to_csv(self.dir.post_processing.damage_level_per_ha.path)
 
         self.create_figures()
         self.create_fdla_gpkg()
 
         if aggregation:
-            aggregations = self.agg_run(mm_rain)
-            agg_damage = self.agg_damage()
-            agg_volume = self.agg_volume()
-            agg_landuse = self.agg_landuse()
-            agg_landuse_dmg = self.agg_landuse_dmg()
-            # agg_building = self.agg_buildings()
-            agg_building_dmg = self.agg_buildings_dmg()
-
-            agg_damage_ha = self.agg_damage_level_per_ha()
-            agg_damage_m3 = self.agg_damage_level_per_m3()
-
-            for _, feature, _ in self:
+            self.time.log("Starting aggregation calculation.")
+            for _, feature, areas_within in self:
                 name = feature[self.field]
                 agg_dir = self.dir.post_processing.create_aggregate_dir(name)
 
-                # aggregations
-                aggregate = aggregations[name]
-                aggregate.index.name = "Volume [m3]"
-                aggregate = aggregate.add_suffix(" [eur]")
-                aggregate.to_csv(agg_dir.aggregate.path)
+                if not agg_dir.selection.path.exists():
+                    self.selection[name].to_file(agg_dir.selection.path)
 
-                # selected geometries
-                self.selection[name].to_file(agg_dir.selection.path)
+                if not agg_dir.aggregate.path.exists():
+                    aggregate = self.agg_run(feature, areas_within, mm_rain)
+                    aggregate.index.name = "Volume [m3]"
+                    aggregate = aggregate.add_suffix(" [eur]")
+                    aggregate.to_csv(agg_dir.aggregate.path)
 
-                agg_d = agg_damage[name]
-                agg_d.index.name = "Peilstijging [m]"
-                agg_d.name = agg_d.name + " [euro]"
-                agg_d.to_csv(agg_dir.agg_damage.path)
+                if not agg_dir.agg_damage.path.exists():
+                    agg_damage = self.agg_damage(feature, areas_within)
+                    agg_damage.index.name = "Peilstijging [m]"
+                    agg_damage.name = agg_damage.name + " [euro]"
+                    agg_damage.to_csv(agg_dir.agg_damage.path)
 
-                agg_v = agg_volume[name]
-                agg_v.index.name = "Peilstijging [m]"
-                agg_v.name = agg_v.name + " [m3]"
-                agg_v.to_csv(agg_dir.agg_volume.path)
+                if not agg_dir.agg_volume.path.exists():
+                    agg_volume = self.agg_volume(feature, areas_within)
+                    agg_volume.index.name = "Peilstijging [m]"
+                    agg_volume.name = agg_volume.name + " [m3]"
+                    agg_volume.to_csv(agg_dir.agg_volume.path)
 
-                agg_l = agg_landuse[name]
-                agg_l.index.name = "Peilstijging [m]"
-                agg_l = agg_l.add_suffix(" [m2]")
-                agg_l.to_csv(agg_dir.agg_landuse.path)
+                if not agg_dir.agg_landuse.path.exists():
+                    agg_landuse = self.agg_landuse(feature, areas_within)
+                    agg_landuse.index.name = "Peilstijging [m]"
+                    agg_landuse = agg_landuse.add_suffix(" [m2]")
+                    agg_landuse.to_csv(agg_dir.agg_landuse.path)
 
-                agg_ld = agg_landuse_dmg[name]
-                agg_ld.index.name = "Peilstijging [m]"
-                agg_ld = agg_ld.add_suffix(" [euro]")
-                agg_ld.to_csv(agg_dir.agg_landuse_dmg.path)
+                if not agg_dir.agg_landuse_dmg.path.exists():
+                    agg_landuse_dmg = self.agg_landuse_dmg(feature, areas_within)
+                    agg_landuse_dmg.index.name = "Peilstijging [m]"
+                    agg_landuse_dmg = agg_landuse_dmg.add_suffix(" [euro]")
+                    agg_landuse_dmg.to_csv(agg_dir.agg_landuse_dmg.path)
 
-                agg_bd = agg_building_dmg[name]
-                agg_bd.index.name = "Peilstijging [m]"
-                agg_bd = agg_bd.add_suffix(" [euro]")
-                agg_bd.to_csv(agg_dir.agg_building_dmg.path)
+                if not agg_dir.agg_building_dmg.path.exists():
+                    agg_building_dmg = self.agg_buildings_dmg(feature, areas_within)
+                    agg_building_dmg.index.name = "Peilstijging [m]"
+                    agg_building_dmg = agg_building_dmg.add_suffix(" [euro]")
+                    agg_building_dmg.to_csv(agg_dir.agg_building_dmg.path)
 
-                agg_d_ha = agg_damage_ha[name]
-                agg_d_ha.index.name = "Peilstijging [m]"
-                agg_d_ha = agg_d_ha.add_suffix(" [euro/ha]")
-                agg_d_ha.to_csv(agg_dir.agg_damage_ha.path)
+                if not agg_dir.agg_damage_ha.path.exists():
+                    agg_damage_ha = self.agg_damage_level_per_ha(feature, areas_within)
+                    agg_damage_ha.index.name = "Peilstijging [m]"
+                    agg_damage_ha = agg_damage_ha.add_suffix(" [euro/ha]")
+                    agg_damage_ha.to_csv(agg_dir.agg_damage_ha.path)
 
-                agg_d_m3 = agg_damage_m3[name]
-                agg_d_m3.index.name = "Peilstijging [m]"
-                agg_d_m3 = agg_d_m3.add_suffix(" [euro/m3]")
-                agg_d_m3.to_csv(agg_dir.agg_damage_m3.path)
+                if not agg_dir.agg_damage_m3.path.exists():
+                    agg_damage_m3 = self.agg_damage_level_per_m3(feature, areas_within)
+                    agg_damage_m3.index.name = "Peilstijging [m]"
+                    agg_damage_m3 = agg_damage_m3.add_suffix(" [euro/m3]")
+                    agg_damage_m3.to_csv(agg_dir.agg_damage_m3.path)
 
                 agg_dir.create_figure_dir(name)
                 self.create_aggregated_figures(agg_dir, name, feature)
+            self.time.log("Aggregation calculations finished!")
 
         self.create_aggregate_gpkg()
         if create_html:

@@ -23,9 +23,9 @@ fmt-check = "ruff format ./**/*.py --check --force-exclude"
 style-check = {depends-on = ["sort_imports-check", "fmt-check"]}
 
 # Styling checks; fixes issues, used in pre-commit
-sort_imports = "python -m ruff check  ./**/*.py --select I --fix --force-exclude"
-fmt = "python -m ruff format ./**/*.py --force-exclude"
-style = {depends-on = ["sort_imports", "fmt"]}
+sort_imports = "python -m ruff check  hhnk_research_tools/**/*.py --select I --fix --force-exclude"
+fmt = "python -m ruff format hhnk_research_tools/**/*.py --force-exclude"
+style = {depends-on = []}
 
 tests = "pytest --cov-report term-missing --cov=hhnk_research_tools --cov-report=xml"
 
