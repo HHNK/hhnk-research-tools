@@ -509,16 +509,20 @@ class AreaDamageCurvesAggregation:
                 show_colormap=True,
             )
 
-        fids= self._fid_columns(self.fdla_geometry.index, self.lu_area_data)
-        lu_data = self.lu_area_data
-        lu_data.columns = self.lu_dmg_data.columns.str.split("_").str[0]
+
+
+
         for depth_step in depth_steps:
-            depth_data = lu_data.loc[int(depth_step*10)]
-            depth_data.index = fids
-            depth_data.fillna(DEFAULT_NODATA_GENERAL, inplace=True)
-            lu_max_dmg_per_step = depth_data.idxmax(axis=1).astype(float)
+            series = {}
+            for fid in self.fdla_geometry.index:
+                lu_data = self.lu_area_data[self._fid_columns([fid], self.lu_area_data)]
+                max_lu = lu_data.loc[depth_step].idxmax().split("_")[0]
+                series[fid] = max_lu
+            
+            lu_max_dmg_per_step = pd.Series(data=series, index=list(series.keys()))
+
             max_lu = gpd.GeoDataFrame(
-                {"Landgebruik (max)": lu_max_dmg_per_step},
+                {"Landgebruik (max)": lu_max_dmg_per_step.astype(int)},
                 geometry=self.fdla_geometry,
                 crs="EPSG:28992",
             )
