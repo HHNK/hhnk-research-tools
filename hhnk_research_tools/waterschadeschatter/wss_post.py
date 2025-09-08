@@ -410,6 +410,42 @@ class WSSPost:
             output_path=self.output_dir / "total_landuse_area.png",
         )
 
+    def run_barchart_damage_landuse_area(self, return_data_only: bool = False) -> Optional[pd.DataFrame]:
+        """Generate bar chart showing total area by landuse type."""
+
+        # select only landuse array's that ahve damage
+        lu_array = self.landuse_array.copy()
+        lu_array[self.damage_array <= 0] = self.landuse.nodata
+
+        # Count all unique landuse-use pixels
+        lu_counts = fast_unique_counts(lu_array, self.landuse.nodata)
+
+        # Calculate area in Hectares
+        lu_counts = pd.DataFrame(data={"lu_pixels": lu_counts[1]}, index=lu_counts[0])
+        lu_counts["area"] = lu_counts["lu_pixels"] * (self.damage.metadata.pixel_width**2)
+        lu_counts["area_ha"] = (lu_counts["area"] / 10000).astype(int)
+
+        # Convert land-use codes' to description and combine similar descriptions
+        lu_counts["label"] = lu_counts.index.map(self.lu_label_mapping)
+        lu_counts = lu_counts.groupby("label").sum()
+
+        # color
+        lu_counts["color"] = lu_counts.index.map(self.lu_color_mapping)
+
+        if return_data_only:
+            return lu_counts
+
+        lu_counts.to_csv(self.output_dir / "damage_landuse_area.csv")
+        self.create_bar_chart(
+            lu_counts,
+            "area_ha",
+            "area_ha",
+            "Oppervlakte [Ha]",
+            "Landgebruik met schade",
+            color=lu_counts["color"],
+            output_path=self.output_dir / "damage_landuse_area.png",
+        )
+
     def run_barchart_damage_per_landuse(self, return_data_only: bool = False) -> Optional[pd.DataFrame]:
         """Generate bar chart showing total damage amount by landuse type."""
 
@@ -444,7 +480,7 @@ class WSSPost:
     def run_barchart_landuse(self) -> None:
         """Generate dual-axis bar chart comparing landuse area vs damage."""
 
-        landuse_area = self.run_barchart_total_landuse_area(True)
+        landuse_area = self.run_barchart_damage_landuse_area(True)
         landuse_damage = self.run_barchart_damage_per_landuse(True)
 
         common_index = landuse_area.index.intersection(landuse_damage.index)
@@ -638,6 +674,10 @@ def parse_run_cmd() -> None:
             # Generate landuse area chart
             print("Creating landuse area chart...")
             wss_post.run_barchart_total_landuse_area()
+
+            # Generate landuse area damage chart 
+            print("Creating landuse area damage chart...")
+            wss_post.run_barchart_damage_landuse_area()
 
             # Generate landuse damage chart
             print("Creating landuse damage chart...")
