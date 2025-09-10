@@ -104,6 +104,10 @@ class AreaDamageCurvesAggregation:
         if self.dir.output.result_bu_damage.exists():
             self.time.log("Reading building-damage data")
             self.bu_dmg_data = pd.read_csv(self.dir.output.result_bu_damage.path, index_col=0)
+        
+        self.lu_area_data.index = self.damage_curve.index
+        self.lu_dmg_data.index = self.damage_curve.index
+        self.bu_dmg_data.index = self.damage_curve.index
 
         self.time.log("Reading drainage areas")
         self.drainage_areas = self.dir.input.area.load()
@@ -412,14 +416,17 @@ class AreaDamageCurvesAggregation:
         agg_series = pd.Series(aggregate_curve, name="damage_own_area_retention")
         return agg_series
 
-    def create_folium_html(self, depth_steps=[0.5, 1, 1.5], damage_steps=[100, 1000, 10000, 100000]):
+    def create_folium_html(self, feature, areas_within, depth_steps=[0.5, 1, 1.5], damage_steps=[100, 1000, 10000, 100000]):
         """Create interactive Folium map showing damage curves and drainage areas."""
         self.time.log("Creating folium html.")
         fol = WSSCurvesFolium()
         fol.add_water_layer()
 
         fdla_schade = gpd.read_file(self.dir.post_processing.peilgebieden.path, layer="schadecurve")
+        fdla_schade = fdla_schade[fdla_schade[ID_FIELD].isin(areas_within[ID_FIELD])]
+        
         agg_schade = gpd.read_file(self.dir.post_processing.aggregatie.path, layer="aggregatie")
+        agg_schade = agg_schade[self.field].isin([feature[self.field]])
 
         # Split aggregation data by curve type
         agg_landgebruik = agg_schade[agg_schade["index"].str.contains("landgebruikcurve")]
@@ -428,13 +435,13 @@ class AreaDamageCurvesAggregation:
         agg_aggregatie = agg_schade[agg_schade["index"].str.contains("aggregate")]
 
         # grafieken
-        fol.add_graphs(
-            "Peilgebieden: Schadecurve (grafiek)",
-            fdla_schade,
-            "png_path",
-            width=600,
-            height=600,
-        )
+        #fol.add_graphs(
+        #    "Peilgebieden: Schadecurve (grafiek)",
+        #    fdla_schade,
+        #    "png_path",
+        #    width=600,
+        #    height=600,
+        #)
         fol.add_graphs(
             "Aggregatie: Landgebruikcurve (grafiek)",
             agg_landgebruik,
@@ -552,7 +559,9 @@ class AreaDamageCurvesAggregation:
         # per aggregatie gebied
         fol.add_border_layer("Aggregatie: Aggregatiegrenzen", agg_schade, tooltip_fields=["index"])
         fol.add_title("Schadecurves en aggregaties")
-        fol.save(self.dir.post_processing.schadecurves_html.path)
+        
+        path = str(self.dir.post_processing.path / feature[self.field])+ ".html" 
+        fol.save(path)
         self.time.log("Creating folium html finished!")
 
     def create_figures(self):
@@ -846,11 +855,12 @@ class AreaDamageCurvesAggregation:
 
             self.create_aggregate_gpkg()
             if create_html:
-                try:
-                    self.create_folium_html()
-                except Exception as e:
-                    self.time.log("Folium html failure")
-                    self.time.log(f"Traceback: {e}")  
+                for _, feature, areas_within in self:
+                    try:
+                        self.create_folium_html(feature, areas_within)
+                    except Exception as e:
+                        self.time.log("Folium html failure")
+                        self.time.log(f"Traceback: {e}")  
 
         except Exception as e:
             self.time.log("Aggregation run failure")
