@@ -426,7 +426,8 @@ class AreaDamageCurvesAggregation:
         fdla_schade = fdla_schade[fdla_schade[ID_FIELD].isin(areas_within[ID_FIELD])]
         
         agg_schade = gpd.read_file(self.dir.post_processing.aggregatie.path, layer="aggregatie")
-        agg_schade = agg_schade[self.field].isin([feature[self.field]])
+        agg_schade[self.field]= ["_".join(i) for i in agg_schade['index'].str.split("_").str[:-1]]
+        agg_schade = agg_schade[agg_schade[self.field].isin([feature[self.field]])]
 
         # Split aggregation data by curve type
         agg_landgebruik = agg_schade[agg_schade["index"].str.contains("landgebruikcurve")]
