@@ -57,7 +57,7 @@ DEFAULT_RESOLUTION = 0.01  # m
 DEFAULT_ROUND = 2
 DEFAULT_AGG_METHODS = ["lowest_area", "equal_depth", "equal_rain"]
 DEFAULT_PREDICATE = "_within"
-
+INT = np.int64
 
 @dataclass
 class AreaDamageCurvesAggregation:
@@ -92,23 +92,6 @@ class AreaDamageCurvesAggregation:
         self.time = WSSTimelog(name=NAME, log_file=log_file)
 
         self.time.log("Initializing!")
-
-        if self.dir.output.result_lu_areas.exists():
-            self.time.log("Reading landuse-area data")
-            self.lu_area_data = pd.read_csv(self.dir.output.result_lu_areas.path, index_col=0)
-
-        if self.dir.output.result_lu_damage.exists():
-            self.time.log("Reading landuse-damage data")
-            self.lu_dmg_data = pd.read_csv(self.dir.output.result_lu_damage.path, index_col=0)
-
-        if self.dir.output.result_bu_damage.exists():
-            self.time.log("Reading building-damage data")
-            self.bu_dmg_data = pd.read_csv(self.dir.output.result_bu_damage.path, index_col=0)
-        
-        self.lu_area_data.index = self.damage_curve.index
-        self.lu_dmg_data.index = self.damage_curve.index
-        self.bu_dmg_data.index = self.damage_curve.index
-
         self.time.log("Reading drainage areas")
         self.drainage_areas = self.dir.input.area.load()
         self.drainage_areas[ID_FIELD] = self.drainage_areas[ID_FIELD].astype(str)
@@ -146,7 +129,31 @@ class AreaDamageCurvesAggregation:
     def _fid_columns(self, fids: list, df: pd.DataFrame) -> pd.Series:
         """retrieve column in df where fid is present and second element of underscore"""
         return df.columns[df.columns.str.split("_").str[1].isin(fids)]
-
+    
+    @cached_property
+    def lu_area_data(self):
+        if self.dir.output.result_lu_areas.exists():
+            self.time.log("Reading landuse-area data")
+            data = pd.read_csv(self.dir.output.result_lu_areas.path, index_col=0)
+            data.index = self.damage_curve.index
+            return data
+    
+    @cached_property
+    def lu_dmg_data(self):
+        if self.dir.output.result_lu_damage.exists():
+            self.time.log("Reading landuse-damage data")
+            data = pd.read_csv(self.dir.output.result_lu_damage.path, index_col=0)
+            data.index = self.damage_curve.index    
+            return data
+        
+    @cached_property
+    def bu_dmg_data(self):
+        if self.dir.output.result_bu_damage.exists():
+            self.time.log("Reading building-damage data")
+            data = pd.read_csv(self.dir.output.result_bu_damage.path, index_col=0)
+            data.index = self.damage_curve.index
+            return data
+        
     @cached_property
     def damage_curve(self) -> pd.DataFrame:
         if self.dir.output.result.exists():
@@ -165,18 +172,37 @@ class AreaDamageCurvesAggregation:
 
     @cached_property
     def damage_interpolated_curve(self) -> pd.DataFrame:
+        if self.dir.post_processing.damage_interpolated_curve.path.exists():
+            self.time.log("Reading local damage interpolated curve!")
+            return pd.read_csv(self.dir.post_processing.damage_interpolated_curve.path, index_col=0)
+        
+        self.time.log("Creating damage interpolated curve!")
         return self._curve_linear_interpolate(curve=self.damage_curve, resolution=DEFAULT_RESOLUTION)
 
     @cached_property
     def vol_interpolated_curve(self) -> pd.DataFrame:
+        if self.dir.post_processing.volume_interpolated_curve.path.exists():
+            self.time.log("Reading local volume interpolated curve!")
+            return pd.read_csv(self.dir.post_processing.volume_interpolated_curve.path, index_col=0)
+        
+        self.time.log("Creating volume interpolated curve!")
         return self._curve_linear_interpolate(curve=self.vol_curve, resolution=DEFAULT_RESOLUTION)
 
     @cached_property
     def damage_level_curve(self) -> pd.DataFrame:
+        if self.dir.post_processing.damage_level_curve.path.exists():
+            self.time.log("Reading local damage level curve!")
+            return pd.read_csv(self.dir.post_processing.damage_level_curve.path, index_col=0)
+        
+        self.time.log("Creating damage level curve!")
         return self._curves_to_level(curves=self.damage_curve)
 
     @cached_property
     def vol_level_curve(self) -> pd.DataFrame:
+        if self.dir.post_processing.vol_level_curve.path.exists():
+            self.time.log("Reading local volume level curve!")
+            return pd.read_csv(self.dir.post_processing.vol_level_curve.path, index_col=0)
+        self.time.log("Creating volume level curve!")
         return self._curves_to_level(curves=self.vol_curve)
 
     @cached_property
@@ -255,7 +281,7 @@ class AreaDamageCurvesAggregation:
             curve = curves[str(drainage_area[ID_FIELD])]
             if pd.isna(curve).all():
                 curve = curve.fillna(DEFAULT_NODATA_GENERAL)
-            curve = curve.astype(int)
+            curve = curve.astype(INT)
             interpolated_curve = self._curve_linear_interpolate(curve=curve, resolution=resolution)
             level = self._curve_depth_to_level(curve=interpolated_curve, drainage_area=drainage_area)
             level_curve[level.name] = level
@@ -379,17 +405,17 @@ class AreaDamageCurvesAggregation:
         # interpolated volume damage curves
         area_curve_lst = []
         for idx, area in tqdm(areas_within.iterrows(), total=len(areas_within)):
-            vol_curve = self.vol_interpolated_curve[area[ID_FIELD]].values.astype(int)
-            dam_curve = self.damage_interpolated_curve[area[ID_FIELD]].values.astype(int)
+            vol_curve = self.vol_interpolated_curve[area[ID_FIELD]].values.astype(INT)
+            dam_curve = self.damage_interpolated_curve[area[ID_FIELD]].values.astype(INT)
             curve = pd.DataFrame(index=vol_curve, data={area[ID_FIELD]: dam_curve})
             curve = curve[~curve.index.duplicated(keep="first")]
-            curve_interpolated = self._curve_linear_interpolate(curve, int_round).astype(int)
+            curve_interpolated = self._curve_linear_interpolate(curve, int_round).astype(INT)
             area_curve_lst.append(curve_interpolated)
 
         area_curve = pd.concat(area_curve_lst, axis=1, sort=True)
         area_curve = area_curve.ffill()  # all last values need to be nan
 
-        area_curve.index = area_curve.index.astype(int)
+        area_curve.index = area_curve.index.astype(INT)
         area_curve = area_curve[~area_curve.index.duplicated(keep="first")]
         area_curve = area_curve.loc[:, ~area_curve.columns.duplicated()].copy()
 
@@ -419,11 +445,20 @@ class AreaDamageCurvesAggregation:
     def create_folium_html(self, feature, areas_within, depth_steps=[0.5, 1, 1.5], damage_steps=[100, 1000, 10000, 100000]):
         """Create interactive Folium map showing damage curves and drainage areas."""
         self.time.log("Creating folium html.")
+        
+        path = str(self.dir.post_processing.path / feature[self.field])+ ".html" 
+        if Path(path).exists():
+            self.time.log(f"Folium html exists: {path}, skipping!")
+            return 
+        
         fol = WSSCurvesFolium()
         fol.add_water_layer()
 
         fdla_schade = gpd.read_file(self.dir.post_processing.peilgebieden.path, layer="schadecurve")
         fdla_schade = fdla_schade[fdla_schade[ID_FIELD].isin(areas_within[ID_FIELD])]
+        
+        fdla_geometry = fdla_schade.geometry
+        fdla_geometry.index = fdla_schade[ID_FIELD]
         
         agg_schade = gpd.read_file(self.dir.post_processing.aggregatie.path, layer="aggregatie")
         agg_schade[self.field]= ["_".join(i) for i in agg_schade['index'].str.split("_").str[:-1]]
@@ -436,13 +471,13 @@ class AreaDamageCurvesAggregation:
         agg_aggregatie = agg_schade[agg_schade["index"].str.contains("aggregate")]
 
         # grafieken
-        #fol.add_graphs(
-        #    "Peilgebieden: Schadecurve (grafiek)",
-        #    fdla_schade,
-        #    "png_path",
-        #    width=600,
-        #    height=600,
-        #)
+        fol.add_graphs(
+            "Peilgebieden: Schadecurve (grafiek)",
+            fdla_schade,
+            "png_path",
+            width=600,
+            height=600,
+        )
         fol.add_graphs(
             "Aggregatie: Landgebruikcurve (grafiek)",
             agg_landgebruik,
@@ -479,7 +514,7 @@ class AreaDamageCurvesAggregation:
         for idx, depth_step_data in self.damage_curve.iterrows():
             if idx not in depth_steps:
                 continue
-            ds_df = gpd.GeoDataFrame(depth_step_data, geometry=self.fdla_geometry, crs="EPSG:28992")
+            ds_df = gpd.GeoDataFrame(depth_step_data, geometry=fdla_geometry, crs="EPSG:28992")
             fol.add_layer(
                 name=f"Peilgebieden: Schadecurve {idx}m peilstijging.",
                 gdf=ds_df,
@@ -499,7 +534,7 @@ class AreaDamageCurvesAggregation:
             first_occurrence = mask.apply(lambda x: x[x].index[0] if x.any() else -9999)
             ds_df = gpd.GeoDataFrame(
                 {"Peilstijging": first_occurrence},
-                geometry=self.fdla_geometry,
+                geometry=fdla_geometry,
                 crs="EPSG:28992",
             )
 
@@ -522,7 +557,7 @@ class AreaDamageCurvesAggregation:
 
         for depth_step in depth_steps:
             series = {}
-            for fid in self.fdla_geometry.index:
+            for fid in fdla_geometry.index:
                 lu_data = self.lu_area_data[self._fid_columns([fid], self.lu_area_data)]
                 max_lu = lu_data.loc[depth_step].idxmax().split("_")[0]
                 series[fid] = max_lu
@@ -531,7 +566,7 @@ class AreaDamageCurvesAggregation:
 
             max_lu = gpd.GeoDataFrame(
                 {"Landgebruik (max)": lu_max_dmg_per_step.astype(int)},
-                geometry=self.fdla_geometry,
+                geometry=fdla_geometry,
                 crs="EPSG:28992",
             )
 
@@ -759,8 +794,8 @@ class AreaDamageCurvesAggregation:
         v_equal_rain = v_equal_rain[~v_equal_rain.index.duplicated()]
 
         combined = pd.concat([v_lowest, v_equal_depth, v_equal_rain], axis=1, sort=True)
-        combined = combined.interpolate("linear").astype(int)
-        combined.index = combined.index.astype(int)
+        combined = combined.interpolate("linear").astype(INT)
+        combined.index = combined.index.astype(INT)
         return combined
     
     def run_aggregate_feature(self, feature, areas_within, mm_rain):
@@ -823,7 +858,7 @@ class AreaDamageCurvesAggregation:
 
 
     def run(self, aggregation: bool = True, mm_rain: int = DEFAULT_RAIN, create_html: bool = True) -> None:
-        try:
+        #try:
             self.time.log(f"Started run with {mm_rain} mm rain.")
             if not self.dir.post_processing.damage_interpolated_curve.exists():
                 self.damage_interpolated_curve.to_csv(self.dir.post_processing.damage_interpolated_curve.path)
@@ -846,11 +881,11 @@ class AreaDamageCurvesAggregation:
                 for _, feature, areas_within in self:
                     self.time.log(f"Starting aggregation for {feature[self.field]}.")
                     
-                    try:
-                        self.run_aggregate_feature(feature, areas_within, mm_rain)
-                    except Exception as e:
-                        self.time.log(f"Failure for {feature[self.field]}")
-                        self.time.log(f"Traceback: {e}")
+                    #try:
+                    self.run_aggregate_feature(feature, areas_within, mm_rain)
+                    #except Exception as e:
+                    #    self.time.log(f"Failure for {feature[self.field]}")
+                    #    self.time.log(f"Traceback: {e}")
                     
                 self.time.log("Aggregation calculations finished!")
 
@@ -863,9 +898,9 @@ class AreaDamageCurvesAggregation:
                         self.time.log("Folium html failure")
                         self.time.log(f"Traceback: {e}")  
 
-        except Exception as e:
-            self.time.log("Aggregation run failure")
-            self.time.log(f"Traceback: {e}")           
+        #except Exception as e:
+        #    self.time.log("Aggregation run failure")
+        #    self.time.log(f"Traceback: {e}")           
 
 
 # %%
