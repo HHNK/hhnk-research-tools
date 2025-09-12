@@ -1,10 +1,16 @@
 # Module WaterSchadeSchatterCurves
 
-De module ‘Waterschadeschatter Curves’ is uitgebreide toolset voor het berekenen en naverwerken van schadecurves per peilgebied. Het systeem berekent per peilgebied schade, schade per volume en schade per type en oppervlak landgebruik op basis van verschillende waterstanden en genereert ruwe data in de vorm van csv’s, maar ook visualisaties in de vorm van interactieve folium kaarten, GIS-bestanden en figuren.
+De module ‘Waterschadeschatter Curves’ is een uitgebreide toolset voor het berekenen en naverwerken van schadecurves per peilgebied. De module berekent per peilgebied per waterstandsstijging (0.1 m, 0.2 m, etc.): 
+* de totale schade, 
+* de schade per volume, 
+* schade per type en oppervlak landgebruik. 
 
----
+[//]: <> (#TODO klopt dit? Het stond er vrij onduidelijk)
+  
+De output bestaat uit ruwe data in de vorm van csv’s, maar ook visualisaties in de vorm van interactieve folium kaarten, GIS-bestanden en figuren.
+
 # Quick-start
-Er zijn 3 manieren voor het aansturen van de scripting:
+Er zijn 2 manieren voor het aansturen van de scripting:
 -	Via python
 -	Via de command line tool
 
@@ -100,7 +106,13 @@ Door de hoofdmodule ‘wss_curves_areas’ worden 4 bestanden gegenereerd:
 3.	result_lu_damage.csv: Schade per landgebruik per dieptestap
 4.	result_vol.csv: Volume per dieptestap
 
-In de post-processing stap wordt de data gebruikt, i.c.m. een vectorbestand voor aggregaties (bijvoorbeeld polders of polderclusters). De standaard outputbestanden worden geïnterpoleerd (damage_interpolated_curve.csv), omgerekend naar waterstand (damage_level_curve.csv), (damage_level_per_ha.csv). Het volume wordt ook omgerekend naar waterstand (vol_level_curve.csv), geïnterpoleerd (volume_interpolated_curve) en gecombineerd met schade (damage_per_m3.csv). Naast de visualisaties in de vorm van een csv, zijn ze ook beschikbaar in een GeoPackage (peilgebied.gpkg), als interactieve kaart (Schadecurves.html) en als figuren (map figuren). Daarnaast worden aggregaties per opgegeven vector. Naast een subselectie van de al genoemde varianten, worden de schadecurves per peilgebied op 3 verschillende manieren geaggregeerd (aggregate.csv)
+In de post-processing stap wordt de output gebruikt, i.c.m. een vectorbestand voor aggregaties (bijvoorbeeld polders of polderclusters). De standaard outputbestanden worden geïnterpoleerd (damage_interpolated_curve.csv), omgerekend naar waterstand (damage_level_curve.csv), (damage_level_per_ha.csv).
+
+[//]: <> (#TODO Bovenstaande lijkt is niet af)
+
+Het volume wordt ook omgerekend naar waterstand (vol_level_curve.csv), geïnterpoleerd (volume_interpolated_curve) en gecombineerd met schade (damage_per_m3.csv). Naast de visualisaties in de vorm van een csv, zijn ze ook beschikbaar in een GeoPackage (peilgebied.gpkg), als interactieve kaart (Schadecurves.html) en als figuren (map figuren). Daarnaast worden aggregaties per opgegeven vector. Naast een subselectie van de al genoemde varianten, worden de schadecurves per peilgebied op 3 verschillende manieren geaggregeerd (aggregate.csv)
+
+[//]: <> (#TODO kun je dit duidelijker opschrijven?)
 
 # Workflow
 De workflow volgt een aantal stappen om naar het eindresultaat te komen.
@@ -109,16 +121,18 @@ De workflow volgt een aantal stappen om naar het eindresultaat te komen.
 **pre-processing**
 
 Als de hoofdmodule (wss_curves_areas.py) wordt aangeroepen wordt gestart met een aantal pre-processing stappen (wss_curves_areas_preprocess.py en __init__ in wss_curves_areas.py).
+
+[//]: <> (#TODO wat is de bewerkte landgebruikskaart en wat is het verschil met de input pandgebruikskaart?)
 1.	Als de bewerkte landgebruikskaart nog niet bestaat, wordt deze aangemaakt. 
 2.	De input landgebruikskaart en het hoogtemodel worden verwerkt tot VRT’s.
-3.	De lookup table worden aangemaakt. De lookup table is een nieuwigheid, waarmee de schade van een bepaalde combinatie tussen waterdiepte en landgebruik kan worden opgezocht. Als deze nog niet bestaat dan wordt deze aangemaakt. Als hij wel bestaat wordt hij ingeladen. De lookup table zorgt voor extra snelheid in het rekenproces.
+3.	De lookup tables worden aangemaakt. Een lookup table is een tussenproduct, waarmee de schade van een bepaalde combinatie tussen waterdiepte en landgebruik kan worden opgezocht. Als deze nog niet bestaat dan wordt deze aangemaakt. Als hij wel bestaat wordt hij ingeladen. De lookup table zorgt voor extra snelheid in het rekenproces.
 4.	De logging wordt geinitialiseerd in de map ‘work/log’.
-5.	Alle input wordt geplaatst in de folder ‘input’, zodat teruggekeken kan worden wat voor settings en input er gebruikt is.
+5.	Alle input wordt gekopieerd naar de folder ‘input’, zodat teruggekeken kan worden wat voor settings en input er gebruikt zijn.
 
 **hoofdberekening**
 
 In de hoofdberekening wordt de schade per peilgebied berekend. Per peilgebied wordt de benodigde data ‘uitgeknipt’ vanuit de landgebruikskaart en hoogtekaart. Vervolgens worden de kaarten teruggeschaald naar ‘int16’ om het datagebruik te verminderen. Er worden ook filters toegepast welke je kunt selecteren in de command line tool. Er zijn hier 2 soorten filters:
-1.	‘Geen schade filter’: Bij de input wordt een vector (nodamage_file) opgegeven, welke geen schade in het gebied bevatten. Binnen deze vector wordt geen schade berekend.
+1.	‘Geen schade filter’: Bij de input wordt een vector (nodamage_file) opgegeven, welke geen schade in het gebied bevatten. Binnen deze vector wordt geen schade berekend. Dit filter wordt gebruikt om bekende foutlocaties buiten de schadeberekening te houden. 
 2.	‘Diepte schade filter’: Filtert de schade bij een bepaalde combinatie tussen diepte en landgebruik. In de input wordt een json opgegeven (wss_curves_filter_settings_file) waarin deze combinatie staat beschreven.
 
 Na de filters wordt de schade per waterdiepte/peilstijging berekend, er zijn hierin 2 opties:
@@ -129,7 +143,7 @@ Om de snelheid van de module te bevorderen is gekozen voor het gevectorizeerd do
 
 In de hoofdberekening zijn er meerdere opties toegevoegd om het proces in snelheid en geheugengebruik te optimaliseren.
 1.	Multiprocessing: Elk peilgebied kan doorgerekend worden met een ander proces. Het aantal mogelijke processen is afhankelijk van het aantal beschikbare processen op je computer.
-2.	Optimized multiprocessing (-run_mp_optimized): De peilgebieden worden opgedeeld in 2 klasses op basis van het oppervlak van het extent van een peilgebied (-mp_envelope_area_limit).  De peilgebieden met het oppervlak kleiner dan de limiet worden in meerdere processen berekend. De peilgebieden groter dan de limiet worden getegeld berekend, de tegelgrootte kun je opgeven (-tile_size). De tegels zonder data, worden verwijderd. Dunne gebieden met een groot extent, zoals de boezem van HHNK kunnen daardoor efficiënt worden doorgerekend. 
+2.	Optimized multiprocessing (-run_mp_optimized): De peilgebieden worden opgedeeld in 2 klasses op basis van het oppervlak van het extent van een peilgebied (-mp_envelope_area_limit). De peilgebieden met het oppervlak kleiner dan de limiet worden in meerdere processen berekend. De peilgebieden groter dan de limiet worden getegeld berekend, de tegelgrootte kun je opgeven (-tile_size). De tegels zonder data, worden verwijderd. Dunne gebieden met een groot extent, zoals de boezem van HHNK kunnen daardoor efficiënt worden doorgerekend. 
 
 Tijdens het hoofdproces kan de voorgang bekeken worden in de command prompt of python en in het logging bestand (work/log). Na de hoofdberekening wordt de data weggeschreven in de eerder genoemde bestanden. De peilgebieden die mislukt zijn, zijn te vinden onder output/failures.gpkg.
 
