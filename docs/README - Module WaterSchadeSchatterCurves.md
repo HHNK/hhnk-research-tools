@@ -5,8 +5,6 @@ De module ‘Waterschadeschatter Curves’ is een uitgebreide toolset voor het b
 * de schade per volume, 
 * schade per type en oppervlak landgebruik. 
 
-[//]: <> (#TODO klopt dit? Het stond er vrij onduidelijk)
-  
 De output bestaat uit ruwe data in de vorm van csv’s, maar ook visualisaties in de vorm van interactieve folium kaarten, GIS-bestanden en figuren.
 
 # Quick-start
@@ -123,8 +121,7 @@ De workflow volgt een aantal stappen om naar het eindresultaat te komen.
 
 Als de hoofdmodule (wss_curves_areas.py) wordt aangeroepen wordt gestart met een aantal pre-processing stappen (wss_curves_areas_preprocess.py en __init__ in wss_curves_areas.py).
 
-[//]: <> (#TODO wat is de bewerkte landgebruikskaart en wat is het verschil met de input pandgebruikskaart?)
-1.	Als de bewerkte landgebruikskaart nog niet bestaat, wordt deze aangemaakt. 
+1.	Als de bewerkte landgebruikskaart nog niet bestaat, wordt deze aangemaakt. Hierbij wordt het landgebruik met panden op nodata gezet en worden panden vanuit het pandenbestand opgedrukt op de landgebruikskaart.
 2.	De input landgebruikskaart en het hoogtemodel worden verwerkt tot VRT’s.
 3.	De lookup tables worden aangemaakt. Een lookup table is een tussenproduct, waarmee de schade van een bepaalde combinatie tussen waterdiepte en landgebruik kan worden opgezocht. Als deze nog niet bestaat dan wordt deze aangemaakt. Als hij wel bestaat wordt hij ingeladen. De lookup table zorgt voor extra snelheid in het rekenproces.
 4.	De logging wordt geinitialiseerd in de map ‘work/log’.
