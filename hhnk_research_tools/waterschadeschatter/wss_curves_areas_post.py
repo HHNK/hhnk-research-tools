@@ -394,7 +394,7 @@ class AreaDamageCurvesAggregation:
 
         return agg_series
 
-    def agg_rain_own_area_retention(self, areas_within, mm_rain=DEFAULT_RAIN, int_round=1000) -> pd.Series:
+    def agg_rain_own_area_retention(self, areas_within, mm_rain=DEFAULT_RAIN, int_round=10000) -> pd.Series:
         """Compute the rain per drainage level area, retains it in its own
         place.
         1. Get volume damage curves per area
@@ -429,7 +429,7 @@ class AreaDamageCurvesAggregation:
                 if volume > area_vol_dam.index[-1]:
                     damage = area_vol_dam.values[-1]
                 else:
-                    damage = area_vol_dam[round(volume, -3)]  # depends on the int_round value (-3 = 1000, -1= 10)
+                    damage = area_vol_dam[round(volume, -4)]  # depends on the int_round value (-3 = 1000, -1= 10)
 
                 if np.isnan(damage):
                     damage = 0
@@ -446,7 +446,7 @@ class AreaDamageCurvesAggregation:
         """Create interactive Folium map showing damage curves and drainage areas."""
         self.time.log("Creating folium html.")
         
-        path = str(self.dir.post_processing.path / feature[self.field])+ ".html" 
+        path = str(self.dir.post_processing.path / feature[self.field] / feature[self.field])+ ".html" 
         if Path(path).exists():
             self.time.log(f"Folium html exists: {path}, skipping!")
             return 
@@ -558,7 +558,7 @@ class AreaDamageCurvesAggregation:
         for depth_step in depth_steps:
             series = {}
             for fid in fdla_geometry.index:
-                lu_data = self.lu_area_data[self._fid_columns([fid], self.lu_area_data)]
+                lu_data = self.lu_dmg_data[self._fid_columns([fid], self.lu_dmg_data)]
                 max_lu = lu_data.loc[depth_step].idxmax().split("_")[0]
                 series[fid] = max_lu
             
@@ -595,8 +595,6 @@ class AreaDamageCurvesAggregation:
         # per aggregatie gebied
         fol.add_border_layer("Aggregatie: Aggregatiegrenzen", agg_schade, tooltip_fields=["index"])
         fol.add_title("Schadecurves en aggregaties")
-        
-        path = str(self.dir.post_processing.path / feature[self.field])+ ".html" 
         fol.save(path)
         self.time.log("Creating folium html finished!")
 
@@ -746,7 +744,6 @@ class AreaDamageCurvesAggregation:
                 lu_omzetting=self.lu_conversion_table,
                 output_path=agg_dir.result_lu_areas_classes.path,
             )
-
             lu_curve.run(
                 lu_omzetting=self.lu_conversion_table,
                 name=name,
