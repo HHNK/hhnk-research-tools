@@ -675,7 +675,7 @@ def parse_run_cmd() -> None:
             print("Creating landuse area chart...")
             wss_post.run_barchart_total_landuse_area()
 
-            # Generate landuse area damage chart 
+            # Generate landuse area damage chart
             print("Creating landuse area damage chart...")
             wss_post.run_barchart_damage_landuse_area()
 

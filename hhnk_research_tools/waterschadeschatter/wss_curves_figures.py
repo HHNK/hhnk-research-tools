@@ -1,18 +1,18 @@
 # %%
 from dataclasses import dataclass
+from pathlib import Path, WindowsPath
 from typing import Any, List, Literal, Optional, Tuple, Union
 
 import geopandas as gp
+import matplotlib
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
-from pathlib import Path, WindowsPath
 
 # Globals
 STANDAARD_FIGUUR = (10, 10)
@@ -22,7 +22,8 @@ MAX_PEILVERHOGING = 2.5
 COLORS = np.random.rand(50, 3)
 
 # use to prevent memory leak
-matplotlib.use('agg')
+matplotlib.use("agg")
+
 
 @dataclass
 class Figuur:
@@ -94,15 +95,12 @@ class Figuur:
             self.fig = None
             self.ax = None
         else:
-            plt.close('all')
+            plt.close("all")
 
 
 class CurveFiguur(Figuur):
     def __init__(self, damage_df: pd.DataFrame) -> None:
-        super().__init__(
-            xlabel_description="Peilverhoging boven streefpeil (m)",
-            ylabel_description = "Volume (m3)"
-        )
+        super().__init__(xlabel_description="Peilverhoging boven streefpeil (m)", ylabel_description="Volume (m3)")
         self.df_damages = damage_df
 
     def run(self, output_path: str, name: str, title: str, dpi: int = DPI) -> None:
@@ -308,6 +306,7 @@ class LandgebruikCurveFiguur(PercentageFiguur):
         )
 
         self.write(output_path, dpi=dpi)
+
 
 class DamagesLuCurveFiguur(PercentageFiguur):
     def __init__(self, path: str, agg_dir: Any) -> None:
