@@ -85,6 +85,10 @@ with open("run_settings.json", "w") as f:
 # Laden en uitvoeren
 adc = hrt.AreaDamageCurves.from_settings_json("run_settings.json")
 adc.run(run_1d=True, multiprocessing=True)
+
+# Een voorbeeld voor HHNK
+\\corp.hhnk.nl\data\Hydrologen_data\05.Schadecurves\settings\run_wss_filter_2024.json
+
 ```
 
 **command line tool**
@@ -106,13 +110,10 @@ Door de hoofdmodule ‘wss_curves_areas’ worden 4 bestanden gegenereerd:
 3.	result_lu_damage.csv: Schade per landgebruik per dieptestap
 4.	result_vol.csv: Volume per dieptestap
 
-In de post-processing stap wordt de output gebruikt, i.c.m. een vectorbestand voor aggregaties (bijvoorbeeld polders of polderclusters). De standaard outputbestanden worden geïnterpoleerd (damage_interpolated_curve.csv), omgerekend naar waterstand (damage_level_curve.csv), (damage_level_per_ha.csv).
+In de post-processing stap wordt de output gebruikt, i.c.m. een vectorbestand voor aggregaties (bijvoorbeeld polders of polderclusters). De standaard outputbestanden worden geïnterpoleerd (damage_interpolated_curve.csv), omgerekend naar waterstand (damage_level_curve.csv), schade per hectare (damage_level_per_ha.csv). Ook de bergingscurve wordt omgerekend naar waterstand (vol_level_curve.csv) en geinterpoleerd (volume_interpolated_curve.csv).  het volume wordt ook gecombineerd met de schade (damage_per_m3.csv). Deze bestanden vormen de basis om de aggregatie per aggregatievector uit te voeren.
 
-[//]: <> (#TODO Bovenstaande lijkt is niet af)
-
-Het volume wordt ook omgerekend naar waterstand (vol_level_curve.csv), geïnterpoleerd (volume_interpolated_curve) en gecombineerd met schade (damage_per_m3.csv). Naast de visualisaties in de vorm van een csv, zijn ze ook beschikbaar in een GeoPackage (peilgebied.gpkg), als interactieve kaart (Schadecurves.html) en als figuren (map figuren). Daarnaast worden aggregaties per opgegeven vector. Naast een subselectie van de al genoemde varianten, worden de schadecurves per peilgebied op 3 verschillende manieren geaggregeerd (aggregate.csv)
-
-[//]: <> (#TODO kun je dit duidelijker opschrijven?)
+ Naast aggregaties in de vorm van een csv, zijn ze ook beschikbaar in een GeoPackage (peilgebied.gpkg) en als figuren (in de map 'figuren').
+ Hiernaast vinden er ook aggregaties plaats per polygoon in de opgegeven vector. Dit zijn vaak polders of polderclusters. Binnen een polder worden alle peilvakken geselecteerd met een WITHIN statement. Vervolgens worden de schadecurves/landgebruikscurves/schade aan gebouwen van de peilvakken bij elkaar opgeteld en verwerkt in curves specifiek van die subselectie. Dit zijn bestanden zoals agg_building_damage.csv, agg_damage.csv, agg_damage_ha.csv, agg_damage_m3.csv, agg_landuse_area.csv, agg_landuse_damage.csv en agg_volume.csv. Deze worden vervolgens omgezet naar figuren welke weer zichtbaar zijn in de html. Voor informatie kun je doorscrollen naar 'post-processing'.
 
 # Workflow
 De workflow volgt een aantal stappen om naar het eindresultaat te komen.
