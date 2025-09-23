@@ -1,4 +1,5 @@
 # %%
+import sqlite3
 import types
 import warnings
 from typing import Optional, Union
@@ -12,7 +13,6 @@ from hhnk_research_tools.folder_file_classes.file_class import File
 from hhnk_research_tools.general_functions import get_functions, get_variables
 
 logger = logging.get_logger(name=__name__)
-DEFAULT_SRID = 28992
 
 
 class SpatialDatabase(File):
@@ -25,11 +25,29 @@ class SpatialDatabase(File):
     def load(
         self,
         layer: Optional[str] = None,
-        id_col: Optional[str] = None,
+        index_column: Optional[str] = None,
         columns: Optional[list] = None,
-        epsg_code: int = DEFAULT_SRID,
+        epsg_code: int = 28992,
+        engine: str = "pyogrio",
     ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
-        """Load layer as geodataframe. When no layer provided, use the default / first one."""
+        """Load layer as geodataframe. When no layer provided, use the default / first one.
+
+        Parameters
+        ----------
+        layer : str, optional, by default None
+            Name of the layer to load. If None, and only one layer is available, that one is used.
+            If multiple layers are available, user input is requested to select one.
+        index_column : str, optional, by default None
+            Column to set as index, if the column is not loaded by geopandas, it will be try to
+            load it using a SQL query.
+        columns : list, optional, by default None (all columns)
+            List of columns to load, if None all columns are loaded. Index column is always loaded.
+        epsg_code : int, optional, by default 28992 (Amersfoort / RD New)
+            EPSG code to reproject geometries to.
+        engine : str, optional, by default "pyogrio"
+            Engine to use for reading the file, . Other options are "fiona" and "pyogrio"
+
+        """
         avail_layers = self.available_layers()
         if layer is None:
             if len(avail_layers) == 1:
@@ -42,17 +60,30 @@ class SpatialDatabase(File):
                 f"Layer {layer} not available in {self.view_name_with_parents(2)}. Options are: {avail_layers}"
             )
 
-        df = gpd.read_file(self.path, layer=layer, engine="pyogrio")
+        df = gpd.read_file(self.path, layer=layer, engine=engine)
 
         if type(df) is pd.DataFrame:
             logger.info(f"Layer {layer} is not a spatial table, returning pandas DataFrame.")
         else:
             df = df.to_crs(epsg_code)
 
+        if index_column:
+            if index_column not in df.columns:
+                # The id_col may not be in the columns. This is the case for
+                # 3Di models where it is a primary_key but not also stored as column.
+                # Pyogrio does not support loading primary keys as index directly.
+                logger.info(f"index_column `{index_column}` not in columns, trying to load it using SQL query.")
+                # Connect to the GPKG file like a normal SQLite database
+                with sqlite3.connect(self.path) as conn:
+                    # List available tables/layers (optional)
+                    id_column = pd.read_sql(f"SELECT {index_column} FROM {layer};", conn)
+
+                df[index_column] = id_column
+
+            df.set_index(index_column, drop=True, inplace=True)
+
         if columns:
             df = df[columns]
-        if id_col:
-            df.set_index(id_col, drop=True, inplace=True)
 
         return df
 
@@ -75,7 +106,6 @@ class SpatialDatabase(File):
         db = SpatialDatabase("path/to/your.gpkg")
         db.modify_gpkg_using_query("ALTER TABLE your_table ADD COLUMN new_column TEXT")
         """
-        import sqlite3
 
         # Dont execute empty str.
         if query in [None, ""]:
@@ -152,3 +182,6 @@ class FileGDBLayer(SpatialDatabaseLayer):
             stacklevel=2,
         )
         super().__init__(name, parent)
+
+
+# %%
