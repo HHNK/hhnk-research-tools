@@ -1,37 +1,49 @@
 # %%
+import shutil
+
+import geopandas as gpd
 import pandas as pd
 
-from hhnk_research_tools.folder_file_classes.spatial_database_class import SpatialDatabase, SpatialDatabaseLayer
-from tests_hrt.config import TEST_DIRECTORY
+from hhnk_research_tools.folder_file_classes.spatial_database_class import SpatialDatabase
+from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
 
 
 def test_spatial_database_class():
-    """Test the SpatialDatabase and SpatialDatabaseLayer"""
-    # %%
-    base = TEST_DIRECTORY.joinpath("area_test.gpkg")
-    layer_name = "area_test"
-    db = SpatialDatabase(base=base)
+    # Load database
+    model_filepath = TEST_DIRECTORY / "mini_test_model.gpkg"
+    spatial_db = SpatialDatabase(base=model_filepath)
 
-    # Check loading layer directly
-    assert isinstance(db.load(layer=layer_name), pd.DataFrame)
+    # Test available layers
+    layers = spatial_db.available_layers()
+    assert len(layers) == 3
+    assert "channel" in layers
 
-    # Check initial state
-    assert db.layerlist == []
+    # Test loading layer with geometry
+    gdf = spatial_db.load(layer="channel", index_column="id")
+    assert isinstance(gdf, gpd.GeoDataFrame)
+    assert gdf.crs.to_epsg() == 28992
+    assert "id" in gdf.index.names
+    assert gdf["code"][514] == "29_1"
 
-    available_layers = db.available_layers()
-    assert available_layers == [layer_name]
+    # Test loading layer without geometry
+    df = spatial_db.load(layer="model_settings", columns=["dem_file", "friction_coefficient"])  # non-spatial table
+    assert isinstance(df, pd.DataFrame)
+    assert len(df.columns) == 2
+    assert df["dem_file"][0] == "dem_hoekje.tif"
+    assert df["friction_coefficient"][0] == 666
 
-    # Add a layer
-    db.add_layer(layer_name)
-    assert layer_name in db.layerlist
-    assert hasattr(db.layers, layer_name)
+    # Test modifying using query
+    temp_filepath = TEMP_DIR / "temp_test_model.gpkg"
+    shutil.copy(src=model_filepath, dst=temp_filepath)
+    spatial_db = SpatialDatabase(temp_filepath)
 
-    # Load the layer with SpatialDatabaseLayer
-    layer: SpatialDatabaseLayer = getattr(db.layers, layer_name)
-    assert isinstance(layer.load(), pd.DataFrame)
+    # Modify friction coefficient
+    query = "UPDATE model_settings SET friction_coefficient = 999"
+    spatial_db.modify_gpkg_using_query(query=query)
+    df_modified = spatial_db.load(
+        layer="model_settings", columns=["dem_file", "friction_coefficient"]
+    )  # non-spatial table
+    assert df_modified["friction_coefficient"][0] == 999
 
 
-# %% Run test
-if __name__ == "__main__":
-    test_spatial_database_class()
 # %%
