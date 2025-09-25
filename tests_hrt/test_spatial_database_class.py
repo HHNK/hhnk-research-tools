@@ -37,7 +37,7 @@ def test_spatial_database_class():
     temp_fp = TEMP_DIR / "temp_test_model.gpkg"
     os.system(f"cp {model_fp} {temp_fp}")
     spdb = SpatialDatabase(temp_fp)
-    # modigy friction coefficient
+    # modify friction coefficient
     query = "UPDATE model_settings SET friction_coefficient = 999"
     spdb.modify_gpkg_using_query(query=query)
     df_mod = spdb.load(layer="model_settings", columns=["dem_file", "friction_coefficient"])  # non-spatial table
