@@ -112,9 +112,7 @@ class Sqlite(File):
         Execute sql query. Creates own connection if database path is given.
         Returns pandas dataframe
         """
-        kill_connection = (
-            conn is None
-        )  # Only kill connection when it was not provided as input
+        kill_connection = conn is None  # Only kill connection when it was not provided as input
         try:
             if conn is None:
                 conn = self.connect()
@@ -143,9 +141,7 @@ class Sqlite(File):
         if query in [None, ""]:
             return
 
-        kill_connection = (
-            conn is None
-        )  # Only kill connection when it was not provided as input
+        kill_connection = conn is None  # Only kill connection when it was not provided as input
         try:
             if conn is None:
                 conn = self.connect()
@@ -181,9 +177,7 @@ class Sqlite(File):
 # %%
 
 if __name__ == "__main__":
-    self = Sqlite(
-        r"E:\02.modellen\model_test_v2\02_schematisation\00_basis\bwn_test.sqlite"
-    )
+    self = Sqlite(r"E:\02.modellen\model_test_v2\02_schematisation\00_basis\bwn_test.sqlite")
 
     table_name = "v2_channel"
 

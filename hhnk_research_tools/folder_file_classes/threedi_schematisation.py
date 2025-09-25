@@ -14,6 +14,7 @@ from hhnk_research_tools.threedi.threediresult_loader import ThreediResultLoader
 
 logger = hrt.logging.get_logger(name=__name__)
 
+
 class ThreediSchematisation(Folder):
     """Threedi model/schematisation.
     expected files are the;
@@ -28,7 +29,7 @@ class ThreediSchematisation(Folder):
         # File
         # self.add_file("database", self.model_path())
         database = self.find_ext("gpkg")
-        if len(database) >=1:
+        if len(database) >= 1:
             raise ValueError("More than 1 gpkg found in folder, cannot determine which to use.")
         elif len(database) == 0:
             logger.warning(f"No gpkg found in {self.path}.")
