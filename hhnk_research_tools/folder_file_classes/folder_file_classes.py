@@ -3,11 +3,14 @@ import warnings
 from pathlib import Path
 from typing import Optional, Union
 
+import hhnk_research_tools.logging as logging
 from hhnk_research_tools import Raster
 from hhnk_research_tools.folder_file_classes.file_class import BasePath, File
 from hhnk_research_tools.folder_file_classes.spatial_database_class import SpatialDatabase
 from hhnk_research_tools.folder_file_classes.sqlite_class import Sqlite
 from hhnk_research_tools.general_functions import get_functions, get_variables
+
+logger = logging.get_logger(__name__)
 
 # %%
 
@@ -193,6 +196,47 @@ class Folder(BasePath):
                             pathname.unlink()
             except Exception as e:
                 print(pathname, e)
+
+    @staticmethod
+    def verify_exists(raise_error=True, cls=None, keys: list = None, files: list[Path] = None) -> bool:
+        """Verify if inputs exist, provide list of nonexisting files.
+
+        Parameters
+        ----------
+        raise_error : bool,
+            raises FileNotFoundError if one of files does not exist.
+            When False, only log an error.
+        cls : class
+            Use together with keys. cls to extract keys from.
+        keys : list
+            Use together with cls. keys to extract from cls.
+            resulting values should be of Path or hrt.File type.
+        files : list
+            List of files, can be used together with cls and keys or standalone.
+        """
+        filesnotfound = []
+
+        check_files = []
+        if keys is not None:
+            for key in keys:
+                check_files.append(getattr(cls, key))
+        if files is None:
+            files = []
+        check_files += files
+
+        for f in check_files:
+            try:
+                if not f.exists():
+                    filesnotfound.append(f.base)
+            except RuntimeError as e:
+                raise Exception(f"{f.base}") from e
+
+        if filesnotfound:
+            for f in filesnotfound:
+                logger.error(f"{f} not found")
+            if raise_error:
+                raise FileNotFoundError(f"{filesnotfound} not found")
+        return True
 
     def __repr__(self):
         # FIXME dit gaat mis bij @properties. hrt.ThreediResult aggregate_grid toegevoegd en die crashed de kernel
