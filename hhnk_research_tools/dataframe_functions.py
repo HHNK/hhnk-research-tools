@@ -100,7 +100,7 @@ def df_add_geometry_to_gdf(df, geometry_col, crs=DEF_TRGT_CRS) -> gpd.GeoDataFra
 
 
 # Saving
-# TODO is dit nodig? Staat vooral nog in banklevels
+# TODO is dit nodig? Staat vooral nog in banklevels # WE driver is nodig voor schrijven non-spatial data, maar dat kan ook ter plaatse
 def gdf_write_to_geopackage(gdf, path=None, filename=None, filepath=None, driver=GPKG_DRIVER, index=False):
     """
     Functions outputs DataFrame of GeoDataFrame to .gpkg document

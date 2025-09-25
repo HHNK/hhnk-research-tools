@@ -12,13 +12,12 @@ from hhnk_research_tools.rasters.raster_class import Raster  # FIXME new import
 # from hhnk_research_tools.gis.raster import RasterOld as Raster
 from hhnk_research_tools.threedi.threediresult_loader import ThreediResultLoader
 
-# Third-party imports
-
+logger = hrt.logging.get_logger(name=__name__)
 
 class ThreediSchematisation(Folder):
     """Threedi model/schematisation.
     expected files are the;
-    .sqlite
+    .gpkg
     /rasters
         - content depends on model type, they are read from the global settings in the sqlite.
     """
@@ -28,6 +27,11 @@ class ThreediSchematisation(Folder):
 
         # File
         # self.add_file("database", self.model_path())
+        database = self.find_ext("gpkg")
+        if len(database) >=1:
+            raise ValueError("More than 1 gpkg found in folder, cannot determine which to use.")
+        elif len(database) == 0:
+            logger.warning(f"No gpkg found in {self.path}.")
 
     @property
     def rasters(self):
