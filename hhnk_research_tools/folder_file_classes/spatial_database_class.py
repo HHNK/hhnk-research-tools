@@ -30,7 +30,7 @@ class SpatialDatabase(File):
         epsg_code: int = 28992,
         engine: str = "pyogrio",
     ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
-        """Load layer as geodataframe. When no layer provided, use the default / first one.
+        """Load layer as (geo)dataframe. When no layer provided, use the default / first one.
 
         Parameters
         ----------
