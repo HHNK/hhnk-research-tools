@@ -128,13 +128,16 @@ class SpatialDatabase(File):
             if conn:
                 conn.close()
 
+    # TODO remove in future releases
     def add_layer(self, name: str):
         """Predefine layers so we can write output to that layer."""
+        logger.warning("Function add_layer(s) will be deprecated in future releases. Use gpd.to_file instead.")
         if name not in self.layerlist:
             new_layer = SpatialDatabaseLayer(name, parent=self)
             self.layerlist.append(name)
             setattr(self.layers, name, new_layer)
 
+    # TODO remove in future releases
     def add_layers(self, names: list):
         """Add multiple layers"""
         for name in names:
