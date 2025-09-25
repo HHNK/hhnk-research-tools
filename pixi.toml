@@ -1,0 +1,86 @@
+[project]
+channels = ["conda-forge"]
+name = "hhnk-research-tools"
+platforms = ["win-64", "linux-64"]
+repository = "https://github.com/hhnk/hhnk-research-tools"
+
+
+[tasks]
+postinstall = "pre-commit install --install-hooks -t=pre-push" # -t=pre-commit"
+pre-commit-run = "pre-commit run --all-files"
+
+# Releasing to pypi. Gh action will release to pypi when a release is made on github.
+# make sure to tag the release on github with v*
+build_wheels = "rm -rf dist/ && python -m build" # step 1: build wheels
+twine_check = "twine check dist/*" # step 2: check built wheels
+twine_upload = "twine upload dist/*" # step 3: Upload to pypi
+twine_upload_test = "twine upload -r testpypi  dist/*" # step 3: Upload to testpypi for testing
+
+# Development
+# Styling checks; only warnings, used in gh actions
+sort_imports-check = "ruff check  ./**/*.py --select I --force-exclude"
+fmt-check = "ruff format ./**/*.py --check --force-exclude"
+style-check = {depends-on = ["sort_imports-check", "fmt-check"]}
+
+# Styling checks; fixes issues, used in pre-commit
+sort_imports = "python -m ruff check  ./**/*.py --select I --fix --force-exclude"
+fmt = "python -m ruff format ./**/*.py --force-exclude"
+style = {depends-on = ["sort_imports", "fmt"]}
+
+tests = "pytest --cov-report term-missing --cov=hhnk_research_tools --cov-report=xml"
+
+[dependencies]
+python = "3.12.*"
+# MI 3.40 site packages
+geopandas = "==1.0.1"
+numpy = "==1.26.4"
+openpyxl = "*"  # 3.1.2
+pandas = "==2.2.2"
+scipy = "==1.13.0"
+urllib3 = "2.*" #2.2.3
+
+# HHNK deps
+cached_property = "*"
+dask = "*"
+folium = "*"
+gdal = "*"
+# See also: https://discourse.matplotlib.org/t/latest-versions-via-pip-jupyterlab-import-of-matplotlib-broken/24477/7
+matplotlib = "*"  # 3.9.0 gives RuntimeError: Entry point name 'inline' duplicated
+rasterstats = "*"
+rioxarray = "*"
+rtree = "*"
+seaborn = "*"
+oracledb = "*"
+pyogrio = "*"
+pytest = "*"
+pytest-cov = "*"
+tqdm = "*"
+xarray = "*"
+
+pip = "*"
+
+# Development
+jupyterlab = "*"
+ipywidgets = "*"
+jupytext = "*"
+pre-commit = "*"
+twine="*"
+
+[pypi-dependencies]
+# NenS deps
+threedi-api-client = "==4.1.12"
+threedi-modelchecker = "==2.18.3"
+threedi-schema = "==0.300.26"
+threedi-scenario-downloader = "*"
+threedi_mi_utils = "==0.1.10"
+threedigrid = "==2.3.5"
+threedigrid-builder = ">=1.24.3"
+threedidepth = "==0.6.3"
+
+# HHNK deps
+hhnk-research-tools = { path = ".", editable = true }
+lazy-loader = "*"
+
+# Development
+ruff = "*"
+build = "*"

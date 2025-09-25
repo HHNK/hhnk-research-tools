@@ -1,7 +1,10 @@
-from osgeo import gdal
+# %%
+import numpy as np
+from rasterio.dtypes import dtype_fwd
 
 # default_variables
 DEF_GEOMETRY_COL = "geometry"
+
 DEF_TRGT_CRS = 28992
 DEF_SRC_CRS = 4326
 DEF_DELIMITER = ","
@@ -35,7 +38,7 @@ GDB = "gdb"
 SHX = "shx"
 DBF = "dbf"
 PRJ = "prj"
-GDAL_DATATYPE = gdal.GDT_Float32
+GDAL_DATATYPE = 6  # gdal.GDT_Float32
 file_types_dict = {
     "csv": ".csv",
     "txt": ".txt",
@@ -70,18 +73,17 @@ t_index_col = "value"
 one_d_two_d = "1d2d"
 
 
-class ThreediInformation:
-    """
-    Initialization:
-    ThreediInformation(result, scenario_df)
+DEFAULT_NODATA_VALUES = {
+    "int8": np.iinfo(np.int8).min,
+    "int16": np.iinfo(np.int16).min,
+    "int32": np.iinfo(np.int32).min,
+    "uint8": np.iinfo(np.uint8).max,
+    "uint16": np.iinfo(np.uint16).max,
+    "uint32": np.iinfo(np.uint32).max,
+    "float32": np.nan,
+    "float64": np.nan,  # Or np.finfo(np.float64).min
+    "bool": False,
+}  # TODO the gdal datatypes to numpy name conversion is found here; rasterio.dtypes.dtype_fwd
+GDAL_DTYPES = dtype_fwd  # dict with keys=gdal int, value=str dtype
 
-    Members:
-        result  (GridH5ResultAdmin object)
-        scenario_df  (dataframe containing indexes of important timesteps
-                        in rain scenario)
-    return value: object
-    """
-
-    def __init__(self, result, df):
-        self.result = result
-        self.scenario_df = df
+DEFAULT_NODATA_GENERAL = -9999

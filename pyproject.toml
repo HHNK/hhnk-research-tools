@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hhnk-research-tools"
+version = "2025.1.0"
+description='General tools for analysis, data manipulation and threedi interaction for analysis of water systems'
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [
+    { name = "Wietse van Gerwen", email = "w.vangerwen@hhnk.nl" },
+]
+maintainers = [
+    { name = "Wietse van Gerwen" }
+]
+keywords = []
+
+[project.urls]
+repository = "https://github.com/hhnk/hhnk-research-tools"
+
+[tool.hatch.build]
+include = ["hhnk_research_tools", "hhnk_research_tools/*"]
+
+
+[tool.ruff]
+# see https://docs.astral.sh/ruff/rules/ for meaning of rules
+line-length = 119
+
+extend-exclude = [".pixi/*"]
+include = ["*.py"]
+
+[tool.ruff.lint]
+select = ["D", "E", "F", "NPY", "PD", "C4", "I"]
+ignore = ["D1", "D202", "D205", "D400", "D404", "E501", "PD002", "PD901"]
+fixable = ["I"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore unused imports in init
+"__init__.py" = ["F401",  "I001"]
+
+[tool.pylint]
+disable = ["W1203"]

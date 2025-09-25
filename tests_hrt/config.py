@@ -17,9 +17,10 @@ TEMP_DIR = TEMP_DIR.path
 cont = False
 for i in TEMP_DIR.iterdir():
     if i.is_dir:
-        for dirname in ["batch_test", "test_project_", "vrt_test"]:
-            if dirname in str(i):
-                cont = True
+        cont = True
+        # for dirname in ["batch_test", "test_project_", "vrt_test", "temp_", "wss_curves"]:
+        #     if dirname in str(i):
+        #         cont = True
 
         if cont:
             try:

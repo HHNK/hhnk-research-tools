@@ -1,6 +1,7 @@
 # %%
 import inspect
 from pathlib import Path
+from typing import Optional, Union
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -9,6 +10,7 @@ import pandas as pd
 from osgeo import gdal
 from scipy import ndimage
 from shapely import geometry
+from tqdm.notebook import tqdm
 
 import hhnk_research_tools as hrt
 from hhnk_research_tools.folder_file_classes.file_class import File
@@ -20,7 +22,7 @@ gdal.UseExceptions()
 
 
 # %%
-class Raster(File):
+class RasterOld(File):
     def __init__(self, base, min_block_size=1024):
         super().__init__(base)
 
@@ -283,7 +285,12 @@ class Raster(File):
 
         accum = None
 
-        for window, block in self:
+        if not hasattr(self, "blocks"):
+            _ = self.generate_blocks()
+
+        for idx, block_row in tqdm(self.blocks.iterrows(), total=len(self.blocks)):
+            window = block_row["window_readarray"]
+            block = self._read_array(window=window)
             block[block == self.nodata] = 0
             block[pd.isna(block)] = 0
 
@@ -327,7 +334,7 @@ class Raster(File):
         """
         if hrt.check_create_new_file(output_file=self.path, overwrite=overwrite):
             # Set inputfiles to list of strings.
-            if type(input_files) != list:
+            if not isinstance(input_files, list):
                 input_files = [str(input_files)]
             else:
                 input_files = [str(i) for i in input_files]
@@ -377,7 +384,7 @@ class Raster(File):
 
     #     tifs_list = [str(i) for i in raster_folder.find_ext(["tif", "tiff"])]
 
-    def write_array(self, array, window, band=None):
+    def write_array(self, array, window: list, band=None):
         """Note that providing the band may be faster.
 
         array (np.array([])): block or raster array
@@ -429,7 +436,15 @@ functions: {get_functions(self)}
 variables: {get_variables(self)}
 """
 
-    def create(self, metadata, nodata, datatype=None, create_options=None, verbose=False, overwrite=False):
+    def create(
+        self,
+        metadata,
+        nodata: float,
+        datatype: Optional[int] = None,  # e.g. gdal.GDT_Float32
+        create_options=None,
+        verbose: bool = False,
+        overwrite: bool = False,
+    ):
         """Create empty raster
 
         metadata (RasterMetadata): metadata
@@ -577,7 +592,7 @@ class RasterMetadata:
         georef_new[5] = res_str(georef_new[5])
         return tuple(georef_new)
 
-    def update_resolution(self, resolution_new):
+    def update_resolution(self, resolution_new: Union[float, int]):
         """Create new resolution metdata, only works for refining now."""
         resolution_current = self.pixel_width
         if (resolution_current / resolution_new).is_integer():

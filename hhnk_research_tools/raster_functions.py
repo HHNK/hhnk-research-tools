@@ -1,98 +1,22 @@
 # %%
-import datetime
 import json
 import types
 
 import numpy as np
-from IPython.display import display
 from osgeo import gdal, ogr
 
-import hhnk_research_tools.logger as logging
-from hhnk_research_tools.folder_file_classes.folder_file_classes import Folder
+import hhnk_research_tools.logging as logging
 from hhnk_research_tools.general_functions import (
     check_create_new_file,
     ensure_file_path,
 )
-from hhnk_research_tools.gis.raster import Raster, RasterMetadata
+from hhnk_research_tools.gis.raster import RasterOld
+from hhnk_research_tools.rasters.raster_class import Raster
 from hhnk_research_tools.variables import DEF_TRGT_CRS, GDAL_DATATYPE, GEOTIFF
 
 DEFAULT_CREATE_OPTIONS = ["COMPRESS=ZSTD", "TILED=YES", "PREDICTOR=2", "ZSTD_LEVEL=1"]
 
-
-logger = logging.getLogger(name=__name__)
-
-
-# %%
-# Loading
-# TODO deprecate? replaced by hrt.Raster
-def _get_array_from_bands(gdal_file, band_count, window, raster_source):
-    try:
-        if band_count == 1:
-            band = gdal_file.GetRasterBand(1)
-            if window is not None:
-                raster_array = band.ReadAsArray(
-                    xoff=window[0],
-                    yoff=window[1],
-                    win_xsize=window[2] - window[0],
-                    win_ysize=window[3] - window[1],
-                )
-            else:
-                raster_array = band.ReadAsArray()
-            return raster_array
-        elif band_count == 3:
-            if window is not None:
-                red_arr = gdal_file.GetRasterBand(1).ReadAsArray(
-                    xoff=window[0],
-                    yoff=window[1],
-                    win_xsize=window[2] - window[0],
-                    win_ysize=window[3] - window[1],
-                )
-                green_arr = gdal_file.GetRasterBand(2).ReadAsArray(
-                    xoff=window[0],
-                    yoff=window[1],
-                    win_xsize=window[2] - window[0],
-                    win_ysize=window[3] - window[1],
-                )
-                blue_arr = gdal_file.GetRasterBand(3).ReadAsArray(
-                    xoff=window[0],
-                    yoff=window[1],
-                    win_xsize=window[2] - window[0],
-                    win_ysize=window[3] - window[1],
-                )
-            else:
-                red_arr = gdal_file.GetRasterBand(1).ReadAsArray()
-                green_arr = gdal_file.GetRasterBand(2).ReadAsArray()
-                blue_arr = gdal_file.GetRasterBand(3).ReadAsArray()
-            raster_arr = np.dstack((red_arr, green_arr, blue_arr))
-            return raster_arr
-        else:
-            raise ValueError(f"Unexpected number of bands in raster {raster_source} (expect 1 or 3)")
-    except Exception as e:
-        raise e
-
-
-# TODO deprecate? replaced by hrt.Raster
-def load_gdal_raster(raster_source, window=None, return_array=True, band_count=None):
-    """
-    Loads a raster (tif) and returns an array of its values, its no_data value and
-    dict containing associated metadata
-    returns raster_array, no_data, metadata
-    """
-    try:
-        gdal_src = gdal.Open(raster_source)
-        if gdal_src:
-            if return_array:
-                if band_count == None:
-                    band_count = gdal_src.RasterCount
-                raster_array = _get_array_from_bands(gdal_src, band_count, window, raster_source)
-            else:
-                raster_array = None
-            # are they always same even if more bands?
-            no_data = gdal_src.GetRasterBand(1).GetNoDataValue()
-            metadata = RasterMetadata(gdal_src=gdal_src)
-            return raster_array, no_data, metadata
-    except Exception as e:
-        raise e
+logger = logging.get_logger(name=__name__)
 
 
 # Conversion
@@ -139,7 +63,7 @@ def gdf_to_raster(
     nodata=0, meta=meta, epsg=28992, driver='GTiff')
     """
     try:
-        if type(raster_out) == Raster:
+        if isinstance(raster_out, (Raster, RasterOld)):
             raster_out = raster_out.path
 
         gdf = gdf[[value_field, "geometry"]]  # filter unnecessary columns
@@ -149,7 +73,12 @@ def gdf_to_raster(
             ensure_file_path(raster_out)
 
         new_raster = create_new_raster_file(
-            file_name=raster_out, nodata=nodata, meta=metadata, driver=driver, datatype=datatype, overwrite=overwrite
+            file_name=raster_out,
+            nodata=nodata,
+            meta=metadata,
+            driver=driver,
+            datatype=datatype,
+            overwrite=overwrite,
         )
 
         if new_raster is not None:  # is None when raster already exists and was not overwritten.
@@ -224,6 +153,7 @@ def create_new_raster_file(
 
         if driver == "MEM":
             check_is_file = False
+            create_options = {}  # driver MEM does not support the creation options
         else:
             check_is_file = True
         if (
@@ -242,7 +172,8 @@ def create_new_raster_file(
 
             target_ds.SetGeoTransform(meta.georef)
             _set_band_data(target_ds, num_bands, nodata)
-            target_ds.SetProjection(meta.proj)
+
+            target_ds.SetProjection(meta.projection)
             return target_ds
     except Exception as e:
         raise e
@@ -287,58 +218,53 @@ def save_raster_array_to_tiff(
         raise e
 
 
-def build_vrt(raster_folder, vrt_name="combined_rasters", bandlist=[1], bounds=None, overwrite=False):
-    """create vrt from all rasters in a folder.
-
-    raster_folder (str)
-    bounds (np.array): format should be; (xmin, ymin, xmax, ymax),
-        if None will use input files.
-    bandList doesnt work as expected, passing [1] works."""
-    raster_folder = Folder(raster_folder)
-    output_path = raster_folder.full_path(f"{vrt_name}.vrt")
-
-    if output_path.exists() and not overwrite:
-        logger.info(f"vrt already exists: {output_path}")
-        return
-
-    tifs_list = [str(i) for i in raster_folder.find_ext(["tif", "tiff"])]
-
-    resolutions = []
-    for r in tifs_list:
-        r = Raster(r)
-        resolutions.append(r.metadata.pixel_width)
-    if len(np.unique(resolutions)) > 1:
-        raise Exception(f"Multiple resolutions ({resolutions}) found in folder. We cannot handle that yet.")
-
-    vrt_options = gdal.BuildVRTOptions(
-        resolution="highest",
-        separate=False,
-        resampleAlg="nearest",
-        addAlpha=False,
-        outputBounds=bounds,
-        bandList=bandlist,
-    )
-    ds = gdal.BuildVRT(destName=str(output_path), srcDSOrSrcDSTab=tifs_list, options=vrt_options)
-    ds.FlushCache()
-
-    if not output_path.exists():
-        print("Something went wrong, vrt not created.")
+def build_vrt():
+    raise DeprecationWarning("This function is depcrated in favour of hrt.Raster.build_vrt")
 
 
-def create_meta_from_gdf(gdf, res) -> dict:
-    """Create metadata that can be used in raster creation based on gdf bounds.
-    Projection is 28992 default, only option."""
-    gdf_local = gdf[["geometry"]].copy()
-    bounds = gdf_local.bounds
-    bounds_dict = {
-        "minx": np.round(bounds["minx"].min(), 4),
-        "miny": np.round(bounds["miny"].min(), 4),
-        "maxx": np.round(bounds["maxx"].max(), 4),
-        "maxy": np.round(bounds["maxy"].max(), 4),
-    }
-    return RasterMetadata(res=res, bounds_dict=bounds_dict)
+def create_meta_from_gdf(gdf, res):
+    raise DeprecationWarning("This function is depcrated in favour of hrt.RasterMetadataV2.from_gdf.")
 
 
+# def build_vrt(raster_folder, vrt_name="combined_rasters", bandlist=[1], bounds=None, overwrite=False):
+#     """create vrt from all rasters in a folder.
+
+#     raster_folder (str)
+#     bounds (np.array): format should be; (xmin, ymin, xmax, ymax),
+#         if None will use input files.
+#     bandList doesnt work as expected, passing [1] works."""
+#     raster_folder = Folder(raster_folder)
+#     output_path = raster_folder.full_path(f"{vrt_name}.vrt")
+
+#     if output_path.exists() and not overwrite:
+#         print(f"vrt already exists: {output_path}")
+#         return
+
+#     tifs_list = [str(i) for i in raster_folder.find_ext(["tif", "tiff"])]
+
+#     resolutions = []
+#     for r in tifs_list:
+#         r = Raster(r)
+#         resolutions.append(r.metadata.pixel_width)
+#     if len(np.unique(resolutions)) > 1:
+#         raise Exception(f"Multiple resolutions ({resolutions}) found in folder. We cannot handle that yet.")
+
+#     vrt_options = gdal.BuildVRTOptions(
+#         resolution="highest",
+#         separate=False,
+#         resampleAlg="nearest",
+#         addAlpha=False,
+#         outputBounds=bounds,
+#         bandList=bandlist,
+#     )
+#     ds = gdal.BuildVRT(destName=str(output_path), srcDSOrSrcDSTab=tifs_list, options=vrt_options)
+#     ds.FlushCache()
+
+#     if not output_path.exists():
+#         print("Something went wrong, vrt not created.")
+
+
+# TODO uitfaseren, dit kan door .vrt te maken dan zijn alle bounds direct goed.
 def dx_dy_between_rasters(meta_big, meta_small):
     """create window to subset a large 2-d array with a smaller rectangle. Usage:
     shapes_array[dy_min:dy_max, dx_min:dx_max]
@@ -496,18 +422,7 @@ class RasterCalculator:
 
 
 def reproject(src: Raster, target_res: float, output_path: str):
-    """src : hrt.Raster
-    output_path : str
-    meta_new : hrt.core
-    """
-    # https://svn.osgeo.org/gdal/trunk/autotest/alg/reproject.py
-    src.metadata.update_resolution(target_res)
-
-    src_ds = src.source
-    dst_ds = create_new_raster_file(file_name=output_path, nodata=src.nodata, meta=src.metadata)
-
-    if dst_ds is not None:
-        gdal.ReprojectImage(src_ds, dst_ds, src_wkt="EPSG:28992")
+    raise DeprecationWarning("This function is deprecated in favour of hrt.Raster.reproject")
 
 
 def hist_stats(histogram: dict, stat_type: str, ignore_keys=[0]):
@@ -535,3 +450,6 @@ def hist_stats(histogram: dict, stat_type: str, ignore_keys=[0]):
             total += histogram[value]
             if total >= median_index:
                 return value
+
+
+# %%

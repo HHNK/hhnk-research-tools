@@ -1,70 +1,74 @@
 # %%
+import importlib
 from pathlib import Path
 
+import geopandas as gpd
 import numpy as np
 import pytest
 
 import hhnk_research_tools as hrt
-from hhnk_research_tools.gis.raster import Raster
+import hhnk_research_tools.rasters.raster_class as raster_class
+
+importlib.reload(raster_class)
 from tests_hrt.config import TEMP_DIR, TEST_DIRECTORY
+
+logger = hrt.logging.get_logger("hhnk_research_tools", level="DEBUG")
 
 
 class TestRaster:
-    raster = Raster(TEST_DIRECTORY / r"depth_test.tif")
+    raster = raster_class.Raster(TEST_DIRECTORY / r"depth_test.tif")
     gpkg_path = TEST_DIRECTORY / r"area_test.gpkg"
 
     def test_properties(self):
         assert self.raster.nodata == -9999
-        assert self.raster.band_count == 1
+        assert self.raster.profile["count"] == 1
         assert self.raster.pixelarea == 0.25
-        assert self.raster.statistics(approx_ok=False, force=True) == {
+        assert self.raster.statistics() == {
             "min": -0.00988,
             "max": 0.484222,
             "mean": 0.133442,
             "std": 0.09345,
         }
 
-        gdal_src = self.raster.open_gdal_source_read()
+        gdal_src = self.raster.open_gdal()
         band = gdal_src.GetRasterBand(1)
 
         block_height, block_width = band.GetBlockSize()
         assert block_height == 160
         assert block_width == 12
 
-    def test_iter_window(self):
-        for idx, window, block_row in self.raster.iter_window(min_block_size=40):
-            break
-        assert idx == 1
-        assert window == [0, 0, 40, 40]
-        assert block_row["window"] == [0, 0, 40, 40]
-
-    def test_iter(self):
-        # Make sure blocks are not initialized. Will otherwise be a bit broken
-        self.raster.min_block_size = 1024
-        if hasattr(self.raster, "blocks"):
-            delattr(self.raster, "blocks")
-
-        for window, block in self.raster:
-            assert window == [0, 0, 160, 160]
-            assert block.shape == (160, 160)
-
-    def test__get_array(self):
-        arr = self.raster.get_array()
-        assert arr.shape == (160, 160)
-
-        arr = self.raster.get_array(window=[0, 0, 80, 80])
-        assert arr.sum() == np.float32(-46815150.0)
+    def test_rasterchunks(self):
+        chunks = raster_class.RasterChunks.from_raster(raster=self.raster)
+        chunks.chunksize = 40
+        gdf = chunks.to_gdf()
+        assert gdf.loc[1, "window"] == [0, 0, 40, 40]
 
     def test_create(self):
-        out_raster = Raster(TEMP_DIR / f"test_create_{hrt.get_uuid()}.tif")
+        out_raster = raster_class.Raster(TEMP_DIR / f"test_create_{hrt.get_uuid()}.tif")
 
         # remove raster
         out_raster.unlink()
         assert not out_raster.exists()
 
         # Create raster
-        out_raster.create(metadata=self.raster.metadata, nodata=self.raster.nodata)
+        with out_raster.open_rio(mode="w", profile=self.raster.profile, dtype="float32") as dst:
+            pass
         assert out_raster.exists()
+        assert out_raster.profile == self.raster.profile
+
+    def test_sum_labels(self):
+        label_raster = hrt.Raster(TEST_DIRECTORY / r"area_test_labels.tif", chunksize=40)
+
+        label_gdf = gpd.read_file(TEST_DIRECTORY / r"area_test_labels.gpkg")
+        label_idx = label_gdf["id"].to_numpy()
+
+        # Sum labels
+        label_sum = self.raster.sum_labels(label_raster=label_raster, label_idx=label_idx, decimals=2)
+        assert round(sum(label_sum.values()), 2) == 1826.15
+
+        # Count occurences per label.
+        label_sum_count = self.raster.sum_labels(label_raster=label_raster, label_idx=label_idx, count_values=True)
+        assert sum(label_sum_count.values()) == 13685
 
 
 class TestRasterMetadata:

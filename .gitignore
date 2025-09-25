@@ -4,8 +4,11 @@ __pycache__
 hhnk_research_tools.egg-info
 #.vscode
 .ipynb_checkpoints
+.spyproject
 local_settings.py
 *.aux.xml
+.mypy_cache
+.pixi
 
 # Pytests
 .coverage

@@ -2,6 +2,7 @@ import datetime
 import json
 import types
 from dataclasses import dataclass
+from typing import Optional
 
 import geopandas as gpd
 import numpy as np
@@ -40,10 +41,10 @@ class RasterBlocks:
     """
 
     window: list
-    raster_paths_dict: dict[str : hrt.Raster]
-    nodata_keys: list[str] = None
-    yesdata_dict: dict[str : list[float]] = None
-    mask_keys: list[str] = None
+    raster_paths_dict: dict[str, hrt.Raster]
+    nodata_keys: Optional[list[str]] = None
+    yesdata_dict: Optional[dict[str, list[float]]] = None
+    mask_keys: Optional[list[str]] = None
 
     def __post_init__(self):
         self.cont = True
@@ -55,7 +56,11 @@ class RasterBlocks:
             if self.nodata_keys is not None:
                 for key in self.nodata_keys:
                     self.blocks[key] = self.read_array_window(key)
-                    self.masks[key] = self.blocks[key] == self.raster_paths_dict[key].nodata
+
+                    if np.isnan(self.raster_paths_dict[key].nodata):
+                        self.masks[key] = np.isnan(self.blocks[key])
+                    else:
+                        self.masks[key] = self.blocks[key] == self.raster_paths_dict[key].nodata
 
                     if np.all(self.masks[key]):
                         # if all values in masks are nodata then we can break loading
@@ -79,10 +84,13 @@ class RasterBlocks:
                     if key not in self.blocks:
                         self.blocks[key] = self.read_array_window(key)
                     if (key in self.mask_keys) and (key not in self.masks):
-                        self.masks[key] = self.blocks[key] == self.raster_paths_dict[key].nodata
+                        if np.isnan(self.raster_paths_dict[key].nodata):
+                            self.masks[key] = np.isnan(self.blocks[key])
+                        else:
+                            self.masks[key] = self.blocks[key] == self.raster_paths_dict[key].nodata
 
         except Exception as e:
-            raise Exception("Something went wrong. Do all inputs exist?") from e
+            raise e
 
     def read_array_window(self, key):
         """Read window from hrt.Raster"""
@@ -251,11 +259,12 @@ this is not implemented or tested if it works."
         input_raster = self.raster_paths_dict[raster_key]
 
         # Create temp output folder.
-        self.tempdir.create()
+        self.tempdir.mkdir()
         output_raster = self.tempdir.full_path(f"{input_raster.stem}.vrt")
         print(f"Creating temporary vrt; {output_raster.name} @ {output_raster}")
 
         output_raster.build_vrt(
+            vrt_out=output_raster,
             overwrite=True,
             bounds=self.metadata_raster.metadata.bbox_gdal,
             input_files=input_raster,
@@ -400,8 +409,9 @@ this is not implemented or tested if it works."
                             cont2 = False
 
                     if cont2:
-                        meta = hrt.create_meta_from_gdf(
-                            label_gdf.loc[[row_index]], res=self.metadata_raster.metadata.pixel_width
+                        meta = hrt.RasterMetadataV2.from_gdf(
+                            label_gdf.loc[[row_index]],
+                            res=self.metadata_raster.metadata.pixel_width,
                         )
 
                         # Hack the metadata into a dummy raster file so we can create blocks
@@ -412,8 +422,8 @@ this is not implemented or tested if it works."
                             return True
 
                         r.exists = exists_dummy
-                        r.source_set = True
-                        blocks_df = r.generate_blocks()
+
+                        blocks_df = hrt.RasterChunks.to_df(r)
 
                         # Difference between single label and bigger raster
                         dx_dy_label = hrt.dx_dy_between_rasters(
@@ -448,7 +458,10 @@ this is not implemented or tested if it works."
                                 # Create histogram of unique values of dem and count
                                 val, count = np.unique(block_out, return_counts=True)
                                 for v, c in zip(val, count):
-                                    v = int(v * 10**decimals)
+                                    if np.isnan(v):
+                                        v = "nodata"
+                                    else:
+                                        v = int(v * 10**decimals)
                                     if v not in hist_label.keys():
                                         hist_label[v] = int(c)
                                     else:
@@ -462,7 +475,7 @@ this is not implemented or tested if it works."
 
                         if self.verbose:
                             print(
-                                f"{index+1} / {blocks_total} ({hrt.time_delta(time_start)}s) - {stats_json.name}",
+                                f"{index + 1} / {blocks_total} ({hrt.time_delta(time_start)}s) - {stats_json.name}",
                                 end="\r",
                             )
 

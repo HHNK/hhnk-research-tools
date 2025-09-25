@@ -1,10 +1,13 @@
 # %%
 from osgeo import gdal
+from tqdm import tqdm
 
 import hhnk_research_tools as hrt
 import hhnk_research_tools.waterschadeschatter.wss_calculations as wss_calculations
 import hhnk_research_tools.waterschadeschatter.wss_loading as wss_loading
-from hhnk_research_tools.gis.raster import Raster
+from hhnk_research_tools.gis.raster import RasterOld as Raster
+
+# from hhnk_research_tools.rasters.raster_class import Raster #FIXME new import
 
 gdal.UseExceptions()
 
@@ -33,28 +36,42 @@ class Waterschadeschatter:
         self,
         depth_file,
         landuse_file,
-        wss_settings,
+        wss_settings=None,
         min_block_size=2048,
     ):
         self.wss_settings = wss_settings
         self.min_block_size = min_block_size
-        self.lu_raster = Raster(landuse_file)
-        self.depth_raster = Raster(depth_file, self.min_block_size)
+
+        self.lu_raster = landuse_file
+        if not isinstance(landuse_file, Raster):
+            self.lu_raster = Raster(landuse_file)
+
+        if isinstance(depth_file, Raster):
+            self.depth_raster = depth_file
+            self.depth_raster.min_block_size = min_block_size
+        else:
+            self.depth_raster = Raster(depth_file, self.min_block_size)
+
         self.gamma_inundatiediepte = None
 
         self.validate()
 
         # Inladen configuratie
+        if self.wss_settings is not None:
+            self.load_damage_table()
+
+    def validate(self):
+        """Check if input exists"""
+        for r in [self.lu_raster, self.depth_raster]:
+            if not r.exists():
+                raise Exception(f"could not find input file in: {r}")
+
+    def load_damage_table(self):
+        # Inladen configuratie
         self.dmg_table_landuse, self.dmg_table_general = wss_loading.read_dmg_table_config(self.wss_settings)
 
         # Get indices
         self.indices = self.get_dmg_table_indices()
-
-    def validate(self):
-        """check if input exists"""
-        for r in [self.lu_raster, self.depth_raster]:
-            if not r.exists():
-                raise Exception(f"could not find input file in: {r}")
 
     def get_dmg_table_indices(self):
         """Check the index in the table using the input values for herstelperiode and maand."""
@@ -70,15 +87,15 @@ class Waterschadeschatter:
         verbose=False,
         overwrite=False,
     ):
-        """
-        Calculation type options: 'sum','direct','indirect'
-        """
+        """Calculation type options: 'sum','direct','indirect'"""
 
         if output_raster.exists():
             if overwrite is False:
                 return
             else:
-                output_raster.unlink()
+                output_raster.path.unlink()
+
+        output_raster = hrt.RasterOld(output_raster)  # TODO wss omzetten naar rxr
 
         # Create output raster
         output_raster.create(
@@ -98,7 +115,7 @@ class Waterschadeschatter:
         blocks_df = self.depth_raster.generate_blocks()
 
         len_total = len(blocks_df)
-        for idx, block_row in blocks_df.iterrows():
+        for idx, block_row in tqdm(blocks_df.iterrows(), total=len(blocks_df)):
             # Load landuse
             window_depth = block_row["window_readarray"]
 
@@ -130,7 +147,7 @@ class Waterschadeschatter:
                 # Write to file
                 dmg_band.WriteArray(damage_block, xoff=window_depth[0], yoff=window_depth[1])
 
-            print(f"{idx} / {len_total}", end="\r")
+            # print(f"{idx} / {len_total}", end="\r")
             # break
 
         dmg_band.FlushCache()  # close file after writing
