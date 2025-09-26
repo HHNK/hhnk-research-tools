@@ -10,10 +10,15 @@ import hhnk_research_tools as hrt
 from hhnk_research_tools.folder_file_classes.file_class import File
 from hhnk_research_tools.variables import MOD_SPATIALITE_PATH
 
+logger = hrt.logging.get_logger(name=__name__)
+
 
 class Sqlite(File):
     def __init__(self, base):
         super().__init__(base)
+        logger.warning(
+            "DeprecationWarning: Stop using Sqlite class from hhnk_research_tools. Use SpatialDatabase class instead."
+        )
 
     def connect(self) -> Optional[sqlite3.Connection]:
         if self.exists():
@@ -21,7 +26,7 @@ class Sqlite(File):
         else:
             return None
 
-    def create_sqlite_connection(self) -> sqlite3.Connection:
+    def create_sqlite_connection(self):
         r"""Create connection to database. On windows with conda envs this requires the mod_spatialaite extension
         to be installed explicitly. The location of this extension is stored in
         hhnk_research_tools.variables.MOD_SPATIALITE_PATH (C:\ProgramData\Anaconda3\mod_spatialite-5.0.1-win-amd64)

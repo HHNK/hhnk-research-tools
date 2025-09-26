@@ -18,21 +18,27 @@ logger = hrt.logging.get_logger(name=__name__)
 class ThreediSchematisation(Folder):
     """Threedi model/schematisation.
     expected files are the;
-    .gpkg
+    .sqlite
     /rasters
         - content depends on model type, they are read from the global settings in the sqlite.
     """
+
+    logger.warning(
+        "DeprecationWarning: Stop using ThreediSchematisation class from hhnk_research_tools. Use ThreediSchematisation class from threedi tools instead."
+    )
 
     def __init__(self, base, name, create=True):
         super().__init__(os.path.join(base, name), create=create)
 
         # File
         # self.add_file("database", self.model_path())
-        database = self.find_ext("gpkg")
-        if len(database) >= 1:
-            raise ValueError("More than 1 gpkg found in folder, cannot determine which to use.")
+        database = self.find_ext("sqlite")
+        if len(database) > 1:
+            # raise ValueError("More than 1 sqlite found in folder, cannot determine which to use.")
+            logger.warning(f"More than one sqlite found in {self.path}.")
+            database = database[0]
         elif len(database) == 0:
-            logger.warning(f"No gpkg found in {self.path}.")
+            logger.warning(f"No sqlite found in {self.path}.")
 
     @property
     def rasters(self):

@@ -1,13 +1,17 @@
 # %%
 import warnings
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 import hhnk_research_tools.logging as logging
 from hhnk_research_tools import Raster
 from hhnk_research_tools.folder_file_classes.file_class import BasePath, File
-from hhnk_research_tools.folder_file_classes.spatial_database_class import SpatialDatabase
-from hhnk_research_tools.folder_file_classes.sqlite_class import Sqlite
+from hhnk_research_tools.folder_file_classes.spatial_database_class import (
+    SpatialDatabase,
+)
+from hhnk_research_tools.folder_file_classes.sqlite_class import (
+    Sqlite,  # noqa: F401 in threeditools verwezen maar wordt alleen door geimporteerd, moest het uitzonderen van ruff omdat hij anders de regel weghaald en veel code opniew geschreven moest worden. Moet toch allemaal naar spatialdatabaseseclass
+)
 from hhnk_research_tools.general_functions import get_functions, get_variables
 
 logger = logging.get_logger(__name__)
@@ -114,7 +118,7 @@ class Folder(BasePath):
 
     def full_path(
         self, name, return_only_file_class: bool = False
-    ):  # -> Union[File, Folder, SpatialDatabase, Raster, Sqlite]:
+    ):  # -> Union[File, Folder, SpatialDatabase, Raster, Gpkg]:
         """
         Return the full path of a file or a folder when only a name is known.
         Will return the object based on suffix
@@ -127,7 +131,7 @@ class Folder(BasePath):
 
         Returns
         -------
-        Union[File, Folder, SpatialDatabase, Raster, Sqlite]
+        Union[File, Folder, SpatialDatabase, Raster, Gpkg]
         """
         name = str(name)
         if name.startswith("\\") or name.startswith("/"):
@@ -146,8 +150,8 @@ class Folder(BasePath):
                 new_file = SpatialDatabase(filepath)
             elif filepath.suffix in [".tif", ".tiff", ".vrt"]:
                 new_file = Raster(filepath)
-            elif filepath.suffix in [".sqlite"]:
-                new_file = Sqlite(filepath)
+            elif filepath.suffix in [".gpkg"]:
+                new_file = SpatialDatabase(filepath)
             else:
                 new_file = File(filepath)
         return new_file
