@@ -16,7 +16,6 @@ from hhnk_research_tools.dataframe_functions import df_convert_to_gdf
 from hhnk_research_tools.variables import DEF_SRC_CRS, MOD_SPATIALITE_PATH
 
 logger = logging.get_logger(name=__name__)
-
 # %%
 
 
@@ -418,7 +417,7 @@ WHERE {sub_id_column} IN (
     return sql
 
 
-def _oracle_curve_polygon_to_linear(blob_curvepolygon) -> Optional[Polygon]:
+def _oracle_curve_polygon_to_linear(blob_curvepolygon: str) -> Optional[Polygon]:
     """
     Turn curved polygon from oracle database into linear one
     (so it can be used in geopandas)
@@ -427,6 +426,10 @@ def _oracle_curve_polygon_to_linear(blob_curvepolygon) -> Optional[Polygon]:
     try:
         # Import as an OGR curved geometry
         g1 = ogr.CreateGeometryFromWkt(str(blob_curvepolygon))
+
+        # Fix invalid geometries by buffering with 0
+        if not g1.IsValid():
+            g1 = g1.Buffer(0)
 
         # Check if geometry is valid
         if g1 is None or not g1.IsValid():
@@ -515,7 +518,6 @@ def database_to_gdf(
         The used sql in the request.
 
     """
-
     if "sdo_util.to_wktgeometry" in sql.lower():
         raise ValueError(
             "Dont pass sdo_util.to_wkt_geometry in the sql. It will be added here. Just use e.g. SHAPE as column."
@@ -584,7 +586,6 @@ def database_to_gdf(
 
         # load cursor to dataframe
         df = pd.DataFrame(cur.fetchall(), columns=columns_out)
-
         # Take column names from cursor and replace exotic geometry column names
         for i in df.columns:
             name = i
@@ -768,3 +769,6 @@ def get_table_domains_from_DAMO(
     domains = map_df.merge(domain_tablename_df, on="damodomeinnaam", how="left")
 
     return domains
+
+
+# %%
