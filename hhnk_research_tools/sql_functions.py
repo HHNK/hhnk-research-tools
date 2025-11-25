@@ -769,6 +769,3 @@ def get_table_domains_from_DAMO(
     domains = map_df.merge(domain_tablename_df, on="damodomeinnaam", how="left")
 
     return domains
-
-
-# %%
