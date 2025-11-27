@@ -3032,8 +3032,8 @@ packages:
   timestamp: 1747093237683
 - pypi: ./
   name: hhnk-research-tools
-  version: 2025.1.0
-  sha256: 5f677c6edc37b1784cdd0d35f17087915a1270247a2d9c40841c736ec8624f50
+  version: 2025.1.1
+  sha256: 167522dd8a365de251f48474a848aebb4c5ef49f35073d0f86178a4048716e93
   requires_python: '>=3.9'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/hpack-4.1.0-pyhd8ed1ab_0.conda
