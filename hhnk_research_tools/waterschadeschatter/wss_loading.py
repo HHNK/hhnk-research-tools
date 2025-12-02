@@ -43,11 +43,17 @@ def read_dmg_table_config(wss_settings) -> dict:
             self.direct = getattr(self, f"direct_{wss_settings['dmg_type']}")
             self.indirect = getattr(self, f"indirect_{wss_settings['dmg_type']}")
 
-            x = wss_settings["inundation_period"]
-            xp = dmg_table_general["inundatieduur"]
-            fp = self.gamma_inundatieduur
-
-            self.gamma_inundatieduur_interp = np.interp(x=x, xp=xp, fp=fp)
+            # Store gamma_inundatieduur curve for later interpolation
+            # If inundation_period is a raster, interpolation happens per-pixel in calculate_damage
+            # If it's a scalar value, we interpolate once here
+            if "inundation_period" in wss_settings and wss_settings["inundation_period"] is not None:
+                x = wss_settings["inundation_period"]
+                xp = dmg_table_general["inundatieduur"]
+                fp = self.gamma_inundatieduur
+                self.gamma_inundatieduur_interp = np.interp(x=x, xp=xp, fp=fp)
+            else:
+                # No scalar inundation_period provided, will use raster
+                self.gamma_inundatieduur_interp = None
 
             if "lizard" in Path(wss_settings["cfg_file"]).name:
                 self.lizard_exception = True

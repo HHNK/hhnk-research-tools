@@ -102,6 +102,7 @@ class WaterSchadeSchatterLookUp:
                     caller=self.caller,  # wss_main.Waterschadeschatter,
                     lu_block=np.array([[lu_num], [lu_num]]),
                     depth_block=np.array([[depth], [depth]]),
+                    inundation_period_block=None,  # Use scalar value from wss_settings
                     indices=self.indices,
                     dmg_table_landuse=self.dmg_table_landuse,
                     dmg_table_general=self.dmg_table_general,

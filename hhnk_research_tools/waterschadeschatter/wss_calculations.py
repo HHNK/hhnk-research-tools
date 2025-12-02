@@ -15,6 +15,7 @@ def calculate_damage(
     caller,  # wss_main.Waterschadeschatter,
     lu_block: np.array,
     depth_block,
+    inundation_period_block,
     indices,
     dmg_table_landuse,
     dmg_table_general,
@@ -77,13 +78,58 @@ def calculate_damage(
     # For debugging.
     caller.gamma_inundatiediepte = gamma_inundatiediepte
 
+    # GAMMA INUNDATION PERIOD CALCULATION
+
+    # Calculate gamma_inundatieduur for each pixel if raster is provided
+    if inundation_period_block is not None:
+        # Interpolate gamma_inundatieduur per pixel based on inundation_period raster
+        ysize, xsize = inundation_period_block.shape
+        k, j = np.meshgrid(np.arange(xsize), np.arange(ysize))
+
+        xp_period = np.array(dmg_table_general["inundatieduur"])
+
+        # Create stacked array for gamma_inundatieduur lookup per landuse
+        stacked_gamma_period = []
+        for i_period in range(len(xp_period)):
+            lookup = np.asarray([dmg_table_landuse[i].gamma_inundatieduur[i_period] for i in range(0, 255)])
+            stacked_gamma_period.append(lookup[lu_block])
+        stacked_gamma_period = np.stack(stacked_gamma_period)
+
+        # Find indices for interpolation
+        index_boven_period = np.searchsorted(xp_period, inundation_period_block, side="left")
+        index_boven_period = np.clip(index_boven_period, 1, len(xp_period) - 1)
+        index_onder_period = index_boven_period - 1
+
+        # Linear interpolation for gamma_inundatieduur
+        y1_period = stacked_gamma_period[index_onder_period, j, k]
+        y2_period = stacked_gamma_period[index_boven_period, j, k]
+
+        mask_period = index_onder_period == index_boven_period
+        gamma_inundatieduur_interp = np.where(
+            mask_period,
+            y1_period,
+            (y2_period - y1_period)
+            / (xp_period[index_boven_period] - xp_period[index_onder_period])
+            * (inundation_period_block - xp_period[index_onder_period])
+            + y1_period,
+        )
+    else:
+        # Use pre-calculated scalar gamma_inundatieduur_interp from dmg_table_landuse
+        gamma_inundatieduur_interp = None
+
     # DAMAGE CALCULATION
 
     # Apply lookup table. Change the landuse with direct damage.
     def calculate_damage_direct(i):
         """schade = max. directe schade · γdiepte · γduur · γseizoen + indirecte schade per dag · hersteltijd"""
         lu = dmg_table_landuse[i]
-        return lu.direct * lu.gamma_inundatieduur_interp * lu.gamma_maand[indices["maand"]] * lu.direct_eenheid_factor
+        if gamma_inundatieduur_interp is None:
+            # Use pre-calculated scalar value
+            gamma_duur = lu.gamma_inundatieduur_interp
+        else:
+            # Will be multiplied with raster later
+            gamma_duur = 1.0
+        return lu.direct * gamma_duur * lu.gamma_maand[indices["maand"]] * lu.direct_eenheid_factor
 
     def calculate_damage_indirect(i):
         # TODO hoe werkt inundatiediepte door op indirecte schade?
@@ -99,6 +145,10 @@ def calculate_damage(
     damage_direct = lookup_direct[lu_block]  # same as np.take(lookup_direct, lu_block), .take seems slower.
     damage_indirect = lookup_indirect[lu_block]
     damage_indirect[mask_indirect] = DMG_NODATA
+
+    # Apply per-pixel gamma_inundatieduur if raster was provided
+    if gamma_inundatieduur_interp is not None:
+        damage_direct = damage_direct * gamma_inundatieduur_interp
 
     # Damage
     # schade = max. directe schade · γdiepte · γduur · γseizoen + indirecte schade per dag · hersteltijd

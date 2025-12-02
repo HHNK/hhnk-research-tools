@@ -20,7 +20,7 @@ class Waterschadeschatter:
     wss_settings heeft onderstaand format. De naamgeving van herstelperiode en maand moet
     overeenkomen met de .cfg. De duur is een integer in uren. In de tabel vindt daarbij
     lineare interpolatie plaats.
-    wss_settings = {'inundation_period': 48, #uren
+    wss_settings = {'inundation_period': 48, #uren (optioneel als inundation_period_file wordt gegeven)
                 'herstelperiode':'10 dagen',
                 'maand':'sep',
                 'cfg_file':cfg_file,
@@ -30,6 +30,10 @@ class Waterschadeschatter:
 
     LET OP: depth_file heeft dieptes nodig vanaf -0.01cm, zoals in .cfg ook staat. Dit moet
     dus ook meegenomen bij de vertaling van waterstand naar waterdiepte.
+
+    inundation_period kan zowel als raster (inundation_period_file parameter) of als globale
+    waarde (wss_settings['inundation_period']) worden meegegeven. Als inundation_period_file
+    wordt gebruikt, wordt de waarde in wss_settings genegeerd.
     """
 
     def __init__(
@@ -37,6 +41,7 @@ class Waterschadeschatter:
         depth_file,
         landuse_file,
         wss_settings=None,
+        inundation_period_file=None,
         min_block_size=2048,
     ):
         self.wss_settings = wss_settings
@@ -52,6 +57,15 @@ class Waterschadeschatter:
         else:
             self.depth_raster = Raster(depth_file, self.min_block_size)
 
+        # Handle inundation_period_file (can be Raster object or file path)
+        self.inundation_period_raster = None
+        if inundation_period_file is not None:
+            if isinstance(inundation_period_file, Raster):
+                self.inundation_period_raster = inundation_period_file
+                self.inundation_period_raster.min_block_size = min_block_size
+            else:
+                self.inundation_period_raster = Raster(inundation_period_file, self.min_block_size)
+
         self.gamma_inundatiediepte = None
 
         self.validate()
@@ -65,6 +79,10 @@ class Waterschadeschatter:
         for r in [self.lu_raster, self.depth_raster]:
             if not r.exists():
                 raise Exception(f"could not find input file in: {r}")
+
+        if self.inundation_period_raster is not None:
+            if not self.inundation_period_raster.exists():
+                raise Exception(f"could not find inundation_period file in: {self.inundation_period_raster}")
 
     def load_damage_table(self):
         # Inladen configuratie
@@ -133,11 +151,17 @@ class Waterschadeschatter:
                 # depth_mask = depth_block==self.depth_raster.nodata
                 # depth_block[depth_mask] = np.nan #Schadetabel loopt vanaf -0.01cm
 
+                # Load inundation_period if raster is provided
+                inundation_period_block = None
+                if self.inundation_period_raster is not None:
+                    inundation_period_block = self.inundation_period_raster._read_array(window=window_depth)
+
                 # Calculate damage
                 damage_block = wss_calculations.calculate_damage(
                     caller=self,
                     lu_block=lu_block,
                     depth_block=depth_block,
+                    inundation_period_block=inundation_period_block,
                     indices=self.indices,
                     dmg_table_landuse=self.dmg_table_landuse,
                     dmg_table_general=self.dmg_table_general,
