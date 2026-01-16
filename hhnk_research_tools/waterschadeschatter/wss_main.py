@@ -1,4 +1,6 @@
 # %%
+from pathlib import Path
+
 from osgeo import gdal
 from tqdm import tqdm
 
@@ -43,9 +45,11 @@ class Waterschadeschatter:
         wss_settings=None,
         inundation_period_file=None,
         min_block_size=2048,
+        resample_landuse=False,
     ):
         self.wss_settings = wss_settings
         self.min_block_size = min_block_size
+        self.resample_landuse = resample_landuse
 
         self.lu_raster = landuse_file
         if not isinstance(landuse_file, Raster):
@@ -70,6 +74,10 @@ class Waterschadeschatter:
 
         self.validate()
 
+        # Resample landuse to match depth resolution if requested
+        if self.resample_landuse:
+            self._resample_landuse_to_depth()
+
         # Inladen configuratie
         if self.wss_settings is not None:
             self.load_damage_table()
@@ -83,6 +91,46 @@ class Waterschadeschatter:
         if self.inundation_period_raster is not None:
             if not self.inundation_period_raster.exists():
                 raise Exception(f"could not find inundation_period file in: {self.inundation_period_raster}")
+
+    def _resample_landuse_to_depth(self):
+        """Resample landuse raster to match depth raster resolution using nearest neighbor."""
+        import tempfile
+
+        lu_pixelwidth = self.lu_raster.metadata["pixel_width"]
+        depth_pixelwidth = self.depth_raster.metadata["pixel_width"]
+
+        print(f"Resampling landuse from {lu_pixelwidth}m to {depth_pixelwidth}m resolution...")
+
+        # Create temporary resampled file
+        temp_dir = Path(tempfile.gettempdir())
+        temp_resampled = temp_dir / f"landuse_resampled_{depth_pixelwidth}m.tif"
+
+        # Use GDAL to resample (nearest neighbor for landuse classification)
+        from osgeo import gdal
+
+        # Get depth raster metadata
+        depth_meta = self.depth_raster.metadata
+
+        # Resample using gdalwarp
+        options = gdal.WarpOptions(
+            format="GTiff",
+            xRes=depth_meta["pixel_width"],
+            yRes=depth_meta["pixel_height"],
+            resampleAlg="near",  # nearest neighbor for categorical data
+            outputBounds=(
+                depth_meta["x_min"],
+                depth_meta["y_min"],
+                depth_meta["x_max"],
+                depth_meta["y_max"],
+            ),
+            dstSRS=depth_meta["proj"],
+        )
+
+        gdal.Warp(str(temp_resampled), str(self.lu_raster.path), options=options)
+
+        # Replace lu_raster with resampled version
+        self.lu_raster = Raster(temp_resampled)
+        print(f"Landuse resampled to {temp_resampled}")
 
     def load_damage_table(self):
         # Inladen configuratie
@@ -193,34 +241,88 @@ variables: {variables}"""
 
 if __name__ == "__main__":
     if True:
-        # Variables
-        cfg_file = r"../01_data/cfg/cfg_hhnk_2020.cfg"
-        landuse_file = r"../01_data/landuse2020_tiles/combined_rasters.vrt"
+        # Main folder containing scenario subfolders
+        main_folder = Path(r"G:\02_Werkplaatsen\04_GIS\WSS regelmacht Schermer\naar mezelf sturen")
 
-        depth_file = r"../01_data/marken_rev23_max_depth_blok_GGG_T10.tif"
-        output_file = r"../01_data/marken_rev23_damage_blok_GGG_T10.tif"
+        # Scenario names (subfolders)
+        scenarios = [
+            "basis_afdeling_1",
+            "basis_afdeling_2",
+            "basis_gebiedsbreed",
+            "maatregel_afdeling_1",
+            "maatregel_afdeling_2",
+            "maatregel_gebiedsbreed",
+        ]
 
+        # Global configuration files
+        cfg_file = r"E:\01.basisgegevens\hhnk_schadeschatter\01_data/cfg/cfg_hhnk_2020.cfg"
+        landuse_file = r"E:\01.basisgegevens\rasters\landgebruik\landuse2023_tiles/combined_rasters.vrt"
+
+        # File names (same for all scenarios, located in scenario subfolders)
+        depth_filename = "max_wd.tif"
+        output_filename = "wss_schades.tif"
+        inundation_period_filename = "inundation_duration_1.0cm.tif"
+
+        # WSS settings
         wss_settings = {
-            "inundation_period": 48,  # uren
+            # "inundation_period": 48,  # uren
             "herstelperiode": "10 dagen",
             "maand": "sep",
             "cfg_file": cfg_file,
             "dmg_type": "gem",
         }
 
-        # out_format = ["sum", "direct", "indirect"]
+        # Validate global files exist
+        assert Path(cfg_file).exists(), f"cfg_file not found: {cfg_file}"
+        assert Path(landuse_file).exists(), f"landuse_file not found: {landuse_file}"
 
-        # Calculation
-        self = Waterschadeschatter(
-            depth_file=depth_file,
-            landuse_file=landuse_file,
-            wss_settings=wss_settings,
-        )
+        # First, validate all scenario files exist before processing
+        print("Validating all scenario files...")
+        scenario_files = {}
+        for scenario in scenarios:
+            scenario_folder = main_folder / scenario
 
-        # Berkenen schaderaster
-        self.run(
-            output_raster=Raster(output_file),
-            calculation_type="sum",
-            verbose=True,
-            overwrite=False,
-        )
+            depth_file = scenario_folder / depth_filename
+            output_file = scenario_folder / output_filename
+            inundation_period_file = scenario_folder / inundation_period_filename
+
+            # Check if all required files exist
+            assert scenario_folder.exists(), f"Scenario folder not found: {scenario_folder}"
+            assert depth_file.exists(), f"depth_file not found for scenario '{scenario}': {depth_file}"
+            assert inundation_period_file.exists(), (
+                f"inundation_period_file not found for scenario '{scenario}': {inundation_period_file}"
+            )
+
+            # Store file paths for this scenario
+            scenario_files[scenario] = {
+                "depth_file": depth_file,
+                "output_file": output_file,
+                "inundation_period_file": inundation_period_file,
+            }
+
+        print(f"All files validated successfully for {len(scenarios)} scenarios.\n")
+
+        # Process each scenario
+        for scenario in scenarios:
+            print(f"Processing scenario: {scenario}")
+
+            files = scenario_files[scenario]
+
+            # Calculation
+            wss = Waterschadeschatter(
+                depth_file=files["depth_file"],
+                landuse_file=landuse_file,
+                wss_settings=wss_settings,
+                inundation_period_file=files["inundation_period_file"],
+                resample_landuse=True,  # Resample landuse to match depth resolution
+            )
+
+            # Berekenen schaderaster
+            wss.run(
+                output_raster=Raster(files["output_file"]),
+                calculation_type="sum",
+                verbose=True,
+                overwrite=False,
+            )
+
+            print(f"Completed scenario: {scenario}\n")
