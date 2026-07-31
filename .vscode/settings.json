@@ -33,5 +33,6 @@
         "/dist": true,
     },
 
-    "jupyter.interactiveWindow.textEditor.executeSelection": true,
+    "notebook.showCellStatusBar": "visible",
+    "python.useEnvironmentsExtension": false,
 }

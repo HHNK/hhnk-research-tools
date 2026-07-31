@@ -32,39 +32,9 @@ tests = "pytest --cov-report term-missing --cov=hhnk_research_tools --cov-report
 [dependencies]
 python = "3.12.*"
 # MI 3.40 site packages
-geopandas = "==1.0.1"
-numpy = "==1.26.4"
-openpyxl = "*"  # 3.1.2
-pandas = "==2.2.2"
-scipy = "==1.13.0"
-urllib3 = "2.*" #2.2.3
-
-# HHNK deps
-cached_property = "*"
-dask = "*"
-folium = "*"
 gdal = "*"
-# See also: https://discourse.matplotlib.org/t/latest-versions-via-pip-jupyterlab-import-of-matplotlib-broken/24477/7
-matplotlib = "*"  # 3.9.0 gives RuntimeError: Entry point name 'inline' duplicated
-rasterstats = "*"
-rioxarray = "*"
-rtree = "*"
-seaborn = "*"
-oracledb = "*"
-pyogrio = "*"
-pytest = "*"
-pytest-cov = "*"
-tqdm = "*"
-xarray = "*"
 
-pip = "*"
 
-# Development
-jupyterlab = "*"
-ipywidgets = "*"
-jupytext = "*"
-pre-commit = "*"
-twine="*"
 
 [pypi-dependencies]
 # NenS deps
@@ -84,3 +54,38 @@ lazy-loader = "*"
 # Development
 ruff = "*"
 build = "*"
+
+# conda
+geopandas = "==1.0.1"
+# numpy = "==1.26.4"
+openpyxl = "*"  # 3.1.2
+pandas = "*"
+scipy = "*"
+urllib3 = "*" #2.2.3
+
+# HHNK deps
+cached_property = "*"
+dask = "*"
+folium = "*"
+# See also: https://discourse.matplotlib.org/t/latest-versions-via-pip-jupyterlab-import-of-matplotlib-broken/24477/7
+matplotlib = "*"  # 3.9.0 gives RuntimeError: Entry point name 'inline' duplicated
+rasterstats = "*"
+rioxarray = "*"
+rtree = "*"
+seaborn = "*"
+oracledb = "*"
+pyogrio = "*"
+pytest = "*"
+pytest-cov = "*"
+tqdm = "*"
+xarray = "*"
+
+pip = "*"
+
+
+
+# Development
+ipykernel = "*"
+jupytext = "*"
+pre-commit = "*"
+twine="*"
