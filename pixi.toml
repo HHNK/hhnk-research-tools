@@ -79,8 +79,9 @@ pytest = "*"
 pytest-cov = "*"
 tqdm = "*"
 xarray = "*"
-
+fiona = "*"
 pip = "*"
+pyarrow = "*"
 
 
 

@@ -151,9 +151,9 @@ class TestWSSCurves:
         assert lookup_expected == lookup_output
 
 
+@pytest.mark.dependency(name="TestWSSCurves")
 class TestWSSAggregation:
     @pytest.fixture(scope="class")
-    @pytest.mark.dependency(name="TestWSSCurves")
     def aggregatie(self):
         aggregatie = AreaDamageCurvesAggregation(
             result_path=OUTPUT_DIR,
