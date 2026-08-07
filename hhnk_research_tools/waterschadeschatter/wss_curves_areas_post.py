@@ -7,10 +7,11 @@ Created on Thu Oct 10 15:27:18 2024
 
 import datetime
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import Iterator, Optional, Tuple, TypeVar, Union
+from typing import TypeVar
 
 import geopandas as gpd
 import numpy as np
@@ -19,8 +20,8 @@ import shapely
 from tqdm import tqdm
 
 import hhnk_research_tools as hrt
-import hhnk_research_tools.logging as logging
 import hhnk_research_tools.waterschadeschatter.resources as wss_resources
+from hhnk_research_tools import logging
 from hhnk_research_tools.variables import DEFAULT_NODATA_GENERAL
 from hhnk_research_tools.waterschadeschatter.wss_curves_figures import (
     BergingsCurveFiguur,
@@ -77,11 +78,11 @@ class AreaDamageCurvesAggregation:
         Path to the landuse conversion table
     """
 
-    result_path: Union[str, Path]
-    aggregate_vector_path: Union[str, Path, None] = None
-    aggregate_vector_id_field: Optional[str] = None
-    aggregate_vector_layer_name: Optional[str] = None
-    landuse_conversion_path: Union[str, Path, None] = LANDUSE_CONVERSION_TABLE
+    result_path: str | Path
+    aggregate_vector_path: str | Path | None = None
+    aggregate_vector_id_field: str | None = None
+    aggregate_vector_layer_name: str | None = None
+    landuse_conversion_path: str | Path | None = LANDUSE_CONVERSION_TABLE
 
     def __post_init__(
         self,
@@ -113,13 +114,13 @@ class AreaDamageCurvesAggregation:
         self.time.log("Finished initializing!")
 
     @classmethod
-    def from_settings_json(cls, settings_json_file: Union[str, Path]) -> "AreaDamageCurvesAggregation":
+    def from_settings_json(cls, settings_json_file: str | Path) -> "AreaDamageCurvesAggregation":
         """Create aggregation instance from settings JSON file."""
         with open(str(settings_json_file)) as json_file:
             settings = json.load(json_file)
         return cls(**settings)
 
-    def __iter__(self) -> Iterator[Tuple[int, pd.Series, gpd.GeoDataFrame]]:
+    def __iter__(self) -> Iterator[tuple[int, pd.Series, gpd.GeoDataFrame]]:
         """Iterate over vector features and corresponding drainage areas."""
         for idx, feature in tqdm(self.vector.iterrows(), NAME, total=len(self.vector)):
             predicate_func = getattr(self, self.predicate)  # default = self._within
@@ -304,19 +305,19 @@ class AreaDamageCurvesAggregation:
         """Sum land use areas data within the given areas."""
         lu_data = self.lu_area_data[self._fid_columns(areas_within[ID_FIELD], self.lu_area_data)]
         lu_data.columns = lu_data.columns.str.split("_").str[0]
-        return lu_data.groupby(lu_data.columns, axis=1).sum()
+        return lu_data.T.groupby(level=0).sum().T
 
     def agg_landuse_dmg(self, feature, areas_within) -> dict[str, pd.Series]:
         """Sum land use damage data within the given areas."""
         lu_data = self.lu_dmg_data[self._fid_columns(areas_within[ID_FIELD], self.lu_dmg_data)]
         lu_data.columns = lu_data.columns.str.split("_").str[0]
-        return lu_data.groupby(lu_data.columns, axis=1).sum()
+        return lu_data.T.groupby(level=0).sum().T
 
     def agg_buildings_dmg(self, feature, areas_within) -> dict[str, pd.Series]:
         """Sum land use damage data within the given areas."""
         bu_data = self.bu_dmg_data[self._fid_columns(areas_within[ID_FIELD], self.bu_dmg_data)]
         bu_data.columns = bu_data.columns.str.split("_").str[0]
-        return bu_data.groupby(bu_data.columns, axis=1).sum()
+        return bu_data.T.groupby(level=0).sum().T
 
     def agg_damage_level_per_ha(self, feature, areas_within) -> dict[str, pd.DataFrame]:
         """Damage level per ha within the given areas."""
@@ -421,7 +422,7 @@ class AreaDamageCurvesAggregation:
         area_curve = area_curve.loc[:, ~area_curve.columns.duplicated()].copy()
 
         aggregate_curve = {}
-        for i in range(0, mm_rain):
+        for i in range(mm_rain):
             total_damage = 0
             total_volume = 0
             for idx, area in areas_within.iterrows():
@@ -444,7 +445,11 @@ class AreaDamageCurvesAggregation:
         return agg_series
 
     def create_folium_html(
-        self, feature, areas_within, depth_steps=[0.5, 1, 1.5], damage_steps=[100, 1000, 10000, 100000]
+        self,
+        feature,
+        areas_within,
+        depth_steps=[0.5, 1, 1.5],
+        damage_steps=[100, 1000, 10000, 100000],
     ):
         """Create interactive Folium map showing damage curves and drainage areas."""
         self.time.log("Creating folium html.")
@@ -518,6 +523,8 @@ class AreaDamageCurvesAggregation:
             if idx not in depth_steps:
                 continue
             ds_df = gpd.GeoDataFrame(depth_step_data, geometry=fdla_geometry, crs="EPSG:28992")
+            ds_df = ds_df.reset_index(drop=True)
+
             fol.add_layer(
                 name=f"Peilgebieden: Schadecurve {idx}m peilstijging.",
                 gdf=ds_df,
@@ -540,6 +547,7 @@ class AreaDamageCurvesAggregation:
                 geometry=fdla_geometry,
                 crs="EPSG:28992",
             )
+            ds_df = ds_df.reset_index(drop=True)
 
             # Add to map
             fol.add_layer(
@@ -569,6 +577,7 @@ class AreaDamageCurvesAggregation:
                 geometry=fdla_geometry,
                 crs="EPSG:28992",
             )
+            max_lu = max_lu.reset_index(drop=True)
 
             # Create a mapping of landuse IDs to their colors from the conversion table
             lu_colors = self.lu_conversion_table.set_index(self.lu_conversion_table.columns[0])["kleur"].to_dict()
@@ -617,7 +626,8 @@ class AreaDamageCurvesAggregation:
 
             data = self.vol_interpolated_curve[area_id]
             figure = BergingsCurveFiguur(
-                pd.DataFrame(data), self.drainage_areas[self.drainage_areas[ID_FIELD] == area_id]
+                pd.DataFrame(data),
+                self.drainage_areas[self.drainage_areas[ID_FIELD] == area_id],
             )
             figure.run(name=area_id, output_path=path)
 
@@ -670,7 +680,12 @@ class AreaDamageCurvesAggregation:
         ids = self.vector[self.field]
         figure_type = ["aggregate", "bergingscurve", "landgebruikcurve", "schadecurve"]
 
-        data: dict[str, list] = {"image_path": [], "png_path": [], "index": [], "geometry": []}
+        data: dict[str, list] = {
+            "image_path": [],
+            "png_path": [],
+            "index": [],
+            "geometry": [],
+        }
         for i in ids:
             if not hasattr(self.dir.post_processing, i):
                 continue
@@ -854,7 +869,12 @@ class AreaDamageCurvesAggregation:
         agg_dir.create_figure_dir(name)
         self.create_aggregated_figures(agg_dir, name, feature)
 
-    def run(self, aggregation: bool = True, mm_rain: int = DEFAULT_RAIN, create_html: bool = True) -> None:
+    def run(
+        self,
+        aggregation: bool = True,
+        mm_rain: int = DEFAULT_RAIN,
+        create_html: bool = True,
+    ) -> None:
         # try:
         self.time.log(f"Started run with {mm_rain} mm rain.")
         if not self.dir.post_processing.damage_interpolated_curve.exists():
