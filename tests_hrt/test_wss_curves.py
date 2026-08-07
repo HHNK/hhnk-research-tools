@@ -40,6 +40,7 @@ LOOKUP_PATH = WSS_DATA / "wss_lookup.json"
 DEM_PATH = WSS_DATA / "wss_curve_area_dem.tif"
 LU_PATH = WSS_DATA / "wss_curve_area_lu.tif"
 AREA_ID = "peil_id"
+BUILDINGS_ID_FIELD = "feature_id"
 VECTOR_FIELD = "name"
 OUTPUT_DIR = TEMP_DIR.joinpath(f"wss_curves_{hrt.current_time(date=True)}")
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -98,7 +99,9 @@ class TestWSSCurves:
             area_start_level_field=AREA_START_LEVEL,
             wss_config_file=WSS_CFG_FILE,
             wss_curves_filter_settings_file=WSS_CURVE_FILTER_SETTINGS_FILE,
-            panden_path=PANDEN_PATH,
+            buildings_path=PANDEN_PATH,
+            buildings_id_field=BUILDINGS_ID_FIELD,
+            overwrite=True,
         )
 
         shutil.copy(LOOKUP_PATH, self.dir.input.wss_lookup.path)
@@ -199,15 +202,17 @@ class TestWSSAggregation:
 
 class TestWSSLookup:
     @pytest.fixture(scope="class")
-    def lookup(self):
-        lookup = WaterSchadeSchatterLookUp(
-            result_path=OUTPUT_DIR,
-            aggregate_vector_path=AREA_AGGREGATE_PATH,
-            aggregate_vector_id_field=VECTOR_FIELD,
-            landuse_conversion_path=LANDUSE_CONVERSION_TABLE,
-        )
+    def test_lookup(self):
+        lookup = WaterSchadeSchatterLookUp(wss_settings=WSS_SETTINGS_FILE, depth_steps=[0, 1])
+        lookup.run(flatten=True)
+        lookup.write_dict(path=OUTPUT_DIR / "wss_lookup_test.json")
 
-        return lookup
+        with open(str(OUTPUT_DIR / "wss_lookup_test.json")) as json_file:
+            lookup_output = json.load(json_file)
+
+        with open(str(EXPECTED_LOOKUP)) as json_file:
+            lookup_expected = json.load(json_file)
+        assert lookup_expected == lookup_output
 
 
 # %%

@@ -45,6 +45,10 @@ class WaterSchadeSchatterLookUp:
     >>> damage = wsslookup[depth, lu]
     >>> table = wsslookup.output
 
+    Flattening is used unnest the dictionary.
+    This makes sure that vectorized operations using pandas can be used in wss_curves_areas:AreaDamageCurveMethods:run.
+    For example, the key for landuse 2 with a depth step of 0.1 is 200.1, with a LU_LOOKUP_FACTOR of 100.
+    The dict should then be {200.1: damage_value}.
 
     Parameters
     ----------

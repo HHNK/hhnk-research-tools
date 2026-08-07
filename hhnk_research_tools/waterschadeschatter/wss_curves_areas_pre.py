@@ -3,6 +3,7 @@ from typing import Union
 
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 from rasterio import features
 from shapely.geometry import box
 from tqdm import tqdm
@@ -81,7 +82,7 @@ class CustomLanduse:
                     if functie in BAG_FUNCTIES:
                         tile_panden_function = tile_panden[tile_panden["gebruiksdoel"] == functie]
                         BAG_nummer = BAG_FUNCTIES[functie]
-                    elif functie is None:
+                    elif pd.isna(functie):
                         tile_panden_function = tile_panden[tile_panden["gebruiksdoel"].isnull()]
                         BAG_nummer = 2
                     elif "," in functie:

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# %%
 """
 Created on Fri Aug 23 15:50:56 2024
 
@@ -21,7 +21,7 @@ import warnings
 from dataclasses import dataclass
 from functools import cached_property, reduce
 from pathlib import Path
-from typing import Literal, Optional, Tuple, Union
+from typing import Literal
 
 import geopandas as gpd
 import numpy as np
@@ -63,6 +63,7 @@ BUFFER_OVERLAP = 0.25
 NAME = "WSS AreaDamageCurve"
 LU_DTYPE = "uint16"
 DEM_DTYPE = "int16"
+BUILDING_DTYPE = "uint32"
 
 
 class AreaDamageCurveMethods:
@@ -114,6 +115,7 @@ class AreaDamageCurveMethods:
         self.nodamage_file = data["nodamage_file"]
         self.overwrite = data["overwrite"]
         self.area_path = data["area_path"]  # custom due to tiled processing.
+        self.buildings_id_field = data["buildings_id_field"]
 
         self.area_vector = gpd.read_file(self.area_path)
         self.lu = hrt.Raster(self.dir.input.lu.path)
@@ -121,6 +123,7 @@ class AreaDamageCurveMethods:
         self.convert_factor = 10**DAMAGE_DECIMALS
 
         steps = self.depth_steps + [self.filter_settings["depth"]]
+
         self.dir.work[self.run_type].create_fdla_dir(str(peilgebied_id), steps, self.overwrite)
         self.fdla_dir = self.dir.work[self.run_type][f"fdla_{peilgebied_id}"]
 
@@ -140,15 +143,43 @@ class AreaDamageCurveMethods:
 
         self.lu_nodata_value = DEFAULT_NODATA_VALUES[LU_DTYPE]
         self.dem_nodata_value = DEFAULT_NODATA_VALUES[DEM_DTYPE]
+        self.building_nodata_value = DEFAULT_NODATA_VALUES[BUILDING_DTYPE]
 
         self.transform = self.lu.open_rio().transform
-        self.nodamage_gdf = gpd.read_file(self.nodamage_file)
+
         self.time.log("Initializing AreaDamageCurveMethods finished!")
 
         if depth_filter:
             self.depth_damage_filter(self.filter_settings)
         if nodamage_filter:
             self.nodamage_filter()
+
+    @cached_property
+    def buildings_array(self):
+        """Read and create a buildings array by the shape of lu and give group number."""
+        self.time.log("Reading buildings.")
+        buildings = gpd.read_file(self.dir.input.buildings.path)
+        buildings = buildings[buildings.geometry.intersects(self.area_gdf.geometry.iloc[0])]
+        self._buildings_array = np.full(self._lu_array.shape, self.building_nodata_value, dtype=BUILDING_DTYPE)
+
+        if len(buildings) == 0:
+            return self._buildings_array
+
+        buildings_meta = hrt.RasterMetadataV2.from_gdf(gdf=buildings, res=self.metadata.pixel_width)
+        shapes = [(building.geometry, int(building[self.buildings_id_field])) for _, building in buildings.iterrows()]
+
+        rasterize(
+            shapes=shapes,
+            out=self._buildings_array,
+            transform=buildings_meta.to_rio_profile(0)["transform"],
+            dtype=BUILDING_DTYPE,
+            fill=self.building_nodata_value,  # Set background to building nodata value
+            merge_alg=rasterio.enums.MergeAlg.replace,
+            all_touched=True,
+        )
+
+        self.time.log("Reading buildings finished!")
+        return self._buildings_array
 
     def read_scaled_dem(self, geometry: BaseGeometry):
         """Due to large data of dem, the dem is retyped to int16 from float32.
@@ -191,18 +222,18 @@ class AreaDamageCurveMethods:
     def nodamage_filter(self) -> None:
         """Apply nodamage filter based on nodamage geometries."""
         self.time.log("start nodamage_filter")
+        self.nodamage_gdf = gpd.read_file(self.nodamage_file)
         self.apply_filter(self.nodamage_gdf)
         self.time.log("nodamage_filter finished!")
 
     def depth_damage_filter(self, settings: dict) -> None:
         """Filter the input polygon based on damage at a certain depth."""
-
         self.time.log("start depth_damage_filter (ddf)")
 
         lu_select = np.isin(self._lu_array, settings["landuse"])
         self.time.log("ddf: filter specifc landuse finished")
 
-        self.run(run_1d=False, depth_steps=[settings["depth"]])
+        self.run(run_1d=False, depth_steps=[settings["depth"]], write_2d=False)
         filter_path = self.fdla_dir.path / f"damage_{settings['depth']}.tif"
         damage = hrt.Raster(filter_path)
         damage_array = damage.read_geometry(self.geometry)
@@ -240,9 +271,9 @@ class AreaDamageCurveMethods:
     def run(
         self,
         run_1d: bool = True,
-        depth_steps: Optional[list[float]] = None,
-        write_2d: bool = False,
-    ) -> Tuple[dict, dict]:
+        depth_steps: list[float] | None = None,
+        write_2d: bool = True,
+    ) -> tuple[dict, dict]:
         """
         Actually two functions in one, which is quite ugly.
         However, We try to keep 2d calculation as close
@@ -264,26 +295,32 @@ class AreaDamageCurveMethods:
         if depth_steps is None:
             depth_steps = self.depth_steps
 
-        depth_steps = [int(ds * 10**DAMAGE_DECIMALS) for ds in depth_steps]
+        depth_steps = [int(np.round(ds * 10**DAMAGE_DECIMALS)) for ds in depth_steps]
         area_start_level = int(self.area_start_level * 10**DAMAGE_DECIMALS)
 
         run_2d = not run_1d
 
         lu_array = np.copy(self._lu_array)
         dem_array = np.copy(self._dem_array)
+        building_array = self.buildings_array
 
         if run_1d:  # removes nodata values
             lu_array = lu_array.flatten()
             dem_array = dem_array.flatten()
+            building_array = building_array.flatten()
+
             nodata_mask_1d = dem_array == self.dem_nodata_value
             lu_array = lu_array[~nodata_mask_1d]
             dem_array = dem_array[~nodata_mask_1d]
+            building_array = building_array[~nodata_mask_1d]
+
             dem_array[dem_array < area_start_level] = area_start_level
 
         if run_2d:  # retains nodata values
             nodata_mask_2d = dem_array == self.dem_nodata_value
             lu_array[nodata_mask_2d] = self.lu_nodata_value
             dem_array[(dem_array < area_start_level) & ~nodata_mask_2d] = area_start_level
+            building_array[nodata_mask_2d] = self.building_nodata_value
 
         self.time.log("run: pre-processing rasters finished!")
 
@@ -291,27 +328,32 @@ class AreaDamageCurveMethods:
         curve_vol = {}
         counts_lu = {}
         damage_lu = {}
+        counts_bu = {}
+        damage_bu = {}
 
         for ds in depth_steps:
             self.time.log(f"run: depth-step: {ds}!")
             depth_ds = (area_start_level + ds) - dem_array
             zero_depth_mask = depth_ds <= 0
             lu_ds = np.copy(lu_array)
-
+            bu_ds = np.copy(building_array)
             self.time.log(f"run: depth-step {ds} pre-processing finished!")
 
             if run_1d:
                 self.time.log(f"run: {ds} 1D vectorized calculations.")
                 depth_ds = depth_ds[~zero_depth_mask]
                 lu_ds = lu_ds[~zero_depth_mask]
-                data = pd.DataFrame(data={"depth": depth_ds, "lu": lu_ds})
-                data = data.groupby(["depth", "lu"]).size().reset_index().rename(columns={0: "count"})
+                bu_ds = bu_ds[~zero_depth_mask]
+
+                data = pd.DataFrame(data={"depth": depth_ds, "lu": lu_ds, "bu": bu_ds})
+                data = data.groupby(["depth", "lu", "bu"]).size().reset_index().rename(columns={0: "count"})
                 data["lookup"] = (
                     data.lu.array.astype(LU_DTYPE) * LU_LOOKUP_FACTOR + data.depth.array / self.convert_factor
                 )
                 data["damage"] = data["lookup"].map(self.lookup_table) * data["count"]
                 data["volume"] = data["depth"] * self.pixel_width**2 * data["count"]
                 damage_per_lu = dict(data.groupby("lu").damage.sum())
+                damage_per_bu = dict(data.groupby("bu").damage.sum())
                 self.time.log(f"run: {ds} 1D vectorized calculations finished!")
 
             if run_2d:
@@ -319,6 +361,8 @@ class AreaDamageCurveMethods:
                 mask_2d_ds = zero_depth_mask | nodata_mask_2d
                 depth_ds[mask_2d_ds] = self.dem_nodata_value
                 lu_ds[mask_2d_ds] = self.lu_nodata_value
+                bu_ds[mask_2d_ds] = self.building_nodata_value
+
                 self.time.log("run: 2D set nodata finished!")
 
                 data = pd.DataFrame(data={"depth": depth_ds.flatten(), "lu": lu_ds.flatten()})
@@ -343,28 +387,32 @@ class AreaDamageCurveMethods:
                     self.write_tif(path=self.fdla_dir[f"volume_{ds_name}"].path, array=volume_2d)
                     self.write_tif(path=self.fdla_dir[f"depth_{ds_name}"].path, array=depth_ds)
                     self.write_tif(path=self.fdla_dir[f"lu_{ds_name}"].path, array=lu_ds)
+                    self.write_tif(path=self.fdla_dir[f"bu_{ds_name}"].path, array=bu_ds)
                     self.write_tif(
                         path=self.fdla_dir[f"level_{ds_name}"].path,
                         array=depth_ds + dem_array,
                     )
 
                 damage_per_lu = {}
+                damage_per_bu = {}
                 self.time.log("run: 2D writing finished!")
                 self.time.log(f"run: 2D depth step {ds} calculation finished!")
 
             ds_key = ds / self.convert_factor
             curve[ds_key] = data.damage.sum()
             curve_vol[ds_key] = data.volume.sum()
-            counts_lu[ds_key] = dict(zip(*np.unique(lu_ds, return_counts=True)))
+            counts_lu[ds_key] = dict(zip(*self.fast_unique_counts(lu_ds, self.lu_nodata_value)))
             damage_lu[ds_key] = damage_per_lu
+            counts_bu[ds_key] = dict(zip(*self.fast_unique_counts(bu_ds, self.building_nodata_value)))
+            damage_bu[ds_key] = damage_per_bu
 
         timedelta = self.time.time_since_start
         self.time.log(f"Area {self.peilgebied_id} calulation time: {str(timedelta)[:7]}")
 
-        curve_df = pd.DataFrame(curve, index=range(0, len(curve)))
+        curve_df = pd.DataFrame(curve, index=range(len(curve)))
         curve_df.to_csv(self.fdla_dir.curve.path)
 
-        curve_vol_df = pd.DataFrame(curve_vol, index=range(0, len(curve_vol)))
+        curve_vol_df = pd.DataFrame(curve_vol, index=range(len(curve_vol)))
         curve_vol_df.to_csv(self.fdla_dir.curve_vol.path)
 
         counts_lu_df = pd.DataFrame(counts_lu).T
@@ -373,10 +421,36 @@ class AreaDamageCurveMethods:
         damage_lu_df = pd.DataFrame(damage_lu).T
         damage_lu_df.to_csv(self.fdla_dir.damage_lu.path)
 
+        counts_bu_df = pd.DataFrame(counts_bu).T
+        counts_bu_df.to_csv(self.fdla_dir.counts_bu.path)
+
+        damage_bu_df = pd.DataFrame(damage_bu).T
+        damage_bu_df.to_csv(self.fdla_dir.damage_bu.path)
+
         self.time.log("end run")
         self.time.write()
 
         return curve, curve_vol
+
+    def fast_unique_counts(self, array: np.ndarray, nodata_value) -> dict:
+        """
+        Optimized unique counts for building data with known nodata value
+        """
+        # Remove nodata values first (they're typically the majority)
+        valid_data = array[array != nodata_value]
+
+        if len(valid_data) == 0:
+            return np.array([]), np.array([])
+
+        # Use bincount if values are in reasonable range
+        if valid_data.min() >= 0:  # Reasonable range
+            counts = np.bincount(valid_data)
+            unique_vals = np.nonzero(counts)[0]
+            counts = counts[unique_vals]
+            return unique_vals, counts
+        else:
+            # Fallback to standard unique for large ranges
+            return np.unique(valid_data, return_counts=True)
 
     def write_tif(self, path, array):
         """Write raster array to GeoTIFF file."""
@@ -435,27 +509,32 @@ class AreaDamageCurves:
 
     """
 
-    output_dir: Union[str, Path]
-    landuse_path_dir: Union[str, Path]
-    dem_path_dir: Union[str, Path]
-    panden_path: Path
-    wss_settings_file: Union[str, Path]
-    area_path: Union[str, Path] = None
+    output_dir: str | Path
+    landuse_path_dir: str | Path
+    dem_path_dir: str | Path
+    buildings_path: Path
+    buildings_id_field: str
+    wss_settings_file: str | Path
+    area_path: str | Path = None
     area_id: str = "code"
     area_start_level_field: str = "streefpeil_winter"
     curve_step: float = 0.1
     curve_max: float = 3
     resolution: float = 0.5
-    area_layer_name: Optional[str] = None
-    nodamage_file: Union[str, Path] = None
-    wss_curves_filter_settings_file: Optional[str] = None
-    wss_config_file: Optional[str] = None
-    settings_json_file: Optional[Path] = None
-    database_file: Optional[Path] = None
-    overwrite: Optional[bool] = False
+    area_layer_name: str | None = None
+    nodamage_file: str | Path = None
+    wss_curves_filter_settings_file: str | None = None
+    wss_config_file: str | None = None
+    settings_json_file: Path | None = None
+    database_file: Path | None = None
+    overwrite: bool | None = False
+    area_ids: list | None = None
 
     def __post_init__(self):
         self.dir = AreaDamageCurveFolders(base=self.output_dir, create=True)
+
+        if type(self.overwrite) == str:
+            self.overwrite = self.overwrite == "True"
 
         time_now = datetime.datetime.now().strftime("%Y%m%d%H%M")
         log_file = self.dir.work.log.joinpath(f"log_{time_now}.log")
@@ -471,15 +550,12 @@ class AreaDamageCurves:
             )
 
         # Create vrts
-        self.time.log("Start vrt conversion dem")
-        self.dem = self._input_to_vrt(self.dem_path_dir, self.dir.input.dem.path)
+        self.load_dem(self.dem_path_dir)
         self.load_landuse(self.landuse_path_dir)
 
         # Copy used config to workdir
         if self.wss_config_file:
             shutil.copy(self.wss_config_file, self.dir.input.wss_cfg_settings.path)
-
-        self.overwrite = self.overwrite == "True"
 
         self.failures = []
 
@@ -503,6 +579,13 @@ class AreaDamageCurves:
         return cls(**settings, settings_json_file=settings_json_file)
 
     @cached_property
+    def buildings_vector(self):
+        buildings = gpd.read_file(self.buildings_path)
+        buildings = gpd.sjoin(buildings, self.area_vector, how="inner", predicate="intersects")
+        buildings.to_file(self.dir.input.buildings.path)
+        return buildings
+
+    @cached_property
     def area_vector(self) -> gpd.GeoDataFrame:
         """Load and process area vector data."""
         if self.area_path is not None:
@@ -511,6 +594,10 @@ class AreaDamageCurves:
         else:
             self.time.log(f"Reading vector from database: {self.database_file}")
             vector = get_drainage_areas(self.database_file)
+
+        if self.area_ids is not None:
+            self.time.log(f"Selecting subset of areas {self.area_ids}")
+            vector = vector[vector[self.area_id].isin(self.area_ids)]
 
         self.time.log("Processing drainage levels")
         keep_col = [self.area_id, "geometry", self.area_start_level_field]
@@ -537,7 +624,7 @@ class AreaDamageCurves:
             settings = json.load(json_file)
         write_dict(dictionary=settings, path=self.dir.input.wss_settings.path)
 
-        return {**settings, **{"cfg_file": self.wss_config_file}}
+        return {**settings, "cfg_file": self.wss_config_file}
 
     @cached_property
     def wss_curves_filter_settings(self):
@@ -594,6 +681,7 @@ class AreaDamageCurves:
         data["log_file"] = self.time.log_file
         data["nodamage_file"] = str(self.nodamage_file)
         data["overwrite"] = self.overwrite
+        data["buildings_id_field"] = self.buildings_id_field
         return data
 
     @property
@@ -638,7 +726,7 @@ class AreaDamageCurves:
             gdf = gdf[~gdf[ID_FIELD].duplicated(keep="first")]
         return gdf
 
-    def _path_dir_to_list(self, path_or_dir: Union[Path, list]) -> list:
+    def _path_dir_to_list(self, path_or_dir: Path | list) -> list:
         """Convert path or directory to list of TIFF files."""
         _input = Path(path_or_dir)
         if _input.is_dir():
@@ -649,7 +737,7 @@ class AreaDamageCurves:
             self.time.log("Unrecognized inputs")
         return pd_list
 
-    def _input_to_vrt(self, path_or_dir: Union[Path, list], vrt_path: Path) -> Raster:
+    def _input_to_vrt(self, path_or_dir: Path | list, vrt_path: Path) -> Raster:
         """Convert input files to VRT format."""
         if vrt_path.exists() and not self.overwrite:
             self.time.log(f"VRT file {vrt_path} already exists, skipping conversion.")
@@ -665,7 +753,17 @@ class AreaDamageCurves:
 
         return vrt
 
-    def load_landuse(self, path_or_dir: Union[Path, list], tile_size=1000):
+    def load_dem(self, path_or_dir: Path | list):
+        """loads dem to vrt"""
+        self.time.log("Loading dem vrt")
+        if self.overwrite or not self.dir.input.dem.exists():
+            self.dem = self._input_to_vrt(path_or_dir, self.dir.input.dem.path)
+        else:
+            self.dem = Raster(self.dir.input.dem.path)
+
+        self.time.log("Loading dem vrt finished!")
+
+    def load_landuse(self, path_or_dir: Path | list, tile_size=1000):
         """
         Load landuse data and create custom landuse tiles if needed.
 
@@ -702,21 +800,23 @@ class AreaDamageCurves:
                 lu_input = tiles[0]
 
             self.time.log("Creating custom landuse tiles.")
-            panden_vector = gpd.read_file(self.panden_path)
-            if gpd.sjoin(panden_vector, self.area_vector, how="inner", predicate="intersects").empty:
-                self.time.log("No panden found in area vector.")
+            if self.buildings_vector.empty:
+                self.time.log("No buildings found in area vector.")
                 path_or_dir = lu_input
             else:
-                custom_lu = CustomLanduse(self.panden_path, lu_input, tile_size=tile_size)
+                custom_lu = CustomLanduse(self.dir.input.buildings.path, lu_input, tile_size=tile_size)
                 custom_lu.run(self.dir.input.custom_landuse_tiles.path)
                 self.time.log("Creating custom landuse tiles finished!")
-
                 path_or_dir = self.dir.input.custom_landuse_tiles.path
 
-        self.lu = self._input_to_vrt(path_or_dir, self.dir.input.lu.path)
+        if self.overwrite or not self.dir.input.lu.exists():
+            self.lu = self._input_to_vrt(path_or_dir, self.dir.input.lu.path)
+        else:
+            self.lu = Raster(self.dir.input.lu.path)
+
         self.time.log("Loading landuse vrt finished!")
 
-    def run_area_tiled(self, area_id: int, tile_size=TILE_SIZE, **kwargs) -> list:
+    def generate_area_tiled(self, area_id: int, tile_size=TILE_SIZE, **kwargs) -> list:
         """Process a large area by splitting it into smaller chunks."""
         self.time.log(f"Processing large area {area_id} by splitting into chunks")
 
@@ -740,19 +840,7 @@ class AreaDamageCurves:
         squares[DRAINAGE_LEVEL_FIELD] = area[DRAINAGE_LEVEL_FIELD].iloc[0]
         squares_area_path = self.dir.input.tiles.joinpath(f"tiles_{area_id}.gpkg")
         squares.to_file(squares_area_path, driver="GPKG", layer="squares")
-
-        # Run the damage curve calculation for each square
-        self.time.log(f"Running damage curve calculation for each square in {squares_area_path}")
-        self.run(
-            area_ids=list(squares[ID_FIELD]),
-            run_1d=True,
-            multiprocessing=True,
-            write=False,
-            area_path=squares_area_path,
-            **kwargs,
-        )
-
-        return list(squares[ID_FIELD])
+        return squares, squares_area_path
 
     def run_mp_optimized(self, limit=MP_ENVELOPE_AREA_LIMIT, tile_size=TILE_SIZE, **kwargs) -> None:
         """Optimized multiprocessing run: divides larger and smaller areas."""
@@ -765,17 +853,29 @@ class AreaDamageCurves:
         self.time.log("Running large areas tiled with mp.")
         tile_ids = {}
         for area_id in area_ids["large"]:
-            tile_ids[area_id] = self.run_area_tiled(area_id, tile_size, **kwargs)
+            squares, squares_path = self.generate_area_tiled(area_id, tile_size, **kwargs)
+            tile_ids[area_id] = list(squares[ID_FIELD])
+
+            # Run the damage curve calculation for each square
+            self.time.log(f"Running damage curve calculation for each square in {squares_path}")
+            self.run(
+                area_ids=list(squares[ID_FIELD]),
+                run_1d=True,
+                multiprocessing=True,
+                write=False,
+                area_path=squares_path,
+                **kwargs,
+            )
 
         self.write(tile_output=tile_ids)
 
     def run(
         self,
-        area_ids: list = None,
+        area_ids: list | None = None,
         run_1d: bool = False,
         run_2d: bool = False,
         multiprocessing: bool = True,
-        processes: Union[int, Literal["max"]] = mp.cpu_count() - NOT_USED_PROCESSES,
+        processes: int | Literal["max"] = mp.cpu_count() - NOT_USED_PROCESSES,
         nodamage_filter: bool = True,
         depth_filter: bool = True,
         write: bool = True,
@@ -793,17 +893,32 @@ class AreaDamageCurves:
         else:
             raise ValueError("Expected one of [run_1d, run_2d] to be True")
 
+        if self.overwrite:
+            self.time.log("Find overwrite is True, thus overwriting all.")
+            new_area_ids = area_ids
+        else:
+            self.time.log("Find overwrite is False, checking for existing files.")
+            new_area_ids = []
+            run_dir = self.dir.work[self.run_type]
+            for aid in tqdm(area_ids, "Checking FDLA directories"):
+                if not run_dir.fdla_result_exists(str(aid)):
+                    new_area_ids.append(aid)
+
+        self.time.log(f"Found {len(new_area_ids)} new area ids.")
+
         if processes == "max" or processes == -1:
             processes = mp.cpu_count() - NOT_USED_PROCESSES
+
+        processes = min(processes, len(new_area_ids))
 
         area_data = self.area_data
         for key, value in area_data_kwargs.items():
             area_data[key] = value
 
-        if multiprocessing:
+        if multiprocessing and len(new_area_ids) > 0:
             args = [
                 [pid, area_data, run_1d, nodamage_filter, depth_filter]
-                for pid in tqdm(area_ids, "Fetching multiprocessing arguments")
+                for pid in tqdm(new_area_ids, "Fetching multiprocessing arguments")
             ]
             self.time.log(f"Fetching arguments finished {self.run_type}!")
 
@@ -822,9 +937,9 @@ class AreaDamageCurves:
                     self.time.log(f"{run[0]} failure! Traceback {run[1]}")
                     self.failures.append(run[0])
 
-        if not multiprocessing:
+        if not multiprocessing and len(new_area_ids) > 0:
             self.time.log(f"Starting {self.run_type} without multiprocessing!")
-            for peil_id in tqdm(area_ids, f"{NAME}: Damage {self.run_type}"):
+            for peil_id in tqdm(new_area_ids, f"{NAME}: Damage {self.run_type}"):
                 with rasterio.Env(GDAL_USE_PROJ_DATA=False):  # supress warnings
                     try:
                         area_stats = AreaDamageCurveMethods(
@@ -859,25 +974,45 @@ class AreaDamageCurves:
         curve.name = str(fid)
         return curve
 
-    def read_lu_output(self, fid: int, curve_type: str) -> pd.DataFrame | None:
-        """Read land-use output for a given fid."""
+    def read_extra_output(self, fid: int, curve_type: str, extra_type: str) -> pd.DataFrame | None:
+        """Read land-use output for a given fid.
+        Curve_type: 'Damage' or 'Count'
+        Extra_type: 'Buildings' or 'Land-use'
+        """
         fdla_dir = self.dir.work[self.run_type][f"fdla_{fid}"]
-        file = fdla_dir.damage_lu.path
-        if curve_type == "Count":
+        if extra_type == "Buildings":
+            file = fdla_dir.counts_bu.path
+            if curve_type == "Damage":
+                file = fdla_dir.damage_bu.path
+        else:
             file = fdla_dir.counts_lu.path
+            if curve_type == "Damage":
+                file = fdla_dir.damage_lu.path
 
         if not file.exists():
             return
 
-        curve_lu = pd.read_csv(file, index_col=0)
-        curve_lu = curve_lu.fillna(0) * self.resolution**2
-        curve_lu["fid"] = str(fid)
-        curve_lu.index = self.depth_steps
-        return curve_lu
+        curve_extra = pd.read_csv(file, index_col=0)
+        curve_extra = curve_extra.fillna(0)
 
-    def write_curves(self, fid_list: list, tile_output: dict = {}, curve_type="Damage") -> None:
+        if curve_type == "Count":
+            curve_extra = curve_extra * self.resolution**2
+
+        curve_extra["fid"] = str(fid)
+        curve_extra.index = self.depth_steps
+        return curve_extra
+
+    def write_curves(
+        self,
+        output_file: Path,
+        fid_list: list,
+        tile_output: dict | None = None,
+        curve_type="Damage",
+    ) -> None:
         """Write damage or volume curves for a given fid."""
 
+        if tile_output is None:
+            tile_output = {}
         if curve_type not in ["Damage", "Volume"]:
             raise ValueError("curve_type must be either 'Damage' or 'Volume'")
 
@@ -910,26 +1045,32 @@ class AreaDamageCurves:
         output = pd.concat(total, axis=1)
         output.index = self.depth_steps
         output = output.fillna(0)
-
-        if curve_type == "Volume":
-            output.to_csv(self.dir.output.result_vol.path)
-        if curve_type == "Damage":
-            output.to_csv(self.dir.output.result.path)
+        output.to_csv(output_file)
         self.time.log(f"Writing {curve_type} curves finished!")
 
-    def write_lu_curves(self, fid_list: list, tile_output: dict = {}, curve_type="Count") -> None:
+    def write_extra_curves(
+        self,
+        output_file: Path,
+        fid_list: list,
+        tile_output: dict | None = None,
+        curve_type="Count",
+        extra_type="Land-use",
+    ) -> None:
         """Write land-use curves for a given fid."""
-
+        if tile_output is None:
+            tile_output = {}
         if curve_type not in ["Damage", "Count"]:
             raise ValueError("curve_type must be either 'Damage' or 'Count'")
+        if extra_type not in ["Land-use", "Buildings"]:
+            raise ValueError("extra_type must be either 'Land-use' or 'Buildings'")
 
-        self.time.log(f"Writing combined land-use {curve_type} files")
-        total = []
-        for fid in tqdm(fid_list, f"Land-use {curve_type}"):
+        self.time.log(f"Writing combined {extra_type} {curve_type} files")
+        total = {}
+        for fid in tqdm(fid_list, f"{extra_type} {curve_type}"):
             if fid not in tile_output:
-                output = self.read_lu_output(fid, curve_type)
+                output = self.read_extra_output(fid, curve_type, extra_type)
             else:
-                tiles = [self.read_lu_output(tid, curve_type) for tid in tile_output[fid]]
+                tiles = [self.read_extra_output(tid, curve_type, extra_type) for tid in tile_output[fid]]
                 tiles = [d for d in tiles if d is not None]
                 output = None
                 if len(tiles) > 0:
@@ -937,7 +1078,13 @@ class AreaDamageCurves:
                     output["fid"] = str(fid)
 
             if output is not None:
-                total.append(output)
+                # Reduce size by adding to axis
+                c = [f"{c}_{output.fid.iloc[0]}" for c in output.columns if c != "fid"] + ["fid"]
+                output.columns = c
+                output.drop(columns=["fid"], inplace=True)
+                for column in output:
+                    total[column] = output[column].to_numpy()
+
             else:
                 self.time.log(f"Tile {fid} has no damage curves, skipping.")
 
@@ -945,15 +1092,13 @@ class AreaDamageCurves:
             self.time.log("Found no results for damage curves")
             return
 
-        lu_areas = pd.concat(total)
-        if curve_type == "Count":
-            lu_areas.to_csv(self.dir.output.result_lu_areas.path)
-        else:
-            lu_areas.to_csv(self.dir.output.result_lu_damage.path)
-        self.time.log(f"Writing {curve_type} land-use files finished")
+        pd.DataFrame(total, index=self.depth_steps).to_csv(output_file)
+        self.time.log(f"Writing {extra_type} {curve_type} files finished!")
 
-    def write_failures(self, tile_output: dict = {}) -> None:
+    def write_failures(self, tile_output: dict | None = None) -> None:
         """Write failures to a file."""
+        if tile_output is None:
+            tile_output = {}
         check_files = [self.area_vector]
         for key in tile_output:
             squares_area_path = self.dir.input.tiles.joinpath(f"tiles_{key}.gpkg")
@@ -963,25 +1108,60 @@ class AreaDamageCurves:
         failed = gpd.GeoDataFrame(failed, crs=self.area_vector.crs, geometry="geometry")
         failed.to_file(self.dir.output.failures.path)
 
-    def write(self, tile_output={}) -> None:
+    def write(self, tile_output: dict | None = None) -> None:
         """writes all data of self"""
         self.time.log("Start writing output")
-
         fid_list = list(self)
 
         self.time.log("Adding fdla workdir's")
-        for fid in fid_list:
-            self.dir.work[self.run_type].add_fdla_dir(self.depth_steps, str(fid))
+        for fid in tqdm(fid_list, "Adding fdla workdir's"):
+            self.dir.work[self.run_type].add_fdla_dir(str(fid))
+        if tile_output is None:
+            tile_output = {}
 
-        for k, tiles in tile_output.items():
+        self.time.log("Adding tiled fdla workdir's")
+        for tiles in tqdm(list(tile_output.values()), "Adding tiled fdla workdir's"):
             for tile_id in tiles:
-                self.dir.work[self.run_type].add_fdla_dir(self.depth_steps, str(tile_id))
+                self.dir.work[self.run_type].add_fdla_dir(str(tile_id))
 
-        self.write_curves(fid_list, tile_output, curve_type="Damage")
-        self.write_curves(fid_list, tile_output, curve_type="Volume")
-        self.write_lu_curves(fid_list, tile_output, curve_type="Damage")
-        self.write_lu_curves(fid_list, tile_output, curve_type="Count")
+        if self.overwrite or not self.dir.output.result.exists():
+            self.write_curves(self.dir.output.result.path, fid_list, tile_output, curve_type="Damage")
+
+        if self.overwrite or not self.dir.output.result_vol.exists():
+            self.write_curves(
+                self.dir.output.result_vol.path,
+                fid_list,
+                tile_output,
+                curve_type="Volume",
+            )
+
+        if self.overwrite or not self.dir.output.result_lu_damage.exists():
+            self.write_extra_curves(
+                output_file=self.dir.output.result_lu_damage.path,
+                fid_list=fid_list,
+                tile_output=tile_output,
+                curve_type="Damage",
+                extra_type="Land-use",
+            )
+        if self.overwrite or not self.dir.output.result_lu_areas.exists():
+            self.write_extra_curves(
+                output_file=self.dir.output.result_lu_areas.path,
+                fid_list=fid_list,
+                tile_output=tile_output,
+                curve_type="Count",
+                extra_type="Land-use",
+            )
+        if self.overwrite or not self.dir.output.result_bu_damage.exists():
+            self.write_extra_curves(
+                output_file=self.dir.output.result_bu_damage.path,
+                fid_list=fid_list,
+                tile_output=tile_output,
+                curve_type="Damage",
+                extra_type="Buildings",
+            )
+
         self.write_failures(tile_output)
+
         fdla_performance(
             gpd.read_file(self.dir.input.area.path),
             self.tiled_geometries,
@@ -993,7 +1173,7 @@ class AreaDamageCurves:
         self.time.write()
 
 
-def area_method_mp(args: tuple) -> Tuple[str, str]:
+def area_method_mp(args: tuple) -> tuple[str, str]:
     """
     Function to run AreaDamageCurveMethods in a multiprocessing environment.
     """
@@ -1035,6 +1215,11 @@ def parse_run_cmd():
         "--multiprocessing",
         action=argparse.BooleanOptionalAction,
         help="Do multiprocessing. Default: True",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action=argparse.BooleanOptionalAction,
+        help="Overwrite previous data such as land use vrt's, dem and results. Default: False",
     )
     parser.add_argument(
         "--run_mp_optimized",
@@ -1079,6 +1264,7 @@ def parse_run_cmd():
     )
 
     parser.set_defaults(
+        overwrite=False,
         run_1d=True,
         run_2d=False,
         area_ids=None,
@@ -1095,6 +1281,8 @@ def parse_run_cmd():
     print(" ".join(f"{k}={v}" for k, v in vars(args).items()))
 
     adc = hrt.AreaDamageCurves.from_settings_json(Path(str(args.settings)))
+    adc.overwrite = args.overwrite
+
     if args.run_mp_optimized:
         adc.run_mp_optimized(
             depth_filter=args.dd_filter,
@@ -1114,6 +1302,8 @@ def parse_run_cmd():
             nodamage_filter=args.nd_filter,
         )
 
+
+# %%
 
 if __name__ == "__main__":
     parse_run_cmd()
