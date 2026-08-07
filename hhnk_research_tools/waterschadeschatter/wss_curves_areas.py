@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# %%
 """
 Created on Fri Aug 23 15:50:56 2024
 
@@ -146,7 +146,6 @@ class AreaDamageCurveMethods:
         self.building_nodata_value = DEFAULT_NODATA_VALUES[BUILDING_DTYPE]
 
         self.transform = self.lu.open_rio().transform
-        self.nodamage_gdf = gpd.read_file(self.nodamage_file)
 
         self.time.log("Initializing AreaDamageCurveMethods finished!")
 
@@ -223,6 +222,7 @@ class AreaDamageCurveMethods:
     def nodamage_filter(self) -> None:
         """Apply nodamage filter based on nodamage geometries."""
         self.time.log("start nodamage_filter")
+        self.nodamage_gdf = gpd.read_file(self.nodamage_file)
         self.apply_filter(self.nodamage_gdf)
         self.time.log("nodamage_filter finished!")
 
@@ -871,7 +871,7 @@ class AreaDamageCurves:
 
     def run(
         self,
-        area_ids: list = None,
+        area_ids: list | None = None,
         run_1d: bool = False,
         run_2d: bool = False,
         multiprocessing: bool = True,
@@ -1276,6 +1276,7 @@ def parse_run_cmd():
             nodamage_filter=args.nd_filter,
         )
 
+# %%
 
 if __name__ == "__main__":
     parse_run_cmd()
