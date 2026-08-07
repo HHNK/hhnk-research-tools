@@ -1,4 +1,4 @@
-[project]
+[workspace]
 channels = ["conda-forge"]
 name = "hhnk-research-tools"
 platforms = ["win-64", "linux-64"]
