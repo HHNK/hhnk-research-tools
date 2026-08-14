@@ -383,7 +383,7 @@ class AreaDamageCurveMethods:
                 ds_name = str(ds / self.convert_factor)
                 self.write_tif(path=self.fdla_dir[f"damage_{ds_name}"].path, array=damage_2d)
                 if write_2d:
-                    volume_2d = data.volume.values.reshape(depth_ds.shape)
+                    volume_2d = data.volume.values.reshape(depth_ds.shape) / self.convert_factor
                     self.write_tif(path=self.fdla_dir[f"volume_{ds_name}"].path, array=volume_2d)
                     self.write_tif(path=self.fdla_dir[f"depth_{ds_name}"].path, array=depth_ds)
                     self.write_tif(path=self.fdla_dir[f"lu_{ds_name}"].path, array=lu_ds)
@@ -1174,9 +1174,7 @@ class AreaDamageCurves:
 
 
 def area_method_mp(args: tuple) -> tuple[str, str]:
-    """
-    Function to run AreaDamageCurveMethods in a multiprocessing environment.
-    """
+    """Run AreaDamageCurveMethods in a multiprocessing environment."""
     peilgebied_id = args[0]
     data = args[1]
     run_1d = args[2]
