@@ -351,7 +351,7 @@ class AreaDamageCurveMethods:
                     data.lu.array.astype(LU_DTYPE) * LU_LOOKUP_FACTOR + data.depth.array / self.convert_factor
                 )
                 data["damage"] = data["lookup"].map(self.lookup_table) * data["count"]
-                data["volume"] = data["depth"] * self.pixel_width**2 * data["count"]
+                data["volume"] = data["depth"] * self.pixel_width**2 * data["count"] / self.convert_factor
                 damage_per_lu = dict(data.groupby("lu").damage.sum())
                 damage_per_bu = dict(data.groupby("bu").damage.sum())
                 self.time.log(f"run: {ds} 1D vectorized calculations finished!")
