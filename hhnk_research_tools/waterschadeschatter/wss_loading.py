@@ -65,7 +65,7 @@ def read_dmg_table_config(wss_settings) -> dict:
             )
             return f"""{self.omschrijving} - {variables}"""
 
-    if not os.path.exists(wss_settings["cfg_file"]):
+    if wss_settings["cfg_file"] is None or not os.path.exists(wss_settings["cfg_file"]):
         raise Exception(f"could not find config file in: {wss_settings['cfg_file']}")
     parser = configparser.ConfigParser()
     parser.read(filenames=wss_settings["cfg_file"])
