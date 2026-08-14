@@ -396,7 +396,7 @@ class AreaDamageCurvesAggregation:
 
         return agg_series
 
-    def agg_rain_own_area_retention(self, areas_within, mm_rain=DEFAULT_RAIN, int_round=10000) -> pd.Series:
+    def agg_rain_own_area_retention(self, areas_within, mm_rain=DEFAULT_RAIN, int_round=1000) -> pd.Series:
         """Compute the rain per drainage level area, retains it in its own
         place.
         1. Get volume damage curves per area
@@ -422,6 +422,12 @@ class AreaDamageCurvesAggregation:
         area_curve = area_curve.loc[:, ~area_curve.columns.duplicated()].copy()
 
         aggregate_curve = {}
+
+        # -3 for 1000, -4 for 10000, etc
+        if int_round not in [10, 100, 1000, 10000, 100000]:
+            raise ValueError("int_round must be one of [10, 100, 1000, 10000, 100000]")
+        round_ndigits = -int(np.log10(int_round))  # depends on the int_round value (-3 = 1000, -1= 10)
+
         for i in range(mm_rain):
             total_damage = 0
             total_volume = 0
@@ -431,7 +437,7 @@ class AreaDamageCurvesAggregation:
                 if volume > area_vol_dam.index[-1]:
                     damage = area_vol_dam.values[-1]
                 else:
-                    damage = area_vol_dam[round(volume, -4)]  # depends on the int_round value (-3 = 1000, -1= 10)
+                    damage = area_vol_dam[round(volume, ndigits=round_ndigits)]
 
                 if np.isnan(damage):
                     damage = 0
